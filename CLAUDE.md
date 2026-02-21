@@ -55,6 +55,71 @@ Pergunte-se:
 
 ---
 
+## PROTOCOLO DE IMPLEMENTAÇÃO — Ciclo de vida de cada entrega
+
+### Ciclo por User Story
+
+Cada User Story segue este ciclo antes de ser marcada como concluída:
+
+```
+1. Implementar     (backend / frontend / dba / devops — conforme domínio)
+2. Tech-lead revisa → aprova qualidade, padrões, segurança
+3. QA testa        → roda testes automatizados + Playwright quando há UI
+4. ✅ Marcar no epic e avançar
+```
+
+**Nunca avançar para a próxima US ou Epic sem que o ciclo acima esteja completo.**
+
+### Aprovação multi-agente por tipo de entrega
+
+| Tipo de entrega | Agentes que devem revisar e aprovar |
+|---|---|
+| Módulo backend (NestJS) | `backend` → `tech-lead` → `qa` |
+| Migration / Schema | `dba` → `tech-lead` |
+| Rota / componente frontend | `frontend` → `designer` → `qa` (Playwright) |
+| Fluxo end-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
+| Docker / infra | `devops` → `tech-lead` |
+| Decisão arquitetural | `architect` → registrar ADR em `decisions.md` |
+
+A implementação só avança quando **todos** os agentes responsáveis por aquela entrega aprovarem. Se qualquer agente levantar um problema, o problema é resolvido antes de prosseguir.
+
+### Documentação de módulo (OBRIGATÓRIO)
+
+**Ao criar qualquer módulo, pasta de app ou domínio novo, criar um `CLAUDE.md` na raiz daquele diretório.**
+
+O `CLAUDE.md` de módulo deve conter:
+
+- O que este módulo faz (responsabilidade única e escopo)
+- Principais arquivos e o que cada um faz
+- Regras de negócio específicas deste módulo
+- Padrões e convenções adotados aqui
+- O que **não** pertence a este módulo
+- Como rodar / testar isoladamente
+
+Exemplos de onde criar:
+
+```
+apps/api/src/modules/patients/CLAUDE.md
+apps/api/src/modules/auth/CLAUDE.md
+apps/api/src/common/CLAUDE.md
+apps/api/src/database/CLAUDE.md
+apps/web/src/routes/doctor/CLAUDE.md
+apps/web/src/components/CLAUDE.md
+```
+
+O `CLAUDE.md` de módulo é a primeira coisa que qualquer agente deve ler antes de tocar naquele módulo.
+
+### Testes E2E com Playwright (frontend)
+
+O agente QA usa **Playwright via MCP** para executar testes E2E no browser real:
+
+- Aplicável a toda User Story com interface interativa
+- O QA roda o Playwright MCP, navega pelas telas e valida os critérios de aceitação
+- A US só é aprovada se o Playwright confirmar o comportamento esperado no browser
+- Em caso de falha: reportar screenshot + steps to reproduce antes de avançar
+
+---
+
 ## Mapa da Documentação
 
 ### `docs/architecture/`

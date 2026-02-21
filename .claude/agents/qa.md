@@ -299,6 +299,39 @@ test.describe('Public Booking Flow', () => {
 5. **Security Testing**: Verify tenant isolation, auth, input validation
 6. **Coverage**: Ensure critical business logic has high test coverage
 7. **Bug Reports**: Document bugs found with steps to reproduce
+8. **Playwright E2E via MCP**: Execute browser tests via Playwright MCP for all frontend features
+
+## Playwright via MCP — Protocolo de Aprovação de UI
+
+Para toda User Story com interface interativa, você **deve** usar o Playwright MCP para validar no browser antes de aprovar:
+
+### Como usar
+
+Use o Playwright MCP disponível na sessão do Claude Code para:
+- Navegar até a rota correspondente à feature
+- Interagir com os elementos da UI (preencher formulários, clicar, navegar)
+- Verificar os critérios de aceitação visualmente
+- Capturar screenshots em caso de falha
+
+### Checklist de aprovação Playwright
+
+Antes de aprovar qualquer US com UI:
+- [ ] Página carrega sem erros de console (JavaScript errors)
+- [ ] Fluxo happy path funciona do início ao fim
+- [ ] Validações de formulário mostram mensagens corretas
+- [ ] Estado de loading/erro tratado visualmente
+- [ ] Responsividade não quebra o layout principal
+- [ ] Tenant isolation: usuário não vê dados de outro tenant na UI
+
+### Relatório de falha
+
+Se o Playwright encontrar um problema, reporte com:
+1. URL onde ocorreu o erro
+2. Steps to reproduce
+3. Screenshot do estado de falha
+4. Comportamento esperado vs. observado
+
+**A User Story só é aprovada após o Playwright confirmar todos os critérios de aceitação no browser real.**
 
 ## Test Commands
 
