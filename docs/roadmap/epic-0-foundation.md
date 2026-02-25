@@ -41,16 +41,20 @@
 
 ---
 
-## US-0.3: Como desenvolvedor, quero guards e decorators prontos para proteger rotas
+## US-0.3: Como desenvolvedor, quero guards e decorators prontos para proteger rotas ✅
 
-- [ ] common/guards/jwt-auth.guard.ts
-- [ ] common/guards/roles.guard.ts
-- [ ] common/guards/tenant.guard.ts
-- [ ] ~~common/guards/api-key.guard.ts~~ (removido -- agente e interno, sem webhook externo autenticado por API key)
-- [ ] common/decorators/roles.decorator.ts (@Roles)
-- [ ] common/decorators/current-user.decorator.ts (@CurrentUser)
-- [ ] common/decorators/tenant.decorator.ts (@TenantId)
-- [ ] common/filters/http-exception.filter.ts
-- [ ] common/pipes/zod-validation.pipe.ts
-- [ ] auth/strategies/jwt.strategy.ts (Passport)
-- [ ] **Criterio:** Request sem token → 401, request com role errada → 403
+- [x] common/guards/jwt-auth.guard.ts
+- [x] common/guards/roles.guard.ts
+- [x] common/guards/tenant.guard.ts
+- [x] ~~common/guards/api-key.guard.ts~~ (removido -- agente e interno, sem webhook externo autenticado por API key)
+- [x] common/decorators/roles.decorator.ts (@Roles)
+- [x] common/decorators/current-user.decorator.ts (@CurrentUser)
+- [x] common/decorators/tenant.decorator.ts (@TenantId)
+- [x] common/filters/http-exception.filter.ts
+- [x] common/pipes/zod-validation.pipe.ts
+- [x] modules/auth/strategies/jwt.strategy.ts (Passport)
+- [x] modules/auth/auth.module.ts (PassportModule + JwtModule)
+- [x] common/CLAUDE.md (documentação do módulo)
+- [x] **Criterio:** Request sem token → 401, request com role errada → 403
+- [x] Tech-lead: ⚠️ APROVADO COM OBSERVAÇÕES (OBS-TL-1,2,3 — não bloqueantes, endereçar antes do deploy)
+- [x] QA: ✅ APROVADO — 12/12 cenários passaram (401, 403, 200, shape de erros)
