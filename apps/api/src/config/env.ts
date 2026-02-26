@@ -35,6 +35,9 @@ const envSchema = z.object({
   EVOLUTION_INSTANCE: z.string().min(1),
   EVOLUTION_WEBHOOK_TOKEN: z.string().min(1),
 
+  // Frontend
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+
   // OpenAI (módulo agent/ — gpt-4o-mini)
   OPENAI_API_KEY: z.string().startsWith('sk-'),
 })
