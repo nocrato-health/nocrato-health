@@ -60,16 +60,16 @@ COMMENT ON COLUMN agency_members.role IS 'MVP: agency_admin | agency_member. V2 
 CREATE TABLE invites (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     type            VARCHAR(50)  NOT NULL,
-    -- 'agency_member' | 'doctor'
+    -- 'agency_member' | 'doctor' | 'password_reset'
     email           VARCHAR(255) NOT NULL,
-    invited_by      UUID         NOT NULL REFERENCES agency_members(id),
-    -- Always an agency member (admin or authorized member) who created the invite.
+    invited_by      UUID         REFERENCES agency_members(id),
+    -- Agency member who created the invite. NULL for password_reset (self-service flow).
     token           VARCHAR(255) NOT NULL,
     -- Unique token embedded in the invite email link. Should be cryptographically random.
     status          VARCHAR(50)  NOT NULL DEFAULT 'pending',
     -- 'pending' | 'accepted' | 'expired'
     expires_at      TIMESTAMPTZ  NOT NULL,
-    -- Invites should expire (e.g., 7 days). Cron or app logic marks them expired.
+    -- Invites should expire (e.g., 7 days for invite; 1 hour for password_reset).
     accepted_at     TIMESTAMPTZ,
     metadata        JSONB        DEFAULT '{}',
     -- Optional: store extra context like intended role for agency_member invites,
@@ -77,7 +77,7 @@ CREATE TABLE invites (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    CONSTRAINT invites_type_check CHECK (type IN ('agency_member', 'doctor')),
+    CONSTRAINT invites_type_check CHECK (type IN ('agency_member', 'doctor', 'password_reset')),
     CONSTRAINT invites_status_check CHECK (status IN ('pending', 'accepted', 'expired')),
     CONSTRAINT invites_token_unique UNIQUE (token)
 );
@@ -89,9 +89,11 @@ CREATE INDEX idx_invites_email_status ON invites (email, status);
 -- Index: list invites by type (admin view)
 CREATE INDEX idx_invites_type_status ON invites (type, status);
 
-COMMENT ON TABLE invites IS 'Polymorphic invite table for agency members and doctors. Token-based email flow.';
+COMMENT ON TABLE invites IS 'Polymorphic invite table for agency members, doctors, and password resets. Token-based email flow.';
+COMMENT ON COLUMN invites.invited_by IS 'Agency member who created the invite. NULL for password_reset (self-service).';
+COMMENT ON COLUMN invites.type IS 'agency_member | doctor | password_reset';
 COMMENT ON COLUMN invites.metadata IS 'Flexible JSONB for invite context (e.g., intended role, suggested specialty).';
-COMMENT ON COLUMN invites.expires_at IS 'Invites expire after a configurable period (default: 7 days).';
+COMMENT ON COLUMN invites.expires_at IS 'Invites expire after a configurable period (7 days for invites; 1 hour for password_reset).';
 
 
 -- =============================================================================
@@ -148,11 +150,12 @@ CREATE TABLE doctors (
     email                   VARCHAR(255) NOT NULL,
     password_hash           VARCHAR(255) NOT NULL,
     name                    VARCHAR(255) NOT NULL,
-    crm                     VARCHAR(15)  NOT NULL,
+    crm                     VARCHAR(15),
     -- Brazilian medical registration: 4-10 digits + 2-letter state code.
     -- Example: "123456SP", "1234567890RJ"
+    -- NULL until doctor completes onboarding (Epic 3). Required before activation.
     -- Format validation should happen at app level for flexibility.
-    crm_state               CHAR(2)      NOT NULL,
+    crm_state               CHAR(2),
     -- Brazilian state abbreviation (UF). Separated from CRM number for
     -- easier querying and validation. e.g., 'SP', 'RJ', 'MG'
     specialty               VARCHAR(255),

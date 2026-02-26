@@ -20,6 +20,8 @@ The schema is split into 14 sequential migration files. The ordering strictly re
 | 012 | `012_create_triggers.sql` | `update_updated_at_column()` function + triggers on all 9 mutable tables | All tables (applies triggers) |
 | 013 | `013_create_conversations.sql` | `conversations` | `tenants` (tenant_id) |
 | 014 | `014_add_booking_mode_to_agent_settings.sql` | `agent_settings.booking_mode` column | `agent_settings` |
+| 015 | `015_alter_doctors_nullable_crm.sql` | `doctors.crm`, `doctors.crm_state` → nullable | `doctors` |
+| 016 | `016_alter_invites_password_reset.sql` | `invites.type` → adds 'password_reset'; `invites.invited_by` → nullable | `invites` |
 
 ---
 
