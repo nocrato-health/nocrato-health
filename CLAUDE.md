@@ -38,10 +38,15 @@ A ordem correta é:
 
 ### Antes de qualquer sessão de implementação
 
-1. Leia o epic correspondente em `docs/roadmap/epic-N-*.md`
+1. **Acione um Explore agent** para pré-carregar o contexto da US sem poluir o contexto principal. O agente deve ler e resumir:
+   - Epic da US em `docs/roadmap/epic-N-*.md` (critérios de aceitação da US específica)
+   - Flow relevante em `docs/flows/` (se existir)
+   - Tabelas envolvidas em `docs/database/schema.sql`
+   - Módulos existentes na pasta correspondente em `apps/api/src/modules/`
+   - Retornar resumo compacto (~80 linhas) com: critérios de aceitação, colunas relevantes, código reutilizável, dependências e conflitos
 2. Verifique as dependências (quais epics devem estar completos antes)
-3. Leia o flow correspondente em `docs/flows/` se existir
-4. Consulte o agente especializado em `.claude/agents/` para o domínio em questão
+3. Consulte o agente especializado em `.claude/agents/` para o domínio em questão
+4. Consulte `.claude/prompt-engineering.md` para técnicas de PE antes de acionar subagentes de implementação
 
 ### Quando adicionar uma feature ou mudar o design
 
@@ -62,24 +67,27 @@ Pergunte-se:
 Cada User Story segue este ciclo antes de ser marcada como concluída:
 
 ```
+0. Explore agent   → pré-carrega contexto da US (retorna resumo compacto)
 1. Implementar     (backend / frontend / dba / devops — conforme domínio)
 2. Tech-lead revisa → aprova qualidade, padrões, segurança
 3. QA testa        → roda testes automatizados + Playwright quando há UI
-4. ✅ Marcar no epic e avançar
+4. ✅ Atualizar docs afetadas → marcar no epic e avançar
 ```
 
 **Nunca avançar para a próxima US ou Epic sem que o ciclo acima esteja completo.**
 
+> **DoCDD mid-implementation**: se durante a codificação você descobrir que o escopo real diverge do documentado, **pare, atualize a documentação primeiro, depois continue**. Nunca deixe a implementação divergir silenciosamente da documentação — isso invalida o princípio Docs First para todas as sessões futuras.
+
 ### Aprovação multi-agente por tipo de entrega
 
-| Tipo de entrega | Agentes que devem revisar e aprovar |
-|---|---|
-| Módulo backend (NestJS) | `backend` → `tech-lead` → `qa` |
-| Migration / Schema | `dba` → `tech-lead` |
-| Rota / componente frontend | `frontend` → `designer` → `qa` (Playwright) |
-| Fluxo end-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
-| Docker / infra | `devops` → `tech-lead` |
-| Decisão arquitetural | `architect` → registrar ADR em `decisions.md` |
+| Tipo de entrega            | Agentes que devem revisar e aprovar           |
+| -------------------------- | --------------------------------------------- |
+| Módulo backend (NestJS)    | `backend` → `tech-lead` → `qa`                |
+| Migration / Schema         | `dba` → `tech-lead`                           |
+| Rota / componente frontend | `frontend` → `designer` → `qa` (Playwright)   |
+| Fluxo end-to-end           | `backend` + `frontend` → `tech-lead` → `qa`   |
+| Docker / infra             | `devops` → `tech-lead`                        |
+| Decisão arquitetural       | `architect` → registrar ADR em `decisions.md` |
 
 A implementação só avança quando **todos** os agentes responsáveis por aquela entrega aprovarem. Se qualquer agente levantar um problema, o problema é resolvido antes de prosseguir.
 
@@ -183,9 +191,9 @@ O agente QA usa **Playwright via MCP** para executar testes E2E no browser real:
 
 ### `.claude/`
 
-| Arquivo                  | Conteúdo                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| `prompt-engineering.md`  | Guia de quando aplicar cada técnica de PE nos agentes — **ler antes de editar qualquer agente** |
+| Arquivo                 | Conteúdo                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `prompt-engineering.md` | Guia de quando aplicar cada técnica de PE nos agentes — **ler antes de editar qualquer agente** |
 
 ### `.claude/agents/`
 
