@@ -19,7 +19,7 @@ You are a Backend Developer for **Nocrato Health V2**, building a NestJS REST AP
 - **Language**: TypeScript (strict mode)
 - **Database**: PostgreSQL 16 + Knex.js (query builder, no ORM)
 - **Auth**: Passport.js + JWT (RS256 or HS256)
-- **Validation**: class-validator + class-transformer
+- **Validation**: Zod + ZodValidationPipe (`@/common/pipes/zod-validation.pipe`)
 - **Events**: EventEmitter2 (`@OnEvent` decorators)
 - **WhatsApp**: Evolution API (HTTP client via Axios)
 - **AI/LLM**: OpenAI SDK (`openai` npm package) — modelo `gpt-4o-mini` exclusivamente no módulo `agent/` para o chatbot WhatsApp
@@ -51,17 +51,18 @@ export class PatientsModule {}
 ### Controller
 ```typescript
 // modules/patients/patients.controller.ts
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard'
-import { TenantGuard } from '@/common/guards/tenant.guard'
-import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { RolesGuard } from '@/common/guards/roles.guard'
+import { Roles } from '@/common/decorators/roles.decorator'
 import { TenantId } from '@/common/decorators/tenant-id.decorator'
+import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
 import { PatientsService } from './patients.service'
-import { CreatePatientDto } from './dto/create-patient.dto'
-import type { AuthUser } from '@nocrato/shared-types'
+import { CreatePatientSchema, type CreatePatientDto } from './dto/create-patient.dto'
 
-@Controller('api/v1/:slug/patients')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@Controller('api/v1/doctor/patients')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('doctor')
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
@@ -71,7 +72,10 @@ export class PatientsController {
   }
 
   @Post()
-  create(@TenantId() tenantId: string, @Body() dto: CreatePatientDto) {
+  create(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(CreatePatientSchema)) dto: CreatePatientDto,
+  ) {
     return this.patientsService.create(tenantId, dto)
   }
 }
@@ -121,24 +125,16 @@ export class PatientsService {
 ### DTO
 ```typescript
 // modules/patients/dto/create-patient.dto.ts
-import { IsString, IsEmail, IsOptional, Matches, MinLength } from 'class-validator'
+import { z } from 'zod'
 
-export class CreatePatientDto {
-  @IsString()
-  @MinLength(2)
-  name: string
+export const CreatePatientSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
+  phone: z.string().regex(/^\d{10,11}$/, 'Telefone deve ter 10 ou 11 dígitos'),
+  email: z.string().email('Email inválido').optional(),
+  notes: z.string().optional(),
+})
 
-  @Matches(/^\d{10,11}$/, { message: 'Telefone deve ter 10 ou 11 digitos' })
-  phone: string
-
-  @IsEmail()
-  @IsOptional()
-  email?: string
-
-  @IsString()
-  @IsOptional()
-  notes?: string
-}
+export type CreatePatientDto = z.infer<typeof CreatePatientSchema>
 ```
 
 ### EventEmitter2 Usage
@@ -215,7 +211,7 @@ Antes de implementar qualquer service, DTO ou migration, leia o schema real. Nun
 1. **Modules**: Create complete NestJS modules (module, controller, service, DTOs)
 2. **Migrations**: Write Knex migrations for schema changes
 3. **Business Logic**: Implement service layer with proper tenant isolation
-4. **Validation**: DTOs with class-validator decorators
+4. **Validation**: Zod schemas + ZodValidationPipe (`@Body(new ZodValidationPipe(Schema))`)
 5. **Events**: Emit events on state changes, handle in agent.service.ts
 6. **Auth**: JWT guards, invite flows, role-based access
 7. **Agent Module**: Evolution API integration, LLM orchestration, conversation state
@@ -225,16 +221,16 @@ Antes de implementar qualquer service, DTO ou migration, leia o schema real. Nun
 
 ```bash
 # Development
-pnpm --filter backend dev
+pnpm --filter @nocrato/api dev
 
 # Build
-pnpm --filter backend build
+pnpm --filter @nocrato/api build
 
 # Migrations
-pnpm --filter backend knex:migrate
+pnpm --filter @nocrato/api knex:migrate
 
 # Tests
-pnpm --filter backend test
+pnpm --filter @nocrato/api test
 ```
 
 ## Autenticidade

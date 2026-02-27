@@ -23,7 +23,7 @@ Estrutura detalhada e atualizada em `docs/architecture/backend-structure.md` —
 Estrutura detalhada e atualizada em `docs/architecture/frontend-structure.md` — leia antes de qualquer decisão de rota ou componente.
 
 ### Database (PostgreSQL + Knex)
-Key tables: `tenants`, `users`, `patients`, `appointments`, `clinical_notes`, `documents`, `agent_settings`, `event_log`, `booking_tokens`, `conversations`
+Key tables: `tenants`, `agency_members`, `doctors`, `patients`, `appointments`, `clinical_notes`, `documents`, `agent_settings`, `event_log`, `booking_tokens`, `conversations`
 
 ### Agent Module (Internal)
 - **Evolution API**: Receives webhooks at `POST /api/v1/agent/webhook`, sends messages via HTTP client
@@ -43,10 +43,10 @@ Key tables: `tenants`, `users`, `patients`, `appointments`, `clinical_notes`, `d
 8. **ADR-008**: Booking tokens generated internally by bookingService (not external)
 9. **ADR-009**: Stateless patient portal (code-based, no JWT)
 10. **ADR-010**: pnpm monorepo + Turborepo
-11. **ADR-011**: shadcn/ui (not Mantine/MUI) — ownership, no lock-in
-12. **ADR-012**: Zustand (not Redux) — minimal state, simple API
-13. **ADR-013**: Docker Compose for production (not k8s) — solo dev, Hetzner VPS
-14. **ADR-014**: EventEmitter2 (not polling) for reactive module communication
+11. **ADR-011**: Doctor Creates Appointments Manually — dois caminhos (doctor + agent), mesma validação
+12. **ADR-012**: Agency Access to Doctor Portal Deferred to Post-MVP — sem "login as doctor" no MVP
+13. **ADR-013**: Doctor Deactivation Only Blocks New Bookings — consultas existentes continuam
+14. **ADR-014**: EventEmitter2 para Comunicação Reativa entre Módulos — zero polling, latência zero
 
 ## Your Responsibilities
 

@@ -20,7 +20,7 @@ You are a Frontend Developer for **Nocrato Health V2**, building a multi-portal 
 - **Routing**: TanStack Router (file-based, type-safe)
 - **Data Fetching**: TanStack Query v5
 - **State**: Zustand (auth state, UI state)
-- **HTTP**: Axios (separate clients per portal)
+- **HTTP**: fetch nativo via `api-client.ts` centralizado (com auto-refresh de token)
 - **UI Components**: shadcn/ui + Tailwind CSS v4
 - **Forms**: React Hook Form + Zod validation
 - **Icons**: Lucide React
@@ -36,20 +36,19 @@ Estrutura detalhada e atualizada em `docs/architecture/frontend-structure.md`.
 
 ### Route Component
 ```tsx
-// routes/_doctor/$slug/patients/index.tsx
+// routes/doctor/patients/index.tsx
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { patientsQuery } from '@/lib/queries/patients'
 
-export const Route = createFileRoute('/_doctor/$slug/patients/')({
+export const Route = createFileRoute('/doctor/patients/')({
   component: PatientsPage,
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(patientsQuery(params.slug)),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(patientsQuery()),
 })
 
 function PatientsPage() {
-  const { slug } = Route.useParams()
-  const { data: patients, isLoading } = useQuery(patientsQuery(slug))
+  const { data: patients, isLoading } = useQuery(patientsQuery())
 
   if (isLoading) return <PageSkeleton />
 
@@ -66,31 +65,29 @@ function PatientsPage() {
 ```typescript
 // lib/queries/patients.ts
 import { queryOptions } from '@tanstack/react-query'
-import { doctorApi } from '@/lib/api/doctor'
-import type { Patient } from '@nocrato/shared-types'
+import { api } from '@/lib/api-client'
+import type { Patient } from '@/types/api'
 
-export const patientsQuery = (slug: string) =>
+export const patientsQuery = () =>
   queryOptions({
-    queryKey: ['patients', slug],
-    queryFn: () => doctorApi(slug).get<Patient[]>('/patients').then(r => r.data),
+    queryKey: ['patients'],
+    queryFn: () => api.get<Patient[]>('/api/v1/doctor/patients'),
   })
 ```
 
 ### API Client
 ```typescript
-// lib/api/doctor.ts
-import axios from 'axios'
-import { authStore } from '@/lib/stores/auth'
+// lib/api-client.ts — cliente centralizado com fetch nativo + auto-refresh
+import { api } from '@/lib/api-client'
 
-export const doctorApi = (slug: string) => {
-  const client = axios.create({ baseURL: `/api/v1/${slug}` })
-  client.interceptors.request.use(config => {
-    const token = authStore.getState().token
-    if (token) config.headers.Authorization = `Bearer ${token}`
-    return config
-  })
-  return client
-}
+// Uso direto nos query hooks:
+api.get<Patient[]>('/api/v1/doctor/patients')
+api.post('/api/v1/doctor/patients', { name, phone })
+api.patch('/api/v1/doctor/patients/:id', { email })
+api.delete('/api/v1/doctor/patients/:id')
+
+// O api-client já injeta o Bearer token via useAuthStore
+// e faz auto-refresh em 401 — não criar clientes separados por portal
 ```
 
 ### Form Pattern
@@ -136,28 +133,24 @@ function PatientForm({ onSubmit }: { onSubmit: (data: FormData) => void }) {
 
 ### Zustand Store
 ```typescript
-// lib/stores/auth.ts
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+// lib/auth.ts — store de autenticação
+import { useAuthStore } from '@/lib/auth'
 
-interface AuthState {
-  token: string | null
-  user: AuthUser | null
-  login: (token: string, user: AuthUser) => void
-  logout: () => void
-}
+// Interface real:
+// accessToken: string | null
+// refreshToken: string | null
+// user: AgencyMember | Doctor | null
+// userType: 'agency' | 'doctor' | null
+// tenantId: string | null
+// setAuth({ accessToken, refreshToken, user, userType, tenantId? })
+// clearAuth()
+// updateTokens({ accessToken, refreshToken })
 
-export const authStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      token: null,
-      user: null,
-      login: (token, user) => set({ token, user }),
-      logout: () => set({ token: null, user: null }),
-    }),
-    { name: 'nocrato-auth' }
-  )
-)
+// Uso em componentes (hook):
+const { user, userType, clearAuth } = useAuthStore()
+
+// Uso fora de componentes (acesso direto ao estado):
+const { accessToken } = useAuthStore.getState()
 ```
 
 ## Design System
