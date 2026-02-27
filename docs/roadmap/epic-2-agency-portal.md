@@ -21,13 +21,14 @@
 
 ---
 
-## US-2.2: Como admin, quero listar todos os doutores
+## US-2.2: Como admin, quero listar todos os doutores ✅
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] GET /api/v1/agency/doctors?page=1&limit=20&status=active
-- [ ] Retorna lista paginada com: name, email, slug, CRM, specialty, status
-- [ ] **Criterio:** Listagem com paginacao e filtro por status
+- [x] GET /api/v1/agency/doctors?page=1&limit=20&status=active
+- [x] Retorna lista paginada com: id, name, email, slug, crm, specialty, status, createdAt
+- [x] **Criterio:** Listagem com paginacao e filtro por status — 25 testes, 174/174 passando
+- [x] Tech-lead: APROVADO (OBS-TL-1: return type implícito aceitável MVP)
 
 ---
 
