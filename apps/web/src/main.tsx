@@ -51,6 +51,19 @@ const doctorResetPasswordRoute = createRoute({
   component: DoctorResetPasswordPage,
 })
 
+// Placeholder routes — serão implementados nos Epics 2 e 3
+const agencyDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/agency/dashboard',
+  component: () => null,
+})
+
+const doctorDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/doctor/dashboard',
+  component: () => null,
+})
+
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -60,6 +73,8 @@ const routeTree = rootRoute.addChildren([
   doctorLoginRoute,
   doctorInviteRoute,
   doctorResetPasswordRoute,
+  agencyDashboardRoute,
+  doctorDashboardRoute,
 ])
 
 const router = createRouter({ routeTree })

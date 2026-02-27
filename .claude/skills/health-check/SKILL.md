@@ -28,8 +28,10 @@ Esperado: nenhuma saída (zero erros).
 ### 2. TypeScript — Web
 
 ```bash
-pnpm --filter @nocrato/web exec tsc --noEmit
+pnpm --filter @nocrato/web exec tsc -p tsconfig.app.json --noEmit
 ```
+
+> ⚠️ Usar `-p tsconfig.app.json` é obrigatório. O `tsconfig.json` raiz tem `"files": []` com project references — sem `-p`, o `tsc` pula todos os arquivos e retorna zero erros sem checar nada.
 
 Esperado: nenhuma saída (zero erros).
 
