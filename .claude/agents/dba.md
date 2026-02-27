@@ -20,168 +20,17 @@ You are a Database Administrator (DBA) for **Nocrato Health V2**, managing a Pos
 **Migrations**: Knex migration files in `apps/backend/src/database/migrations/`
 **Schema docs**: `docs/database/`
 
-## Full Schema
+## Schema
 
-```sql
--- ============================================================
--- TENANTS
--- ============================================================
-CREATE TABLE tenants (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug         VARCHAR(100) UNIQUE NOT NULL,  -- URL identifier (e.g., 'dr-silva')
-  name         VARCHAR(255) NOT NULL,
-  active       BOOLEAN DEFAULT TRUE,
-  created_at   TIMESTAMPTZ DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ DEFAULT NOW()
-);
+**Fonte de verdade do schema: `docs/database/schema.sql`**
 
--- ============================================================
--- USERS (agency staff + doctors)
--- ============================================================
-CREATE TABLE users (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id       UUID REFERENCES tenants(id) ON DELETE SET NULL,  -- NULL = agency user
-  email           VARCHAR(255) UNIQUE NOT NULL,
-  password_hash   TEXT NOT NULL,
-  role            VARCHAR(50) NOT NULL,  -- 'agency_admin', 'agency_staff', 'doctor'
-  invite_token    TEXT UNIQUE,
-  invite_expires  TIMESTAMPTZ,
-  active          BOOLEAN DEFAULT TRUE,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_users_tenant ON users(tenant_id);
-CREATE INDEX idx_users_invite ON users(invite_token) WHERE invite_token IS NOT NULL;
+Antes de qualquer tarefa que envolva tabelas, colunas, constraints ou índices, leia o arquivo:
 
--- ============================================================
--- PATIENTS
--- ============================================================
-CREATE TABLE patients (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name                VARCHAR(255) NOT NULL,
-  phone               VARCHAR(20) NOT NULL,     -- WhatsApp number (digits only)
-  email               VARCHAR(255),
-  date_of_birth       DATE,
-  notes               TEXT,
-  portal_access_code  VARCHAR(50) UNIQUE,       -- e.g., 'ABC-1234-XYZ'
-  portal_active       BOOLEAN DEFAULT FALSE,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, phone)                       -- unique phone per tenant
-);
-CREATE INDEX idx_patients_tenant ON patients(tenant_id);
-CREATE INDEX idx_patients_phone ON patients(tenant_id, phone);
-
--- ============================================================
--- APPOINTMENTS
--- ============================================================
-CREATE TABLE appointments (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id    UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id   UUID NOT NULL REFERENCES patients(id),
-  datetime     TIMESTAMPTZ NOT NULL,
-  duration_min INTEGER NOT NULL DEFAULT 30,
-  status       VARCHAR(30) NOT NULL DEFAULT 'scheduled',
-  -- Valid statuses: 'scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'
-  source       VARCHAR(20) DEFAULT 'manual',    -- 'manual', 'booking_link', 'agent'
-  notes        TEXT,
-  created_at   TIMESTAMPTZ DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_appointments_tenant ON appointments(tenant_id);
-CREATE INDEX idx_appointments_patient ON appointments(tenant_id, patient_id);
-CREATE INDEX idx_appointments_datetime ON appointments(tenant_id, datetime);
-CREATE INDEX idx_appointments_status ON appointments(tenant_id, status);
-
--- ============================================================
--- CLINICAL NOTES
--- ============================================================
-CREATE TABLE clinical_notes (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id     UUID NOT NULL REFERENCES patients(id),
-  appointment_id UUID REFERENCES appointments(id) ON DELETE SET NULL,
-  content        TEXT NOT NULL,
-  created_by     UUID NOT NULL REFERENCES users(id),
-  created_at     TIMESTAMPTZ DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_clinical_notes_tenant ON clinical_notes(tenant_id);
-CREATE INDEX idx_clinical_notes_patient ON clinical_notes(tenant_id, patient_id);
-
--- ============================================================
--- DOCUMENTS
--- ============================================================
-CREATE TABLE documents (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id    UUID NOT NULL REFERENCES patients(id),
-  filename      VARCHAR(500) NOT NULL,
-  file_path     TEXT NOT NULL,
-  document_type VARCHAR(50),   -- 'exam', 'prescription', 'referral', 'other'
-  created_by    UUID NOT NULL REFERENCES users(id),
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_documents_tenant ON documents(tenant_id);
-CREATE INDEX idx_documents_patient ON documents(tenant_id, patient_id);
-
--- ============================================================
--- AGENT SETTINGS (per tenant)
--- ============================================================
-CREATE TABLE agent_settings (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id       UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
-  instance_name   VARCHAR(100),     -- Evolution API instance name
-  system_prompt   TEXT,             -- LLM system prompt override
-  working_hours   JSONB,            -- { mon: {start: '08:00', end: '18:00'}, ... }
-  active          BOOLEAN DEFAULT FALSE,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ============================================================
--- EVENT LOG (audit trail only)
--- ============================================================
-CREATE TABLE event_log (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id    UUID REFERENCES tenants(id) ON DELETE SET NULL,  -- NULL = system event
-  event_type   VARCHAR(100) NOT NULL,   -- e.g., 'appointment.completed'
-  payload      JSONB,
-  occurred_at  TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_event_log_tenant ON event_log(tenant_id, occurred_at DESC);
-CREATE INDEX idx_event_log_type ON event_log(event_type);
-
--- ============================================================
--- BOOKING TOKENS
--- ============================================================
-CREATE TABLE booking_tokens (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  token       VARCHAR(100) UNIQUE NOT NULL,
-  phone       VARCHAR(20),           -- patient phone (pre-fill in form)
-  expires_at  TIMESTAMPTZ NOT NULL,
-  used_at     TIMESTAMPTZ,           -- NULL = still valid
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_booking_tokens_token ON booking_tokens(token) WHERE used_at IS NULL;
-CREATE INDEX idx_booking_tokens_tenant ON booking_tokens(tenant_id);
-
--- ============================================================
--- CONVERSATIONS (WhatsApp agent state)
--- ============================================================
-CREATE TABLE conversations (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone       VARCHAR(20) NOT NULL,
-  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  messages    JSONB NOT NULL DEFAULT '[]',
-  -- Format: [{ role: 'user'|'assistant', content: '...', timestamp: '...' }]
-  updated_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(phone, tenant_id)
-);
-CREATE INDEX idx_conversations_phone ON conversations(tenant_id, phone);
 ```
+docs/database/schema.sql
+```
+
+Nunca assuma colunas ou estrutura de memória — o schema evolui via migrations e o arquivo é sempre o estado atual correto. Tabelas principais: `agency_members`, `invites`, `tenants`, `doctors`, `agent_settings`, `patients`, `appointments`, `clinical_notes`, `documents`, `event_log`, `booking_tokens`, `conversations`.
 
 ## Knex Migration Pattern
 

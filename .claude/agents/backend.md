@@ -27,56 +27,9 @@ You are a Backend Developer for **Nocrato Health V2**, building a NestJS REST AP
 
 ## Project Structure
 
-```
-apps/backend/src/
-├── main.ts                         # Bootstrap + global pipes/filters
-├── app.module.ts                   # Root module
-├── common/
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts       # Validates JWT
-│   │   ├── tenant.guard.ts         # Validates :slug matches user's tenant
-│   │   └── roles.guard.ts          # RBAC role checking
-│   ├── decorators/
-│   │   ├── current-user.decorator.ts   # @CurrentUser()
-│   │   ├── tenant-id.decorator.ts      # @TenantId()
-│   │   └── roles.decorator.ts          # @Roles(...)
-│   └── interceptors/
-│       └── tenant-context.interceptor.ts
-├── config/
-│   ├── database.config.ts
-│   └── jwt.config.ts
-├── database/
-│   ├── knex.provider.ts            # Knex instance as NestJS provider
-│   └── migrations/                 # Knex migration files
-├── modules/
-│   ├── auth/
-│   │   ├── auth.module.ts
-│   │   ├── auth.controller.ts      # POST /auth/login, /auth/invite/accept
-│   │   ├── auth.service.ts
-│   │   └── dto/
-│   │       ├── login.dto.ts
-│   │       └── accept-invite.dto.ts
-│   ├── agency/
-│   ├── doctors/
-│   ├── patients/
-│   ├── appointments/
-│   ├── clinical/
-│   ├── booking/
-│   │   ├── booking.module.ts
-│   │   ├── booking.controller.ts   # Public endpoints
-│   │   └── booking.service.ts      # generateToken(), getSlots(), bookInChat()
-│   ├── agent/
-│   │   ├── agent.module.ts
-│   │   ├── agent.service.ts        # @OnEvent handlers + LLM orchestration
-│   │   ├── conversation.service.ts # Per-phone conversation state
-│   │   └── whatsapp.service.ts     # Evolution API HTTP client
-│   ├── events/
-│   │   └── events.module.ts        # EventEmitter2 setup
-│   └── settings/
-│       ├── settings.module.ts
-│       ├── settings.controller.ts
-│       └── settings.service.ts
-```
+Estrutura detalhada e atualizada em `docs/architecture/backend-structure.md`.
+
+> Leia antes de criar módulos ou arquivos. O path real é `apps/api/src/` — não `apps/backend/`.
 
 ## Code Patterns
 
@@ -231,21 +184,11 @@ export async function down(knex: Knex): Promise<void> {
 }
 ```
 
-## Database Schema (Key Tables)
+## Database Schema
 
-```sql
--- Multi-tenant isolation via tenant_id on every table
-tenants (id, slug, name, active, created_at)
-users (id, tenant_id nullable, email, password_hash, role, invite_token)
-patients (id, tenant_id, name, phone, email, portal_access_code, portal_active)
-appointments (id, tenant_id, patient_id, datetime, duration_min, status, source, notes)
-clinical_notes (id, tenant_id, patient_id, appointment_id nullable, content, created_by)
-documents (id, tenant_id, patient_id, filename, file_path, document_type)
-agent_settings (id, tenant_id, instance_name, system_prompt, active)
-event_log (id, tenant_id nullable, event_type, payload, occurred_at)
-booking_tokens (id, tenant_id, token, phone nullable, expires_at, used_at)
-conversations (id, phone, tenant_id, messages jsonb, updated_at)
-```
+**Fonte de verdade: `docs/database/schema.sql`**
+
+Antes de implementar qualquer service, DTO ou migration, leia o schema real. Nunca assuma nomes de colunas de memória — o schema evolui via migrations. Tabelas principais: `agency_members`, `invites`, `tenants`, `doctors`, `agent_settings`, `patients`, `appointments`, `clinical_notes`, `documents`, `event_log`, `booking_tokens`, `conversations`.
 
 ## Tenant Isolation Rules (CRITICAL)
 

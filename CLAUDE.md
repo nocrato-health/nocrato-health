@@ -26,6 +26,7 @@ O Claude DEVE invocar as skills abaixo (via Skill tool) automaticamente quando a
 |---|---|---|
 | Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** uma US acabou de ser concluída **ou** antes de iniciar uma US nova e complexa |
 | Definition of Done | `/definition-of-done` | Ao final de qualquer User Story, antes de propor o commit |
+| Health Check | `/health-check` | Após qualquer entrega de código (US, bugfix, refactor) — antes do commit |
 
 **Regra:** se a condição for atendida e a skill não tiver sido invocada, o Claude está em violação do protocolo.
 
@@ -104,9 +105,27 @@ Cada User Story segue este ciclo antes de ser marcada como concluída:
 
 A implementação só avança quando **todos** os agentes responsáveis por aquela entrega aprovarem. Se qualquer agente levantar um problema, o problema é resolvido antes de prosseguir.
 
-### Documentação de módulo (OBRIGATÓRIO)
+### Regra de ouro: NUNCA escreva código frontend diretamente
 
-**Ao criar qualquer módulo, pasta de app ou domínio novo, criar um `CLAUDE.md` na raiz daquele diretório.**
+**Se você está prestes a criar ou editar qualquer arquivo sob `apps/web/`, pare imediatamente.**
+
+O fluxo obrigatório para qualquer entrega frontend é:
+
+```
+1. frontend agent (Task tool) → implementa rotas, componentes, hooks
+2. designer agent  (Task tool) → revisa design system, Tailwind, shadcn/ui, tokens
+   ↑ os dois trabalham juntos na mesma US — não são etapas sequenciais opcionais
+3. tech-lead agent (Task tool) → aprova qualidade e padrões
+4. QA (contexto principal)     → Playwright valida no browser
+```
+
+**Não existe exceção.** Nem para "ajustes pequenos", nem para "só um className", nem para "já está quase pronto". Qualquer toque em `apps/web/` sem passar pelo `frontend` + `designer` é violação de protocolo.
+
+### Regra de ouro: CLAUDE.md é obrigatório em todo diretório novo
+
+**Se você está prestes a criar qualquer módulo, pasta ou domínio novo, crie o `CLAUDE.md` antes do primeiro arquivo de código.**
+
+Gatilho objetivo: qualquer diretório sob `apps/api/src/modules/`, `apps/api/src/common/`, `apps/api/src/database/`, `apps/web/src/routes/`, `apps/web/src/components/`, `apps/web/src/hooks/` sem `CLAUDE.md` existente.
 
 O `CLAUDE.md` de módulo deve conter:
 
@@ -117,41 +136,15 @@ O `CLAUDE.md` de módulo deve conter:
 - O que **não** pertence a este módulo
 - Como rodar / testar isoladamente
 
-Exemplos de onde criar:
+**O `CLAUDE.md` de módulo é a primeira coisa que qualquer agente deve ler antes de tocar naquele módulo. Não existe exceção.**
 
-```
-apps/api/src/modules/patients/CLAUDE.md
-apps/api/src/modules/auth/CLAUDE.md
-apps/api/src/common/CLAUDE.md
-apps/api/src/database/CLAUDE.md
-apps/web/src/routes/doctor/CLAUDE.md
-apps/web/src/components/CLAUDE.md
-```
+### Subagentes (Task tool)
 
-O `CLAUDE.md` de módulo é a primeira coisa que qualquer agente deve ler antes de tocar naquele módulo.
-
-### Protocolo de subagentes (Task tool)
-
-Subagentes são invocados via **Task tool** — cada chamada cria um contexto isolado que é destruído ao término da tarefa. O contexto principal recebe apenas o resultado.
-
-**Regras:**
-
-1. **Sempre use Task tool** — nunca invoque um agente inline tentando simular seu comportamento no contexto principal
-2. **O prompt deve ser autossuficiente** — inclua papel, contexto da US, arquivos relevantes e formato de output esperado. O subagente não tem acesso ao histórico desta conversa
-3. **Peça output compacto** — revisões retornam veredito + issues; implementações retornam lista de arquivos criados. Nada além disso entra no contexto principal
-4. **Quando delegar**: tarefas que leem 3+ arquivos, geram 500+ tokens de output, ou têm escopo isolado (revisão, testes, exploração de codebase)
-5. **Quando não delegar**: edições pontuais em 1-2 arquivos, respostas curtas, tarefas que dependem do estado atual da conversa
-
-Consulte `.claude/prompt-engineering.md` para a estratégia completa de delegação e técnicas de PE para prompts de Task.
+Consulte `.claude/prompt-engineering.md` para a estratégia completa de delegação e técnicas de PE.
 
 ### Testes E2E com Playwright (frontend)
 
-O agente QA usa **Playwright via MCP** para executar testes E2E no browser real:
-
-- Aplicável a toda User Story com interface interativa
-- O QA roda o Playwright MCP, navega pelas telas e valida os critérios de aceitação
-- A US só é aprovada se o Playwright confirmar o comportamento esperado no browser
-- Em caso de falha: reportar screenshot + steps to reproduce antes de avançar
+Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda local (`localhost:5173`), executado no contexto principal (não em Task tool), obrigatório para toda US com UI.
 
 ---
 

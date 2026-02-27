@@ -305,6 +305,19 @@ test.describe('Public Booking Flow', () => {
 
 Para toda User Story com interface interativa, você **deve** usar o Playwright MCP para validar no browser antes de aprovar:
 
+### Pré-requisito: ambiente local no ar
+
+O Playwright MCP roda contra o ambiente de desenvolvimento local. Antes de iniciar qualquer validação, confirme que os servidores estão rodando:
+
+- `apps/api` → `localhost:3000` (NestJS dev server)
+- `apps/web` → `localhost:5173` (Vite dev server)
+
+Não é necessário deploy em produção/staging — apenas os servidores locais precisam estar ativos.
+
+### Restrição importante: Playwright roda no contexto principal
+
+O Playwright MCP **não está disponível dentro de subagentes (Task tool)**. Portanto, a validação Playwright deve ser executada diretamente no contexto principal da sessão — não delegada via Task tool. O agente QA, quando invocado para aprovação de UI, deve ser chamado no contexto principal.
+
 ### Como usar
 
 Use o Playwright MCP disponível na sessão do Claude Code para:

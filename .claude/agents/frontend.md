@@ -28,64 +28,9 @@ You are a Frontend Developer for **Nocrato Health V2**, building a multi-portal 
 
 ## Project Structure
 
-```
-apps/frontend/src/
-├── routes/
-│   ├── __root.tsx                  # Root layout (TanStack Router)
-│   ├── index.tsx                   # Redirect to /agency or /doctor
-│   ├── _agency/                    # Agency portal layout
-│   │   ├── index.tsx               # Agency dashboard
-│   │   ├── doctors/
-│   │   │   ├── index.tsx           # Doctor list
-│   │   │   └── $doctorId/
-│   │   │       └── index.tsx       # Doctor detail
-│   │   └── settings/
-│   │       └── index.tsx           # Agency settings
-│   ├── _doctor/                    # Doctor portal layout
-│   │   ├── $slug/                  # Dynamic tenant slug
-│   │   │   ├── index.tsx           # Doctor dashboard
-│   │   │   ├── patients/
-│   │   │   │   ├── index.tsx       # Patient list
-│   │   │   │   └── $patientId/
-│   │   │   │       └── index.tsx   # Patient detail
-│   │   │   ├── appointments/
-│   │   │   │   └── index.tsx       # Appointment management
-│   │   │   ├── clinical/
-│   │   │   │   └── index.tsx       # Clinical notes
-│   │   │   └── settings/
-│   │   │       └── index.tsx       # Agent settings
-│   ├── book/
-│   │   └── $slug.tsx               # Public booking page
-│   ├── patient/
-│   │   ├── access.tsx              # Enter access code
-│   │   └── portal.tsx              # Patient read-only portal
-│   └── auth/
-│       ├── login.tsx               # Login page
-│       └── invite/
-│           └── $token.tsx          # Invite acceptance
-├── components/
-│   ├── ui/                         # shadcn/ui components (auto-generated)
-│   ├── layout/                     # Headers, sidebars, layouts
-│   ├── forms/                      # Reusable form components
-│   └── shared/                     # Shared components across portals
-├── lib/
-│   ├── api/
-│   │   ├── agency.ts               # Agency API client
-│   │   ├── doctor.ts               # Doctor API client
-│   │   ├── public.ts               # Public API client (booking, patient)
-│   │   └── interceptors.ts         # Auth token injection
-│   ├── queries/
-│   │   ├── patients.ts             # TanStack Query patient hooks
-│   │   ├── appointments.ts         # TanStack Query appointment hooks
-│   │   └── ...
-│   ├── stores/
-│   │   ├── auth.ts                 # Zustand auth store
-│   │   └── ui.ts                   # UI state (sidebar, modals)
-│   └── utils/
-│       └── cn.ts                   # tailwind-merge + clsx helper
-└── styles/
-    └── globals.css                 # Tailwind imports + CSS variables
-```
+Estrutura detalhada e atualizada em `docs/architecture/frontend-structure.md`.
+
+> Leia antes de criar rotas ou componentes. O path real é `apps/web/src/` — não `apps/frontend/`.
 
 ## Code Patterns
 

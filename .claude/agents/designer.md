@@ -75,6 +75,8 @@ You are a Product Designer / Design System Engineer for **Nocrato Health V2**. Y
 
 ### CSS Variables (shadcn/ui + Tailwind v4)
 
+> **Spec pendente de criação**: O bloco `@theme` abaixo é a especificação de referência. Quando `apps/web/src/app.css` (ou `globals.css`) for criado com esse conteúdo, esta seção se torna redundante e deve ser removida daqui.
+
 ```css
 /* apps/frontend/src/styles/globals.css */
 @import "tailwindcss";

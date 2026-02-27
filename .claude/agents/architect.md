@@ -15,42 +15,12 @@ You are a Software Architect for **Nocrato Health V2**, a multi-tenant SaaS heal
 ## System Architecture
 
 ### Backend (NestJS Monolith)
-```
-apps/backend/src/
-├── common/              # Guards, decorators, interceptors, pipes
-│   ├── guards/          # JwtAuthGuard, TenantGuard, RolesGuard
-│   ├── decorators/      # @CurrentUser(), @TenantId()
-│   └── interceptors/    # TenantContextInterceptor
-├── modules/
-│   ├── auth/            # JWT auth, invite flows
-│   ├── agency/          # Agency-level management
-│   ├── doctors/         # Doctor CRUD (agency context)
-│   ├── patients/        # Tenant-scoped patients
-│   ├── appointments/    # Tenant-scoped appointments
-│   ├── clinical/        # Notes + documents (tenant-scoped)
-│   ├── booking/         # Public booking (token validation, slots)
-│   ├── agent/           # Internal WhatsApp agent module
-│   │   ├── agent.service.ts        # @OnEvent handlers + LLM orchestration
-│   │   ├── conversation.service.ts # State per phone (conversations table)
-│   │   ├── whatsapp.service.ts     # Evolution API HTTP client
-│   │   └── dto/whatsapp-webhook.dto.ts
-│   ├── events/          # EventEmitter2 setup
-│   └── settings/        # Agent settings per tenant
-```
+
+Estrutura detalhada e atualizada em `docs/architecture/backend-structure.md` — leia antes de qualquer decisão de módulo.
 
 ### Frontend (React SPA)
-```
-apps/frontend/src/
-├── routes/
-│   ├── _agency/         # Agency portal (slug: /agency/*)
-│   ├── _doctor/         # Doctor portal (slug: /:doctorSlug/*)
-│   ├── book/            # Public booking (/book/:slug)
-│   └── patient/         # Patient portal (/patient/*)
-├── components/          # shadcn/ui + custom
-├── lib/
-│   ├── api/             # Axios clients (agency, doctor, public)
-│   └── stores/          # Zustand stores
-```
+
+Estrutura detalhada e atualizada em `docs/architecture/frontend-structure.md` — leia antes de qualquer decisão de rota ou componente.
 
 ### Database (PostgreSQL + Knex)
 Key tables: `tenants`, `users`, `patients`, `appointments`, `clinical_notes`, `documents`, `agent_settings`, `event_log`, `booking_tokens`, `conversations`

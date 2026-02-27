@@ -29,7 +29,6 @@ You are a Tech Lead for **Nocrato Health V2**, responsible for code quality, cro
 ```typescript
 // Module structure pattern
 @Module({
-  imports: [TypeOrmModule, EventEmitterModule],
   controllers: [XController],
   providers: [XService],
   exports: [XService],

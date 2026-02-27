@@ -37,6 +37,8 @@ VPS (Hetzner)
 
 ## Docker Compose Structure
 
+> **Configs pendentes de criação**: Os arquivos abaixo são especificações de referência. Quando os arquivos reais (`docker/docker-compose.prod.yml`, `apps/api/Dockerfile`, `apps/web/Dockerfile`, `nginx.conf`, `.github/workflows/deploy.yml`) forem criados no epic-11, este conteúdo se torna redundante e deve ser removido daqui.
+
 ### Production (`docker-compose.prod.yml`)
 ```yaml
 services:
