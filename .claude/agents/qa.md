@@ -303,28 +303,60 @@ test.describe('Public Booking Flow', () => {
 
 ## Playwright via MCP — Protocolo de Aprovação de UI
 
-Para toda User Story com interface interativa, você **deve** usar o Playwright MCP para validar no browser antes de aprovar:
+Para toda User Story com interface interativa, você **deve** usar o Playwright MCP para validar no browser antes de aprovar.
 
-### Pré-requisito: ambiente local no ar
+### Configuração atual (ativa)
 
-O Playwright MCP roda contra o ambiente de desenvolvimento local. Antes de iniciar qualquer validação, confirme que os servidores estão rodando:
+- **Playwright MCP** configurado em `~/.claude.json` (scope user) — disponível no contexto principal
+- **Config**: `apps/web/playwright.config.ts` — baseURL `http://localhost:5173`, chromium headless
+- **Testes**: `apps/web/e2e/agency.spec.ts`
 
-- `apps/api` → `localhost:3000` (NestJS dev server)
-- `apps/web` → `localhost:5173` (Vite dev server)
+### Pré-requisitos: servidores locais no ar
 
-Não é necessário deploy em produção/staging — apenas os servidores locais precisam estar ativos.
+Antes de iniciar qualquer validação, confirme que os servidores estão rodando:
 
-### Restrição importante: Playwright roda no contexto principal
+```bash
+# 1. PostgreSQL
+docker compose -f docker/docker-compose.dev.yml up -d --wait
 
-O Playwright MCP **não está disponível dentro de subagentes (Task tool)**. Portanto, a validação Playwright deve ser executada diretamente no contexto principal da sessão — não delegada via Task tool. O agente QA, quando invocado para aprovação de UI, deve ser chamado no contexto principal.
+# 2. NestJS API (porta 3000)
+pnpm --filter @nocrato/api run dev &
 
-### Como usar
+# 3. Vite frontend (porta 5173)
+pnpm --filter @nocrato/web dev &
+```
 
-Use o Playwright MCP disponível na sessão do Claude Code para:
-- Navegar até a rota correspondente à feature
-- Interagir com os elementos da UI (preencher formulários, clicar, navegar)
-- Verificar os critérios de aceitação visualmente
-- Capturar screenshots em caso de falha
+**Seed de acesso:** `admin@nocrato.com` / `admin123`
+
+### Restrição crítica: Playwright roda APENAS no contexto principal
+
+O Playwright MCP **não está disponível dentro de subagentes (Task tool)**. A validação Playwright deve ser executada diretamente no contexto principal — nunca delegada via Task tool.
+
+### Seletores mapeados — Agency Portal (Epic 2)
+
+```typescript
+// Login page (/agency/login)
+page.getByRole('textbox', { name: 'Email' })        // input[name="email"]
+page.getByRole('textbox', { name: 'Senha' })        // input[name="password"]
+page.getByRole('button', { name: 'Entrar' })
+
+// Dashboard (/agency)
+// Cards: "Total de Doutores", "Doutores Ativos", "Total de Pacientes",
+//        "Total de Consultas", "Consultas Futuras"
+
+// Doutores (/agency/doctors)
+page.getByRole('button', { name: 'Convidar Doutor' })
+page.getByRole('combobox', { name: /Filtrar por status/i })  // options: "Todos", "Ativo", "Inativo"
+// Empty state: "Nenhum doutor encontrado." (dentro de <table>)
+page.getByRole('button', { name: 'Anterior' })
+page.getByRole('button', { name: 'Próxima' })
+
+// Sidebar
+page.getByRole('link', { name: 'Dashboard' })
+page.getByRole('link', { name: 'Doutores' })
+page.getByRole('link', { name: 'Colaboradores' })
+page.getByRole('button', { name: 'Sair' })          // Logout
+```
 
 ### Checklist de aprovação Playwright
 
@@ -341,7 +373,7 @@ Antes de aprovar qualquer US com UI:
 Se o Playwright encontrar um problema, reporte com:
 1. URL onde ocorreu o erro
 2. Steps to reproduce
-3. Screenshot do estado de falha
+3. Screenshot do estado de falha (`browser_take_screenshot`)
 4. Comportamento esperado vs. observado
 
 **A User Story só é aprovada após o Playwright confirmar todos os critérios de aceitação no browser real.**
@@ -350,20 +382,19 @@ Se o Playwright encontrar um problema, reporte com:
 
 ```bash
 # Backend unit tests
-pnpm --filter backend test
+pnpm --filter @nocrato/api test
 
 # Backend E2E tests
-pnpm --filter backend test:e2e
+pnpm --filter @nocrato/api test:e2e
 
-# Frontend tests
-pnpm --filter frontend test
-
-# Playwright E2E
-pnpm --filter frontend e2e
+# Frontend Playwright E2E (rodar no diretório apps/web — NÃO via pnpm filter)
+cd apps/web && npx playwright test
 
 # Coverage report
-pnpm --filter backend test:cov
+pnpm --filter @nocrato/api test:cov
 ```
+
+**Importante:** O Playwright **não roda via `pnpm --filter`** — rodar diretamente com `npx playwright test` dentro de `apps/web/`.
 
 ## Autenticidade
 

@@ -1,35 +1,120 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
-test.describe('Agency Portal', () => {
+async function loginAsAdmin(page: Page) {
+  await page.goto('/agency/login')
+  await page.fill('input[name="email"]', 'admin@nocrato.com')
+  await page.fill('input[name="password"]', 'admin123')
+  await page.click('button[type="submit"]')
+  await page.waitForURL(/\/agency$/)
+}
+
+test.describe('Agency Portal — Autenticação', () => {
   test('redireciona não autenticado para login', async ({ page }) => {
-    await page.goto('http://localhost:5173/agency')
+    await page.goto('/agency')
     await expect(page).toHaveURL(/\/agency\/login/)
   })
 
   test('login bem-sucedido vai para dashboard', async ({ page }) => {
-    await page.goto('http://localhost:5173/agency/login')
-    await page.fill('input[name="email"]', 'admin@nocrato.com')
-    await page.fill('input[name="password"]', 'admin123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/\/agency/)
+    await loginAsAdmin(page)
+    await expect(page).toHaveURL(/\/agency$/)
     await expect(page.locator('h1, h2').first()).toBeVisible()
   })
 
-  test('dashboard mostra cards de stats', async ({ page }) => {
-    await page.goto('http://localhost:5173/agency/login')
+  test('credenciais inválidas exibem mensagem de erro', async ({ page }) => {
+    await page.goto('/agency/login')
     await page.fill('input[name="email"]', 'admin@nocrato.com')
-    await page.fill('input[name="password"]', 'admin123')
+    await page.fill('input[name="password"]', 'senhaerrada')
     await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/\/agency/)
-    await expect(page.getByText(/Total de Doutores|Doutores|Pacientes/i).first()).toBeVisible()
+    await expect(page).toHaveURL(/\/agency\/login/)
+    await expect(page.getByRole('alert')).toContainText('Credenciais inválidas')
   })
 
-  test('navega para lista de doutores', async ({ page }) => {
-    await page.goto('http://localhost:5173/agency/login')
-    await page.fill('input[name="email"]', 'admin@nocrato.com')
-    await page.fill('input[name="password"]', 'admin123')
-    await page.click('button[type="submit"]')
-    await page.click('a[href="/agency/doctors"]')
+  test('logout redireciona para login', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.getByRole('button', { name: 'Sair' }).click()
+    await expect(page).toHaveURL(/\/agency\/login/)
+  })
+})
+
+test.describe('Agency Portal — Dashboard', () => {
+  test('exibe os cinco cards de estatísticas', async ({ page }) => {
+    await loginAsAdmin(page)
+    await expect(page.getByText('Total de Doutores')).toBeVisible()
+    await expect(page.getByText('Doutores Ativos')).toBeVisible()
+    await expect(page.getByText('Total de Pacientes')).toBeVisible()
+    await expect(page.getByText('Total de Consultas')).toBeVisible()
+    await expect(page.getByText('Consultas Futuras')).toBeVisible()
+  })
+})
+
+test.describe('Agency Portal — Navegação', () => {
+  test('navega para lista de doutores via sidebar', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.getByRole('link', { name: 'Doutores' }).click()
     await expect(page).toHaveURL(/\/agency\/doctors/)
+  })
+
+  test('navega para colaboradores via sidebar', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.getByRole('link', { name: 'Colaboradores' }).click()
+    await expect(page).toHaveURL(/\/agency\/members/)
+  })
+})
+
+test.describe('Agency Portal — Doutores', () => {
+  test('lista de doutores exibe empty state sem registros', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/doctors')
+    await expect(page.getByText('Nenhum doutor encontrado.')).toBeVisible()
+  })
+
+  test('filtro de status aceita seleção de "Ativo"', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/doctors')
+    const filtro = page.getByRole('combobox', { name: /Filtrar por status/i })
+    await expect(filtro).toBeVisible()
+    await filtro.selectOption('active')
+    await expect(filtro).toHaveValue('active')
+    // Sem doutores: empty state permanece
+    await expect(page.getByText('Nenhum doutor encontrado.')).toBeVisible()
+  })
+
+  test('modal de convite abre e fecha com Cancelar', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/doctors')
+    await page.getByRole('button', { name: 'Convidar Doutor' }).click()
+    await expect(page.getByRole('heading', { name: 'Convidar Doutor' })).toBeVisible()
+    await page.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(page.getByRole('heading', { name: 'Convidar Doutor' })).not.toBeVisible()
+  })
+
+  test('modal de convite bloqueia envio sem email (validação nativa)', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/doctors')
+    await page.getByRole('button', { name: 'Convidar Doutor' }).click()
+    await page.getByRole('button', { name: 'Enviar convite' }).click()
+    // HTML required: modal permanece aberto, formulário não é submetido
+    await expect(page.getByRole('heading', { name: 'Convidar Doutor' })).toBeVisible()
+  })
+})
+
+test.describe('Agency Portal — Colaboradores', () => {
+  test('exibe admin@nocrato.com com status Ativo', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/members')
+    await expect(page.getByRole('heading', { name: 'Colaboradores' })).toBeVisible()
+    await expect(page.getByText('admin@nocrato.com')).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Ativo' })).toBeVisible()
+  })
+
+  test('filtro de status na lista de colaboradores', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/agency/members')
+    const filtro = page.getByRole('combobox', { name: /Filtrar por status/i })
+    await expect(filtro).toBeVisible()
+    await filtro.selectOption('active')
+    await expect(filtro).toHaveValue('active')
+    // Admin ainda deve aparecer com filtro "Ativo"
+    await expect(page.getByText('admin@nocrato.com')).toBeVisible()
   })
 })
