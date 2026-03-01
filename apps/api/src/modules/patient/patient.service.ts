@@ -28,8 +28,9 @@ export class PatientService {
 
     // Filtros opcionais aplicados ANTES dos terminais (mutação in-place do Knex builder)
     if (search) {
+      const escaped = search.replace(/[%_\\]/g, '\\$&')
       query = query.andWhere((qb) =>
-        qb.whereILike('name', `%${search}%`).orWhereILike('phone', `%${search}%`),
+        qb.whereILike('name', `%${escaped}%`).orWhereILike('phone', `%${escaped}%`),
       )
     }
 

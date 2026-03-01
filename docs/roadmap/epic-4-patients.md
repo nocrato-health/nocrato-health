@@ -18,7 +18,7 @@
 - [x] Retorna: name, phone, email, source, status, created_at
 - [x] **Criterio:** Listagem paginada com busca por nome/telefone
 - [x] 21 testes (284/284 suite completa), cobertura 87.87%
-- [x] Débito técnico: sanitização de `%`/`_` no search (baixo risco, MVP ok)
+- [x] Sanitização de `%`/`_` no search implementada e testada
 
 ---
 

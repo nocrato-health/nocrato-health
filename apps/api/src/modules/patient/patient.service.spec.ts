@@ -202,6 +202,47 @@ describe('PatientService', () => {
   })
 
   // -------------------------------------------------------------------------
+  // Sanitização de caracteres especiais no search
+  // -------------------------------------------------------------------------
+
+  describe('listPatients — sanitização de search', () => {
+    it('should escape % in search to prevent wildcard bypass', async () => {
+      const mockQb = {
+        whereILike: jest.fn().mockReturnThis(),
+        orWhereILike: jest.fn().mockReturnThis(),
+      }
+      mockQueryBuilder.andWhere.mockImplementation((cb: (qb: typeof mockQb) => void) => {
+        cb(mockQb)
+        return mockQueryBuilder
+      })
+      mockQueryBuilder.first.mockResolvedValue({ count: '0' })
+      mockQueryBuilder.offset.mockResolvedValue([])
+
+      await service.listPatients(TENANT_ID, { page: 1, limit: 20, search: '%' })
+
+      expect(mockQb.whereILike).toHaveBeenCalledWith('name', String.raw`%\%%`)
+      expect(mockQb.orWhereILike).toHaveBeenCalledWith('phone', String.raw`%\%%`)
+    })
+
+    it('should escape _ in search to prevent single-char wildcard', async () => {
+      const mockQb = {
+        whereILike: jest.fn().mockReturnThis(),
+        orWhereILike: jest.fn().mockReturnThis(),
+      }
+      mockQueryBuilder.andWhere.mockImplementation((cb: (qb: typeof mockQb) => void) => {
+        cb(mockQb)
+        return mockQueryBuilder
+      })
+      mockQueryBuilder.first.mockResolvedValue({ count: '0' })
+      mockQueryBuilder.offset.mockResolvedValue([])
+
+      await service.listPatients(TENANT_ID, { page: 1, limit: 20, search: 'Maria_Silva' })
+
+      expect(mockQb.whereILike).toHaveBeenCalledWith('name', String.raw`%Maria\_Silva%`)
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Filtro por status
   // -------------------------------------------------------------------------
 
