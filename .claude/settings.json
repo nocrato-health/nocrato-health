@@ -80,7 +80,22 @@
       "Bash(pnpm --filter @nocrato/api build)",
       "Bash(pnpm --filter @nocrato/api test:cov)",
       "Bash(npx jest --coverage)",
-      "Bash(npx jest --verbose)"
+      "Bash(npx jest --verbose)",
+      "Bash(pnpm run build)",
+      "Bash(pnpm --filter @nocrato/api test -- --testPathPattern=\"doctor-auth\" --passWithNoTests)",
+      "Bash(pnpm --filter @nocrato/api test -- --testPathPattern=\"doctor-auth\" --coverage --coverageDirectory=coverage/doctor-auth)",
+      "Bash(pnpm --filter @nocrato/api test -- --passWithNoTests)",
+      "Bash(lsof -i :3000 -i :5173)",
+      "Bash(npx playwright test e2e/doctor-onboarding.spec.ts --reporter=list)",
+      "Bash(pnpm --filter @nocrato/web add -D @types/node)",
+      "Bash(npx tsc -p tsconfig.e2e.json --noEmit)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:3000/api/v)",
+      "mcp__playwright__browser_type",
+      "Bash(node_modules/.bin/ts-node src/database/setup-test-data.ts)",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/doctor/auth/login -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"test-new@nocrato.com\"\",\"\"password\"\":\"\"Doctor123!\"\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/doctor/auth/login -H \"Content-Type: application/json\" --data-raw '{\"\"email\"\":\"\"test-new@nocrato.com\"\",\"\"password\"\":\"\"Doctor123!\"\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/doctor/auth/login -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"test-new@nocrato.com\"\",\"\"password\"\":\"\"Doctor123\"\"}')"
     ],
     "additionalDirectories": [
       "/home/vidales/.claude/projects/-home-vidales-nocrato-health-v2",

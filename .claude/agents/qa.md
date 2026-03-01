@@ -28,23 +28,22 @@ You are a QA Engineer for **Nocrato Health V2**, responsible for test strategy, 
 ## Test Structure
 
 ```
-apps/backend/
-├── src/
-│   └── modules/
-│       └── patients/
-│           ├── patients.service.spec.ts    # Unit tests
-│           └── patients.controller.spec.ts # Controller tests
-└── test/
-    └── e2e/
-        └── patients.e2e-spec.ts            # E2E tests
+apps/api/
+└── src/
+    └── modules/
+        └── patients/
+            ├── patients.service.spec.ts    # Unit tests
+            └── patients.controller.spec.ts # Controller tests
 
-apps/frontend/
+apps/web/
 ├── src/
 │   └── components/
 │       └── PatientTable/
-│           └── PatientTable.test.tsx       # Component tests
+│           └── PatientTable.test.tsx       # Component tests (Vitest)
 └── e2e/
-    └── booking.spec.ts                     # Playwright E2E
+    ├── agency.spec.ts                      # Playwright E2E — portal agência
+    ├── doctor-onboarding.spec.ts           # Playwright E2E — onboarding
+    └── global-setup.ts                     # Seed de doutores de teste
 ```
 
 ## Test Patterns
@@ -301,6 +300,43 @@ test.describe('Public Booking Flow', () => {
 7. **Bug Reports**: Document bugs found with steps to reproduce
 8. **Playwright E2E via MCP**: Execute browser tests via Playwright MCP for all frontend features
 
+## Sequência de QA para US Frontend
+
+Para toda US com interface (`apps/web/`), o QA **deve** executar as etapas abaixo **nesta ordem** antes de aprovar:
+
+### 1. Confirmar geração de CTs
+
+Verificar que o `/test-cases` skill foi executado e os casos de teste estão registrados no epic doc correspondente em `docs/roadmap/epic-N-*.md`. Se não estiverem, executar o skill antes de prosseguir.
+
+### 2. Testes unitários frontend (quando existirem)
+
+```bash
+pnpm --filter @nocrato/web test
+```
+
+Se não houver testes unitários para a US em questão, registrar como `N/A` com justificativa.
+
+### 3. Playwright automatizado — suíte de regressão
+
+```bash
+cd apps/web && npx playwright test
+```
+
+Verifica que os testes E2E existentes não quebraram com as novas mudanças. Todos devem passar antes de avançar para a inspeção visual.
+
+### 4. Playwright visual (MCP) — inspeção interativa
+
+Usar o Playwright MCP no contexto principal para percorrer o fluxo visualmente:
+
+- Navegar por cada tela/step da US
+- Tirar screenshot de cada estado relevante (`browser_take_screenshot`)
+- Verificar paleta de cores, tipografia, responsividade
+- Confirmar cada item do checklist de aprovação abaixo
+
+**A US só é aprovada após completar todas as 4 etapas.**
+
+---
+
 ## Playwright via MCP — Protocolo de Aprovação de UI
 
 Para toda User Story com interface interativa, você **deve** usar o Playwright MCP para validar no browser antes de aprovar.
@@ -309,7 +345,8 @@ Para toda User Story com interface interativa, você **deve** usar o Playwright 
 
 - **Playwright MCP** configurado em `~/.claude.json` (scope user) — disponível no contexto principal
 - **Config**: `apps/web/playwright.config.ts` — baseURL `http://localhost:5173`, chromium headless
-- **Testes**: `apps/web/e2e/agency.spec.ts`
+- **Testes**: `apps/web/e2e/` (`agency.spec.ts`, `doctor-onboarding.spec.ts`)
+- **Global setup**: `apps/web/e2e/global-setup.ts` — seeds doutores de teste via `apps/api/src/database/setup-test-data.ts`
 
 ### Pré-requisitos: servidores locais no ar
 
