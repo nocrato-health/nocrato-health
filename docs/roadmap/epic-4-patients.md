@@ -10,13 +10,15 @@
 
 ---
 
-## US-4.1: Como doutor, quero ver a lista dos meus pacientes
+## US-4.1: Como doutor, quero ver a lista dos meus pacientes ✅
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] GET /api/v1/doctor/patients?page=1&search=Maria&status=active
-- [ ] Retorna: name, phone, email, source, status, created_at
-- [ ] **Criterio:** Listagem paginada com busca por nome/telefone
+- [x] GET /api/v1/doctor/patients?page=1&search=Maria&status=active
+- [x] Retorna: name, phone, email, source, status, created_at
+- [x] **Criterio:** Listagem paginada com busca por nome/telefone
+- [x] 21 testes (284/284 suite completa), cobertura 87.87%
+- [x] Débito técnico: sanitização de `%`/`_` no search (baixo risco, MVP ok)
 
 ---
 
