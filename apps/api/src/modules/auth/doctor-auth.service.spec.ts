@@ -469,6 +469,48 @@ describe('DoctorAuthService', () => {
         expect(trxFn).toHaveBeenNthCalledWith(5, 'agent_settings')
         expect(trxFn).toHaveBeenNthCalledWith(6, 'invites')
       })
+
+      it('should insert agent_settings with enabled=false on invite acceptance (BUG-01 fix)', async () => {
+        bcryptHash.mockResolvedValue(PASSWORD_HASH as never)
+
+        // Capture the exact payload passed to agent_settings.insert()
+        const agentSettingsInsertBuilder = {
+          insert: jest.fn().mockReturnThis(),
+          returning: jest.fn().mockResolvedValue([1]),
+        }
+
+        const tenantCheckBuilder = buildBuilder(undefined)
+        const doctorCheckBuilder = buildBuilder(undefined)
+        const tenantInsertBuilder = buildBuilder(undefined, [CREATED_TENANT])
+        const doctorInsertBuilder = buildBuilder(undefined, [CREATED_DOCTOR])
+        const inviteUpdateBuilder = buildBuilder(undefined)
+
+        let trxCallCount = 0
+        const trxFn = jest.fn().mockImplementation((_tableName: string) => {
+          trxCallCount++
+          if (trxCallCount === 1) return tenantCheckBuilder
+          if (trxCallCount === 2) return doctorCheckBuilder
+          if (trxCallCount === 3) return tenantInsertBuilder
+          if (trxCallCount === 4) return doctorInsertBuilder
+          if (trxCallCount === 5) return agentSettingsInsertBuilder
+          if (trxCallCount === 6) return inviteUpdateBuilder
+          return buildBuilder(undefined)
+        }) as jest.Mock & { fn: { now: jest.Mock } }
+        trxFn.fn = { now: jest.fn().mockReturnValue('NOW()') }
+
+        const inviteBuilder = buildBuilder(PENDING_INVITE)
+        const mockKnexFn = jest.fn().mockReturnValueOnce(inviteBuilder) as jest.Mock & {
+          transaction: jest.Mock
+        }
+        mockKnexFn.transaction = jest.fn().mockImplementation(async (cb) => cb(trxFn))
+
+        const { service } = await createModule(mockKnexFn)
+        await service.acceptDoctorInvite(VALID_TOKEN, DOCTOR_NAME, DOCTOR_PASSWORD, DOCTOR_SLUG)
+
+        expect(agentSettingsInsertBuilder.insert).toHaveBeenCalledWith(
+          expect.objectContaining({ enabled: false }),
+        )
+      })
     })
 
     describe('Erro: token não encontrado', () => {

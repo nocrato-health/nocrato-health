@@ -112,7 +112,9 @@ export class OnboardingService {
 
     const steps = {
       profile: Boolean(doctor.name && doctor.crm),
-      schedule: Boolean(doctor.working_hours),
+      schedule: doctor.working_hours !== null &&
+        typeof doctor.working_hours === 'object' &&
+        Object.keys(doctor.working_hours).length > 0,
       branding: true,
       agent: Boolean(agentSettings?.welcome_message),
     }
@@ -291,7 +293,11 @@ export class OnboardingService {
       throw new BadRequestException('Perfil incompleto — preencha nome e CRM antes de concluir o onboarding')
     }
 
-    if (!doctor.working_hours) {
+    const hasSchedule = doctor.working_hours !== null &&
+      typeof doctor.working_hours === 'object' &&
+      Object.keys(doctor.working_hours).length > 0
+
+    if (!hasSchedule) {
       throw new BadRequestException('Horários não configurados — configure sua agenda antes de concluir o onboarding')
     }
 

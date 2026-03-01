@@ -210,6 +210,22 @@ describe('OnboardingService', () => {
       expect(result.steps.schedule).toBe(false)
     })
 
+    it('should return currentStep=2 when working_hours is an empty object (BUG-02)', async () => {
+      // working_hours: {} is truthy in JS but has no keys — should NOT be treated as complete
+      const doctorEmptySchedule = { ...mockDoctor, working_hours: {} }
+      knexMock = buildKnexMock(
+        buildFirstBuilder(doctorEmptySchedule),
+        buildFirstBuilder(mockAgentSettings),
+      )
+      service = await createModule(knexMock)
+
+      const result = await service.getOnboardingStatus(TENANT_ID)
+
+      expect(result.currentStep).toBe(2)
+      expect(result.steps.profile).toBe(true)
+      expect(result.steps.schedule).toBe(false)
+    })
+
     it('should return currentStep=4 when agent welcome_message is null', async () => {
       const agentNoWelcome = { ...mockAgentSettings, welcome_message: null }
       knexMock = buildKnexMock(
@@ -569,6 +585,15 @@ describe('OnboardingService', () => {
     it('should throw BadRequestException when working_hours is null (schedule incomplete)', async () => {
       const doctorNoSchedule = { ...mockDoctor, working_hours: null }
       knexMock = buildKnexMock(buildFirstBuilder(doctorNoSchedule))
+      service = await createModule(knexMock)
+
+      await expect(service.completeOnboarding(TENANT_ID)).rejects.toThrow(BadRequestException)
+    })
+
+    it('should throw BadRequestException when working_hours is an empty object (BUG-02)', async () => {
+      // working_hours: {} is truthy in JS but has no configured days — must reject
+      const doctorEmptySchedule = { ...mockDoctor, working_hours: {} }
+      knexMock = buildKnexMock(buildFirstBuilder(doctorEmptySchedule))
       service = await createModule(knexMock)
 
       await expect(service.completeOnboarding(TENANT_ID)).rejects.toThrow(BadRequestException)

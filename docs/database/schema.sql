@@ -162,7 +162,7 @@ CREATE TABLE doctors (
     -- Medical specialty. Free text for MVP; V2 may normalize to a lookup table.
     phone                   VARCHAR(20),
     -- Doctor's contact phone. Optional.
-    working_hours           JSONB        DEFAULT '{}',
+    working_hours           JSONB        DEFAULT NULL,
     -- Flexible schedule definition. Example structure:
     -- {
     --   "monday":    [{"start": "08:00", "end": "12:00"}, {"start": "14:00", "end": "18:00"}],
@@ -202,7 +202,7 @@ CREATE INDEX idx_doctors_tenant_id ON doctors (tenant_id);
 COMMENT ON TABLE doctors IS 'Doctor profile and credentials. 1:1 with tenants in MVP. V2 may support multi-practitioner clinics.';
 COMMENT ON COLUMN doctors.crm IS 'Brazilian medical registration number (4-10 digits). State stored separately in crm_state.';
 COMMENT ON COLUMN doctors.crm_state IS 'Brazilian state abbreviation (UF) for CRM. e.g., SP, RJ, MG.';
-COMMENT ON COLUMN doctors.working_hours IS 'JSONB schedule: {"monday": [{"start":"08:00","end":"12:00"}], ...}';
+COMMENT ON COLUMN doctors.working_hours IS 'JSONB schedule: {"monday": [{"start":"08:00","end":"12:00"}], ...}. NULL until doctor completes onboarding step 2 (schedule). Empty object {} is not a valid state.';
 COMMENT ON COLUMN doctors.onboarding_completed IS 'True after doctor finishes all onboarding steps (profile, hours, agent config).';
 COMMENT ON COLUMN doctors.timezone IS 'IANA timezone identifier. Default: America/Sao_Paulo. Used for UTC -> local conversion.';
 COMMENT ON COLUMN doctors.appointment_duration IS 'Default appointment slot duration in minutes. Used for slot calculation in booking.';

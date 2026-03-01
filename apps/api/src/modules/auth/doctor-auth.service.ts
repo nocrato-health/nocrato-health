@@ -42,6 +42,9 @@ interface DoctorRow {
   status?: string
   onboarding_completed?: boolean
   last_login_at?: unknown
+  crm: string | null        // nullable após migration 015
+  crm_state: string | null  // nullable após migration 015
+  working_hours: object | null  // nullable após migration 015
 }
 
 @Injectable()
@@ -244,7 +247,7 @@ export class DoctorAuthService {
         personality: '',
         faq: '',
         appointment_rules: '',
-        enabled: true,
+        enabled: false,
         booking_mode: 'both',
       })
 
