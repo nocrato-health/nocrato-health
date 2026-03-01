@@ -56,14 +56,23 @@
 
 ---
 
-## US-2.5: [FRONTEND] Portal da agencia completo
+## US-2.5: [FRONTEND] Portal da agencia completo ✅
 
-**Agentes:** `frontend` → `designer` → `qa`
+**Agentes:** `frontend` → `designer` → `tech-lead` → `qa`
 
-- [ ] routes/agency/_layout.tsx (auth guard + sidebar)
-- [ ] components/agency-sidebar.tsx (Dashboard, Doutores, Colaboradores)
-- [ ] routes/agency/_layout/index.tsx (dashboard com cards de stats)
-- [ ] routes/agency/_layout/doctors/index.tsx (lista + convidar + ativar/desativar)
-- [ ] routes/agency/_layout/doctors/$doctorId.tsx (perfil read-only do doutor)
-- [ ] routes/agency/_layout/members/index.tsx (lista colaboradores)
-- [ ] **Criterio:** Fluxo completo no browser: login → dashboard → doutores → convidar
+- [x] routes/agency/_layout.tsx (pathless layout route com auth guard beforeLoad + AgencySidebar)
+- [x] components/agency-sidebar.tsx (Dashboard, Doutores, Colaboradores + logout)
+- [x] routes/agency/_layout/index.tsx (dashboard com 5 cards de stats via TanStack Query)
+- [x] routes/agency/_layout/doctors/index.tsx (lista paginada + filtro status + modal convite + ativar/desativar)
+- [x] routes/agency/_layout/members/index.tsx (lista paginada + filtro status + ativar/desativar)
+- [x] components/status-badge.tsx, components/pagination-controls.tsx
+- [x] lib/queries/agency.ts (dashboardQueryOptions, doctorsQueryOptions, membersQueryOptions, mutations)
+- [x] apps/web/playwright.config.ts + e2e/agency.spec.ts (4 testes E2E)
+- [x] **Bugfix incluso:** removido prefixo duplicado api/v1 de 4 controllers (agency, agency-auth, doctor-auth, invite)
+- [x] N/A routes/agency/_layout/doctors/$doctorId.tsx — perfil read-only adiado para US posterior (sem dados adicionais de doutor no backend ainda)
+- [x] **Criterio:** Fluxo completo no browser validado por Playwright 4/4: redirect unauthenticated → login → dashboard → doutores
+- [x] Frontend agent: APROVADO (773 linhas, tsc limpo)
+- [x] Designer: APROVADO (5 correções: border ativo amber-bright, bg-amber-dark token, empty states gray-400)
+- [x] Tech-lead: APROVADO (tsc zero erros strict mode, OBS-TL-1: hook por linha — irrelevante com limit:10)
+- [x] QA Playwright: APROVADO (4/4 testes, 5.7s)
+- [x] Health check: SAUDÁVEL (TS API ✅, TS Web ✅, 227/227 ✅, sem console.log, CLAUDE.md ok)

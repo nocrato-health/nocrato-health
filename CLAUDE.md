@@ -105,6 +105,20 @@ Cada User Story segue este ciclo antes de ser marcada como concluída:
 
 A implementação só avança quando **todos** os agentes responsáveis por aquela entrega aprovarem. Se qualquer agente levantar um problema, o problema é resolvido antes de prosseguir.
 
+### Regra de ouro: QA é sempre um agente — NUNCA um comando de terminal
+
+**O QA (`qa` na tabela acima) é um agente (Task tool, subagent_type=general-purpose), não um alias para `npx jest`.**
+
+| Tipo | Como executar |
+|------|---------------|
+| Backend (unit tests) | Task tool → qa agent lê `qa.md`, roda jest, verifica cobertura e edge cases |
+| Frontend (E2E) | Contexto principal → `npx playwright test` via Bash (Playwright não roda em Task tool) |
+
+**Errado:** rodar `pnpm test` diretamente no contexto principal e declarar "QA aprovado".
+**Correto:** invocar o qa agent via Task tool para backend; usar Bash + Playwright para frontend.
+
+Chamar `npx jest` diretamente sem passar pelo agente qa é violação de protocolo — o agente qa verifica cobertura, edge cases e isolamento de tenant, não apenas se os testes passam.
+
 ### Regra de ouro: NUNCA escreva código frontend diretamente
 
 **Se você está prestes a criar ou editar qualquer arquivo sob `apps/web/`, pare imediatamente.**
