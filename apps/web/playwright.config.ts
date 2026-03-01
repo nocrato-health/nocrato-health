@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   retries: 0,
+  globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL: 'http://localhost:5173',
     headless: true,

@@ -15,6 +15,7 @@ export interface Doctor {
   name: string
   tenantId: string
   slug: string
+  onboardingCompleted: boolean
 }
 
 export interface Tenant {
@@ -101,4 +102,42 @@ export interface Member {
   role: 'agency_admin' | 'agency_member'
   status: 'pending' | 'active' | 'inactive'
   createdAt: string
+}
+
+// US-3.2 — Doctor onboarding
+
+export interface OnboardingSteps {
+  profile: boolean
+  schedule: boolean
+  branding: boolean
+  agent: boolean
+}
+
+export interface OnboardingStatus {
+  currentStep: number
+  completed: boolean
+  steps: OnboardingSteps
+}
+
+export interface WorkingHoursSlot {
+  start: string
+  end: string
+}
+
+export type WorkingHours = Partial<
+  Record<
+    'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday',
+    WorkingHoursSlot[]
+  >
+>
+
+export interface CompleteOnboardingResponse {
+  success: boolean
+  doctor: {
+    id: string
+    name: string
+    email: string
+    tenantId: string
+    slug: string
+  }
 }

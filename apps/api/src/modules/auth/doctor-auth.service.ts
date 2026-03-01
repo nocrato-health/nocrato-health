@@ -141,6 +141,9 @@ export class DoctorAuthService {
         id: doctor.id,
         name: doctor.name,
         email: doctor.email,
+        tenantId: doctor.tenant_id,
+        slug: tenant.slug,
+        onboardingCompleted: doctor.onboarding_completed ?? false,
       },
       tenant: {
         id: tenant.id,
@@ -285,6 +288,9 @@ export class DoctorAuthService {
         id: doctorId!,
         name,
         email: invite.email,
+        tenantId: tenantId!,
+        slug,
+        onboardingCompleted: false,
       },
       tenant: {
         id: tenantId!,

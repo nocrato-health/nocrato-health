@@ -362,6 +362,9 @@ describe('DoctorAuthService', () => {
             id: CREATED_DOCTOR.id,
             name: DOCTOR_NAME,
             email: PENDING_INVITE.email,
+            tenantId: CREATED_TENANT.id,
+            slug: DOCTOR_SLUG,
+            onboardingCompleted: false,
           },
           tenant: {
             id: CREATED_TENANT.id,
@@ -749,6 +752,9 @@ describe('DoctorAuthService', () => {
             id: ACTIVE_DOCTOR.id,
             name: ACTIVE_DOCTOR.name,
             email: ACTIVE_DOCTOR.email,
+            tenantId: ACTIVE_DOCTOR.tenant_id,
+            slug: CREATED_TENANT.slug,
+            onboardingCompleted: false,
           },
           tenant: {
             id: CREATED_TENANT.id,
@@ -836,6 +842,36 @@ describe('DoctorAuthService', () => {
           expect(payload.role).toBe('doctor')
           expect(payload.tenantId).toBe(ACTIVE_DOCTOR.tenant_id)
         }
+      })
+    })
+
+    describe('onboarding_completed field', () => {
+      it('should return onboardingCompleted: true when doctor has onboarding_completed = true', async () => {
+        bcryptCompare.mockResolvedValue(true as never)
+        const completedDoctor = { ...ACTIVE_DOCTOR, onboarding_completed: true }
+        const doctorBuilder = buildBuilder(completedDoctor)
+        const tenantBuilder = buildBuilder(CREATED_TENANT)
+        const updateBuilder = buildBuilder(undefined)
+        const mockKnexFn = buildKnexFn(doctorBuilder, tenantBuilder, updateBuilder)
+
+        const { service } = await createModule(mockKnexFn)
+        const result = await service.loginDoctor(DOCTOR_EMAIL, DOCTOR_PASSWORD)
+
+        expect(result.doctor.onboardingCompleted).toBe(true)
+      })
+
+      it('should return onboardingCompleted: false when doctor has onboarding_completed = null', async () => {
+        bcryptCompare.mockResolvedValue(true as never)
+        const doctorWithNull = { ...ACTIVE_DOCTOR, onboarding_completed: null }
+        const doctorBuilder = buildBuilder(doctorWithNull)
+        const tenantBuilder = buildBuilder(CREATED_TENANT)
+        const updateBuilder = buildBuilder(undefined)
+        const mockKnexFn = buildKnexFn(doctorBuilder, tenantBuilder, updateBuilder)
+
+        const { service } = await createModule(mockKnexFn)
+        const result = await service.loginDoctor(DOCTOR_EMAIL, DOCTOR_PASSWORD)
+
+        expect(result.doctor.onboardingCompleted).toBe(false)
       })
     })
 

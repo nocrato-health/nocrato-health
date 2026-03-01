@@ -8,6 +8,7 @@ interface AuthState {
   user: AgencyMember | Doctor | null
   userType: UserType | null
   tenantId: string | null
+  onboardingCompleted: boolean
 
   setAuth: (data: {
     accessToken: string
@@ -15,9 +16,11 @@ interface AuthState {
     user: AgencyMember | Doctor
     userType: UserType
     tenantId?: string
+    onboardingCompleted?: boolean
   }) => void
   clearAuth: () => void
   updateTokens: (tokens: { accessToken: string; refreshToken: string }) => void
+  setOnboardingCompleted: (value: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -28,9 +31,17 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       userType: null,
       tenantId: null,
+      onboardingCompleted: false,
 
-      setAuth: ({ accessToken, refreshToken, user, userType, tenantId }) =>
-        set({ accessToken, refreshToken, user, userType, tenantId: tenantId ?? null }),
+      setAuth: ({ accessToken, refreshToken, user, userType, tenantId, onboardingCompleted }) =>
+        set({
+          accessToken,
+          refreshToken,
+          user,
+          userType,
+          tenantId: tenantId ?? null,
+          onboardingCompleted: onboardingCompleted ?? false,
+        }),
 
       clearAuth: () =>
         set({
@@ -39,9 +50,12 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           userType: null,
           tenantId: null,
+          onboardingCompleted: false,
         }),
 
       updateTokens: ({ accessToken, refreshToken }) => set({ accessToken, refreshToken }),
+
+      setOnboardingCompleted: (value: boolean) => set({ onboardingCompleted: value }),
     }),
     { name: 'nocrato-auth' },
   ),

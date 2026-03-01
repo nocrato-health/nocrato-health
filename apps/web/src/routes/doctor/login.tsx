@@ -84,6 +84,7 @@ export function DoctorLoginPage() {
         user: res.doctor,
         userType: 'doctor',
         tenantId: res.doctor.tenantId,
+        onboardingCompleted: res.doctor.onboardingCompleted,
       })
       await navigate({ to: '/doctor/dashboard' })
     } catch (err: unknown) {

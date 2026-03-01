@@ -14,6 +14,9 @@ import { AgencyMembersPage } from './routes/agency/_layout/members/index'
 import { DoctorLoginPage } from './routes/doctor/login'
 import { DoctorInvitePage } from './routes/doctor/invite'
 import { DoctorResetPasswordPage } from './routes/doctor/reset-password'
+import { DoctorLayout } from './routes/doctor/_layout'
+import { DoctorOnboardingPage } from './routes/doctor/onboarding'
+import { DoctorDashboardPage } from './routes/doctor/dashboard'
 import './app.css'
 
 // ─── Rotas públicas ──────────────────────────────────────────────────────────
@@ -95,12 +98,45 @@ const agencyMembersRoute = createRoute({
   component: AgencyMembersPage,
 })
 
-// ─── Doctor portal (placeholder) ─────────────────────────────────────────────
+// ─── Rota de onboarding do doutor (FORA do layout protegido — sem sidebar) ───
+// O doutor chega aqui antes de completar o onboarding, então não deve ter sidebar.
+
+const doctorOnboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/doctor/onboarding',
+  beforeLoad: () => {
+    const { accessToken, userType, onboardingCompleted } = useAuthStore.getState()
+    if (!accessToken || userType !== 'doctor') {
+      throw redirect({ to: '/doctor/login', replace: true })
+    }
+    if (onboardingCompleted) {
+      throw redirect({ to: '/doctor/dashboard', replace: true })
+    }
+  },
+  component: DoctorOnboardingPage,
+})
+
+// ─── Layout route do portal do doutor (pathless, com guard) ──────────────────
+
+const doctorLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'doctor-layout',
+  beforeLoad: () => {
+    const { accessToken, userType, onboardingCompleted } = useAuthStore.getState()
+    if (!accessToken || userType !== 'doctor') {
+      throw redirect({ to: '/doctor/login', replace: true })
+    }
+    if (!onboardingCompleted) {
+      throw redirect({ to: '/doctor/onboarding', replace: true })
+    }
+  },
+  component: DoctorLayout,
+})
 
 const doctorDashboardRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => doctorLayoutRoute,
   path: '/doctor/dashboard',
-  component: () => null,
+  component: DoctorDashboardPage,
 })
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -118,7 +154,10 @@ const routeTree = rootRoute.addChildren([
   doctorLoginRoute,
   doctorInviteRoute,
   doctorResetPasswordRoute,
-  doctorDashboardRoute,
+  doctorOnboardingRoute,
+  doctorLayoutRoute.addChildren([
+    doctorDashboardRoute,
+  ]),
 ])
 
 const router = createRouter({ routeTree })
