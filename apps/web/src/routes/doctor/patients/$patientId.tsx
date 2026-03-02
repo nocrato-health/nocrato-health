@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, FileText, Calendar, Paperclip, User } from 'lu
 
 import { patientProfileQueryOptions, useUpdatePatient, type UpdatePatientPayload } from '@/lib/queries/patients'
 import type { PatientAppointment } from '@/types/api'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,24 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatusBadge } from '@/components/status-badge'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDateTime(dateStr: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateStr))
-}
-
-function formatDate(dateStr: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(dateStr))
-}
 
 const sourceLabels: Record<string, string> = {
   manual: 'Manual',
@@ -48,6 +31,7 @@ const appointmentStatusLabels: Record<PatientAppointment['status'], string> = {
   completed: 'Concluída',
   cancelled: 'Cancelada',
   no_show: 'Não compareceu',
+  rescheduled: 'Reagendada',
 }
 
 const appointmentStatusStyles: Record<PatientAppointment['status'], string> = {
@@ -57,6 +41,7 @@ const appointmentStatusStyles: Record<PatientAppointment['status'], string> = {
   completed: 'bg-[#6e5305]/10 text-amber-dark',
   cancelled: 'bg-red-100 text-red-600',
   no_show: 'bg-gray-100 text-gray-500',
+  rescheduled: 'bg-purple-100 text-purple-700',
 }
 
 // ─── Schema de edição ─────────────────────────────────────────────────────────

@@ -157,7 +157,7 @@ export interface PatientListItem {
 export interface PatientAppointment {
   id: string
   date_time: string
-  status: 'scheduled' | 'waiting' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
+  status: 'scheduled' | 'waiting' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rescheduled'
   duration_minutes: number
   started_at?: string
   completed_at?: string
@@ -184,4 +184,55 @@ export interface PatientProfile {
   appointments: PatientAppointment[]
   clinicalNotes: PatientClinicalNote[]
   documents: PatientDocument[]
+}
+
+// US-5.6 — Appointment portal
+
+export type AppointmentStatus =
+  | 'scheduled'
+  | 'waiting'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show'
+  | 'rescheduled'
+
+export interface Appointment {
+  id: string
+  tenant_id: string
+  patient_id: string
+  date_time: string
+  duration_minutes: number
+  status: AppointmentStatus
+  cancellation_reason?: string | null
+  rescheduled_to_id?: string | null
+  created_by: 'doctor' | 'agent'
+  started_at?: string | null
+  completed_at?: string | null
+  created_at: string
+}
+
+export interface DoctorDashboardStats {
+  todayAppointments: Appointment[]
+  totalPatients: number
+  pendingFollowUps: number
+}
+
+export interface AppointmentDetail {
+  appointment: Appointment
+  patient: {
+    id: string
+    name: string
+    phone: string
+    email: string | null
+    source: 'manual' | 'agent'
+    status: 'active' | 'inactive'
+    portal_active: boolean
+    created_at: string
+  }
+  clinicalNotes: Array<{
+    id: string
+    content: string
+    created_at: string
+  }>
 }

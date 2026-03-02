@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Users, Search, UserPlus } from 'lucide-react'
 
 import { patientsQueryOptions, useCreatePatient } from '@/lib/queries/patients'
+import { formatDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,12 +29,6 @@ const createPatientSchema = z.object({
 type CreatePatientForm = z.infer<typeof createPatientSchema>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string) {
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
-    new Date(dateStr),
-  )
-}
 
 const sourceLabels: Record<string, string> = {
   manual: 'Manual',

@@ -174,11 +174,15 @@ async function setupPatients(db: ReturnType<typeof knex>, tenantId: string): Pro
   // Adicionar 3 appointments à Fernanda Oliveira (para CT-45-05 — ordem DESC)
   const fernanda = insertedPatients.find((p: { id: string; name: string }) => p.name === 'Fernanda Oliveira')
   if (fernanda) {
+    // Appointment de hoje às 10h UTC — crítico para CT-56-01 (dashboard mostra consultas de hoje)
+    const todayAt10 = new Date()
+    todayAt10.setUTCHours(10, 0, 0, 0)
+
     await db('appointments').insert([
       {
         tenant_id: tenantId,
         patient_id: fernanda.id,
-        date_time: '2025-03-15T10:00:00Z',
+        date_time: todayAt10.toISOString(),
         status: 'scheduled',
         duration_minutes: 30,
       },

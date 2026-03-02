@@ -1,4 +1,4 @@
-import React from 'react'
+import * as React from 'react'
 import ReactDOM from 'react-dom/client'
 import { createRouter, createRoute, createRootRoute, RouterProvider, redirect } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -19,6 +19,8 @@ import { DoctorOnboardingPage } from './routes/doctor/onboarding'
 import { DoctorDashboardPage } from './routes/doctor/dashboard'
 import { DoctorPatientsPage } from './routes/doctor/patients/index'
 import { DoctorPatientProfilePage } from './routes/doctor/patients/$patientId'
+import { DoctorAppointmentsPage } from './routes/doctor/appointments/index'
+import { DoctorAppointmentDetailPage } from './routes/doctor/appointments/$appointmentId'
 import './app.css'
 
 // ─── Rotas públicas ──────────────────────────────────────────────────────────
@@ -153,6 +155,18 @@ const doctorPatientProfileRoute = createRoute({
   component: DoctorPatientProfilePage,
 })
 
+const doctorAppointmentsRoute = createRoute({
+  getParentRoute: () => doctorLayoutRoute,
+  path: '/doctor/appointments',
+  component: DoctorAppointmentsPage,
+})
+
+const doctorAppointmentDetailRoute = createRoute({
+  getParentRoute: () => doctorLayoutRoute,
+  path: '/doctor/appointments/$appointmentId',
+  component: DoctorAppointmentDetailPage,
+})
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -173,6 +187,8 @@ const routeTree = rootRoute.addChildren([
     doctorDashboardRoute,
     doctorPatientsRoute,
     doctorPatientProfileRoute,
+    doctorAppointmentsRoute,
+    doctorAppointmentDetailRoute,
   ]),
 ])
 

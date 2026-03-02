@@ -1,5 +1,6 @@
+import * as React from 'react'
 import { Outlet, Link } from '@tanstack/react-router'
-import { LayoutDashboard, Users } from 'lucide-react'
+import { LayoutDashboard, Users, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function NavLink({ to, children }: Readonly<{ to: string; children: React.ReactNode }>) {
@@ -31,6 +32,10 @@ export function DoctorLayout() {
           <NavLink to="/doctor/patients">
             <Users className="w-4 h-4" />
             Pacientes
+          </NavLink>
+          <NavLink to="/doctor/appointments">
+            <Calendar className="w-4 h-4" />
+            Consultas
           </NavLink>
         </nav>
       </aside>

@@ -49,6 +49,7 @@ export const patientProfileQueryOptions = (id: string) =>
   queryOptions<PatientProfile>({
     queryKey: ['doctor', 'patients', id, 'profile'],
     queryFn: () => api.get<PatientProfile>(`/api/v1/doctor/patients/${id}`),
+    enabled: !!id,
   })
 
 // ─── Mutations ────────────────────────────────────────────────────────────────

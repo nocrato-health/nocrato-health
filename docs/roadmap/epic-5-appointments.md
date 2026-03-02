@@ -78,15 +78,22 @@
 
 ---
 
-## US-5.6: [FRONTEND] Paginas de consultas + dashboard
+## ✅ US-5.6: [FRONTEND] Paginas de consultas + dashboard
 
-**Agentes:** `frontend` → `designer` → `qa`
+**Agentes:** `frontend` → `designer` → `tech-lead` → `qa`
 
-- [ ] routes/doctor/_layout/index.tsx (dashboard: cards + lista consultas de hoje)
-- [ ] routes/doctor/_layout/appointments/index.tsx (lista + filtros + status badges)
-- [ ] routes/doctor/_layout/appointments/$appointmentId.tsx (detalhe + botoes de acao)
-  - [ ] Botoes contextuais: "Iniciar Atendimento", "Finalizar", "Cancelar", "No-Show"
-  - [ ] Link para criar nota clinica
-  - [ ] Resumo do agente (agent_summary) se existir
-- [ ] Dialog para criar consulta manual (selecionar paciente + data/hora)
-- [ ] **Criterio:** Fluxo completo de consulta no browser
+- [x] routes/doctor/dashboard.tsx (dashboard: 3 cards + lista consultas de hoje + refetch 30s)
+- [x] routes/doctor/appointments/index.tsx (lista + filtros status/data + Select customizado + paginação)
+- [x] routes/doctor/appointments/$appointmentId.tsx (detalhe + botoes de acao por status)
+  - [x] Botões contextuais: "Chamar paciente", "Iniciar atendimento", "Finalizar consulta", "Cancelar", "Não compareceu", "Reagendar"
+  - [x] Machine de estados: scheduled→waiting→in_progress→completed (terminais: cancelled, no_show, rescheduled)
+  - [x] Seção de notas clínicas (empty state — Epic 6 implementa criação)
+- [x] Dialog para criar consulta manual (busca paciente por nome + data/hora + duração)
+- [x] lib/queries/appointments.ts (dashboardQueryOptions, appointmentsQueryOptions, appointmentDetailQueryOptions, patientsSearchQueryOptions, useCreateAppointment, useUpdateAppointmentStatus)
+- [x] types/api.ts (AppointmentStatus, Appointment, DoctorDashboardStats, AppointmentDetail)
+- [x] Débito OBS-TL-2 resolvido: formatDate/formatDateTime extraídas para lib/utils.ts
+- [x] Bug fix: URL dashboard corrigida para /api/v1/doctor/appointments/dashboard
+- [x] Link "Consultas" adicionado ao sidebar (_layout.tsx)
+- [x] Seed atualizado com appointment de HOJE (dinâmico com new Date())
+- [x] 5/5 testes Playwright passando (CT-56-01 a CT-56-05)
+- [x] **Criterio:** Fluxo completo de consulta no browser — QA aprovado

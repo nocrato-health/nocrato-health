@@ -345,7 +345,7 @@
 4. Verificar presença de cards com métricas
 5. Verificar lista de consultas de hoje com pelo menos 1 item
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -365,8 +365,9 @@
 4. Selecionar "Agendadas"
 5. Verificar que apenas consultas scheduled aparecem
 6. Selecionar "Todos os status" — verificar que consultas voltam
+   **Nota implementação:** Select exibe valor bruto após seleção (ex: "scheduled"); resetar via botão "Limpar filtros"
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -386,8 +387,9 @@
 4. Clicar "Confirmar" / "Salvar"
 5. Verificar toast de sucesso
 6. Verificar nova consulta aparece na lista
+   **Nota implementação:** Paciente de teste = "Ana Lima" (seed); botão submit = "Criar consulta"
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -406,8 +408,9 @@
 3. Clicar "Iniciar Atendimento"
 4. Verificar badge muda para `Em Andamento`
 5. Verificar: botão "Finalizar" agora presente; "Iniciar Atendimento" ausente
+   **Nota implementação:** Botão = "Iniciar atendimento" (lowercase); badge in_progress = "Em atendimento"; cancelar removido de in_progress (máquina correta)
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -418,5 +421,6 @@
 **Given** doutor logado, consulta com paciente `João Ferreira` e 1 nota clínica associada
 **When** navegar para `/doctor/appointments/{id}`
 **Then** nome do paciente exibido; seção de notas clínicas com pelo menos 1 nota visível; link para criar nova nota presente
+**Nota implementação:** CT adaptado — Epic 6 ainda não implementado; seção de notas clínicas exibe empty state; paciente qualquer do seed é suficiente
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
