@@ -52,12 +52,15 @@
 
 ---
 
-## US-5.4: Como doutor, quero ver o detalhe de uma consulta
+## ✅ US-5.4: Como doutor, quero ver o detalhe de uma consulta
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] GET /api/v1/doctor/appointments/:id → appointment + patient + notes
-- [ ] **Criterio:** Retorna dados completos
+- [x] GET /api/v1/doctor/appointments/:id → appointment + patient + notes
+- [x] Promise.all para patient + clinical_notes em paralelo
+- [x] patient sem cpf/portal_access_code; appointment sem agent_summary
+- [x] 404 se consulta não encontrada ou tenant_id incorreto
+- [x] **Criterio:** Retorna dados completos
 
 ---
 

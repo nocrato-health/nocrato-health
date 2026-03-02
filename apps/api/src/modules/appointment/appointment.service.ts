@@ -34,6 +34,19 @@ const APPOINTMENT_LIST_FIELDS = [
   'created_at',
 ] as const
 
+// Campos do paciente retornados no detalhe da consulta
+// cpf e portal_access_code nunca são expostos
+const APPOINTMENT_DETAIL_PATIENT_FIELDS = [
+  'id',
+  'name',
+  'phone',
+  'email',
+  'source',
+  'status',
+  'portal_active',
+  'created_at',
+] as const
+
 @Injectable()
 export class AppointmentService {
   constructor(@Inject(KNEX) private readonly knex: Knex) {}
@@ -86,6 +99,34 @@ export class AppointmentService {
         totalPages: Math.ceil(total / limit),
       },
     }
+  }
+
+  // US-5.4: Detalhe completo de uma consulta com dados do paciente e notas clínicas
+  async getAppointmentDetail(tenantId: string, appointmentId: string) {
+    // 1. Buscar a consulta com isolamento de tenant obrigatório — agent_summary excluído
+    const appointment = await this.knex('appointments')
+      .where({ id: appointmentId, tenant_id: tenantId })
+      .select(APPOINTMENT_LIST_FIELDS)
+      .first()
+
+    // Se não encontrada ou pertence a outro tenant: 404 (não vazar existência)
+    if (!appointment) {
+      throw new NotFoundException('Consulta não encontrada')
+    }
+
+    // 2. Buscar dados do paciente e notas clínicas em paralelo
+    const [patient, clinicalNotes] = await Promise.all([
+      this.knex('patients')
+        .where({ id: appointment.patient_id, tenant_id: tenantId })
+        .select(APPOINTMENT_DETAIL_PATIENT_FIELDS)
+        .first(),
+      this.knex('clinical_notes')
+        .where({ appointment_id: appointmentId, tenant_id: tenantId })
+        .select(['id', 'content', 'created_at'])
+        .orderBy('created_at', 'asc'),
+    ])
+
+    return { appointment, patient, clinicalNotes }
   }
 
   // US-5.2: Criação manual de consulta pelo doutor com verificação de conflito de horário

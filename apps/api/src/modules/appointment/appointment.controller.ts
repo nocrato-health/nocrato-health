@@ -37,6 +37,16 @@ export class AppointmentController {
     return this.appointmentService.createAppointment(tenantId, dto)
   }
 
+  // US-5.4: Detalhe completo de uma consulta (dados + paciente + notas clínicas)
+  // IMPORTANTE: @Get(':id') deve estar ANTES de @Patch(':id/status') para evitar conflito de rota
+  @Get(':id')
+  getAppointmentDetail(
+    @TenantId() tenantId: string,
+    @Param('id') appointmentId: string,
+  ) {
+    return this.appointmentService.getAppointmentDetail(tenantId, appointmentId)
+  }
+
   // US-5.3: Alterar status de consulta seguindo a máquina de estados
   @Patch(':id/status')
   updateAppointmentStatus(

@@ -89,6 +89,7 @@ describe('AppointmentController', () => {
       listAppointments: jest.fn(),
       createAppointment: jest.fn(),
       updateAppointmentStatus: jest.fn(),
+      getAppointmentDetail: jest.fn(),
     }
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -360,6 +361,59 @@ describe('AppointmentController', () => {
       await expect(
         controller.updateAppointmentStatus(TENANT_ID, APPOINTMENT_ID, USER, { status: 'in_progress' as const }),
       ).rejects.toThrow('Transição inválida: completed → in_progress')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /doctor/appointments/:id (US-5.4)
+  // -------------------------------------------------------------------------
+
+  describe('getAppointmentDetail', () => {
+    const makeDetailResponse = () => ({
+      appointment: makeAppointment(),
+      patient: {
+        id: PATIENT_ID,
+        name: 'João Silva',
+        phone: '11999999999',
+        email: 'joao@example.com',
+        source: 'manual',
+        status: 'active',
+        portal_active: false,
+        created_at: new Date('2026-02-01T09:00:00Z'),
+      },
+      clinicalNotes: [
+        { id: 'note-uuid-1', content: 'Paciente apresentou melhora.', created_at: new Date() },
+      ],
+    })
+
+    it('should call appointmentService.getAppointmentDetail with tenantId and appointmentId', async () => {
+      const expected = makeDetailResponse()
+      service.getAppointmentDetail.mockResolvedValue(expected)
+
+      const result = await controller.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+      expect(service.getAppointmentDetail).toHaveBeenCalledWith(TENANT_ID, APPOINTMENT_ID)
+      expect(result).toBe(expected)
+    })
+
+    it('should forward tenantId and appointmentId correctly to the service', async () => {
+      const OTHER_APPOINTMENT_ID = 'other-appt-uuid'
+      const OTHER_TENANT_ID = 'other-tenant-uuid'
+      const expected = makeDetailResponse()
+      service.getAppointmentDetail.mockResolvedValue(expected)
+
+      await controller.getAppointmentDetail(OTHER_TENANT_ID, OTHER_APPOINTMENT_ID)
+
+      expect(service.getAppointmentDetail).toHaveBeenCalledWith(OTHER_TENANT_ID, OTHER_APPOINTMENT_ID)
+    })
+
+    it('should propagate NotFoundException from service', async () => {
+      const { NotFoundException } = await import('@nestjs/common')
+      service.getAppointmentDetail.mockRejectedValue(new NotFoundException('Consulta não encontrada'))
+
+      await expect(controller.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)).rejects.toThrow(
+        'Consulta não encontrada',
+      )
     })
   })
 })

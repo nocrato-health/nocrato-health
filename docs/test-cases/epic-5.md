@@ -261,7 +261,7 @@
 **When** GET `/api/v1/doctor/appointments/{id}`
 **Then** HTTP 200 com objeto contendo `appointment` (campos completos), `patient` (dados básicos sem cpf/portal_access_code), `clinicalNotes` (array com 2 notas)
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -273,7 +273,7 @@
 **When** GET `/api/v1/doctor/appointments/{id}`
 **Then** HTTP 404 — dados de dra-carvalho não vazam
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -285,7 +285,7 @@
 **When** GET `/api/v1/doctor/appointments/00000000-0000-0000-0000-000000000000`
 **Then** HTTP 404 Not Found
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 

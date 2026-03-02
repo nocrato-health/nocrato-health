@@ -1225,3 +1225,240 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     ).rejects.toThrow('Consulta não encontrada')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Suite: getAppointmentDetail (US-5.4)
+// ---------------------------------------------------------------------------
+
+describe('AppointmentService — getAppointmentDetail', () => {
+  let service: AppointmentService
+  let mockKnex: jest.Mock
+
+  const TENANT_ID = 'tenant-uuid-1'
+  const OTHER_TENANT_ID = 'tenant-uuid-2'
+  const PATIENT_ID = 'patient-uuid-1'
+  const APPOINTMENT_ID = 'appt-uuid-1'
+
+  const makeAppointment = (overrides: Record<string, unknown> = {}) => ({
+    id: APPOINTMENT_ID,
+    tenant_id: TENANT_ID,
+    patient_id: PATIENT_ID,
+    date_time: new Date('2026-03-10T14:00:00Z'),
+    duration_minutes: 30,
+    status: 'scheduled',
+    cancellation_reason: null,
+    rescheduled_to_id: null,
+    created_by: 'doctor',
+    started_at: null,
+    completed_at: null,
+    created_at: new Date('2026-03-01T09:00:00Z'),
+    ...overrides,
+  })
+
+  const makePatient = (overrides: Record<string, unknown> = {}) => ({
+    id: PATIENT_ID,
+    name: 'João Silva',
+    phone: '11999999999',
+    email: 'joao@example.com',
+    source: 'manual',
+    status: 'active',
+    portal_active: false,
+    created_at: new Date('2026-02-01T09:00:00Z'),
+    ...overrides,
+  })
+
+  const makeClinicalNote = (overrides: Record<string, unknown> = {}) => ({
+    id: 'note-uuid-1',
+    content: 'Paciente apresentou melhora.',
+    created_at: new Date('2026-03-10T15:00:00Z'),
+    ...overrides,
+  })
+
+  /**
+   * Cria mock do Knex com roteamento por tabela.
+   * - appointments: .where().select().first() → retorna appointment ou undefined
+   * - patients: .where().select().first() → retorna patient ou undefined
+   * - clinical_notes: .where().select().orderBy() → retorna array de notas
+   */
+  const createMockKnex = (opts: {
+    appointment?: Record<string, unknown> | null
+    patient?: Record<string, unknown> | null
+    clinicalNotes?: Record<string, unknown>[]
+  }) => {
+    const {
+      appointment = makeAppointment(),
+      patient = makePatient(),
+      clinicalNotes = [makeClinicalNote()],
+    } = opts
+
+    const appointmentBuilder = {
+      where: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue(appointment ?? undefined),
+    }
+
+    const patientBuilder = {
+      where: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue(patient ?? undefined),
+    }
+
+    const clinicalNotesBuilder = {
+      where: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockResolvedValue(clinicalNotes),
+    }
+
+    const knex = jest.fn().mockImplementation((table: string) => {
+      if (table === 'appointments') return appointmentBuilder
+      if (table === 'patients') return patientBuilder
+      if (table === 'clinical_notes') return clinicalNotesBuilder
+      throw new Error(`Tabela inesperada no mock: ${table}`)
+    })
+
+    return { knex, appointmentBuilder, patientBuilder, clinicalNotesBuilder }
+  }
+
+  beforeEach(async () => {
+    mockKnex = jest.fn()
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        AppointmentService,
+        { provide: KNEX, useValue: mockKnex },
+      ],
+    }).compile()
+
+    service = moduleRef.get<AppointmentService>(AppointmentService)
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-54-01: Happy path — retorna { appointment, patient, clinicalNotes }
+  // -------------------------------------------------------------------------
+
+  it('CT-54-01: should return appointment, patient and clinicalNotes on success', async () => {
+    const appt = makeAppointment()
+    const patient = makePatient()
+    const notes = [makeClinicalNote()]
+    const { knex } = createMockKnex({ appointment: appt, patient, clinicalNotes: notes })
+    mockKnex.mockImplementation(knex)
+
+    const result = await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(result).toEqual({ appointment: appt, patient, clinicalNotes: notes })
+  })
+
+  it('CT-54-01b: should query appointments with correct tenant and appointment id', async () => {
+    const { knex, appointmentBuilder } = createMockKnex({})
+    mockKnex.mockImplementation(knex)
+
+    await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(appointmentBuilder.where).toHaveBeenCalledWith({
+      id: APPOINTMENT_ID,
+      tenant_id: TENANT_ID,
+    })
+  })
+
+  it('CT-54-01c: should query patient with correct tenant and patient_id from appointment', async () => {
+    const { knex, patientBuilder } = createMockKnex({})
+    mockKnex.mockImplementation(knex)
+
+    await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(patientBuilder.where).toHaveBeenCalledWith({
+      id: PATIENT_ID,
+      tenant_id: TENANT_ID,
+    })
+  })
+
+  it('CT-54-01d: should query clinical_notes with correct appointment_id and tenant_id', async () => {
+    const { knex, clinicalNotesBuilder } = createMockKnex({})
+    mockKnex.mockImplementation(knex)
+
+    await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(clinicalNotesBuilder.where).toHaveBeenCalledWith({
+      appointment_id: APPOINTMENT_ID,
+      tenant_id: TENANT_ID,
+    })
+  })
+
+  it('CT-54-01e: should order clinical_notes by created_at asc', async () => {
+    const { knex, clinicalNotesBuilder } = createMockKnex({})
+    mockKnex.mockImplementation(knex)
+
+    await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(clinicalNotesBuilder.orderBy).toHaveBeenCalledWith('created_at', 'asc')
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-54-02: 404 — consulta não encontrada
+  // -------------------------------------------------------------------------
+
+  it('CT-54-02: should throw NotFoundException when appointment does not exist', async () => {
+    const { knex } = createMockKnex({ appointment: null })
+    mockKnex.mockImplementation(knex)
+
+    await expect(service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)).rejects.toThrow(
+      'Consulta não encontrada',
+    )
+  })
+
+  it('CT-54-02b: should not query patients or clinical_notes when appointment not found', async () => {
+    const { knex, patientBuilder, clinicalNotesBuilder } = createMockKnex({ appointment: null })
+    mockKnex.mockImplementation(knex)
+
+    await expect(service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)).rejects.toThrow()
+
+    expect(patientBuilder.where).not.toHaveBeenCalled()
+    expect(clinicalNotesBuilder.where).not.toHaveBeenCalled()
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-54-03: Isolamento de tenant — appointment de outro tenant → 404
+  // -------------------------------------------------------------------------
+
+  it('CT-54-03: should return 404 when appointment belongs to another tenant', async () => {
+    // Mock retorna undefined quando WHERE inclui tenant_id do tenant errado
+    // (simulado retornando null do .first() — o banco filtra pelo WHERE)
+    const { knex } = createMockKnex({ appointment: null })
+    mockKnex.mockImplementation(knex)
+
+    await expect(service.getAppointmentDetail(OTHER_TENANT_ID, APPOINTMENT_ID)).rejects.toThrow(
+      'Consulta não encontrada',
+    )
+  })
+
+  it('CT-54-03b: should always scope appointment query with tenant_id', async () => {
+    const { knex, appointmentBuilder } = createMockKnex({})
+    mockKnex.mockImplementation(knex)
+
+    await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    // WHERE deve incluir tenant_id — nunca aceitar appointment de outro tenant
+    expect(appointmentBuilder.where).toHaveBeenCalledWith(
+      expect.objectContaining({ tenant_id: TENANT_ID }),
+    )
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-54-04: Sem notas clínicas — clinicalNotes retorna []
+  // -------------------------------------------------------------------------
+
+  it('CT-54-04: should return empty clinicalNotes array when no notes exist', async () => {
+    const { knex } = createMockKnex({ clinicalNotes: [] })
+    mockKnex.mockImplementation(knex)
+
+    const result = await service.getAppointmentDetail(TENANT_ID, APPOINTMENT_ID)
+
+    expect(result.clinicalNotes).toEqual([])
+    expect(result.appointment).toBeDefined()
+    expect(result.patient).toBeDefined()
+  })
+})
