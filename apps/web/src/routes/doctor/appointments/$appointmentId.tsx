@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronRight, Calendar, User, FileText, Clock } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Calendar, User, FileText, Clock, Plus } from 'lucide-react'
 
 import { appointmentDetailQueryOptions, useUpdateAppointmentStatus } from '@/lib/queries/appointments'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { CreateClinicalNoteDialog } from '@/components/doctor/CreateClinicalNoteDialog'
 import type { AppointmentStatus } from '@/types/api'
 
 // ─── Helpers de status ────────────────────────────────────────────────────────
@@ -72,7 +74,7 @@ function CancelDialog({ open, onOpenChange, onConfirm, isPending }: CancelDialog
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="cancel-reason">Motivo do cancelamento *</Label>
-            <textarea
+            <Textarea
               id="cancel-reason"
               value={reason}
               onChange={(e) => {
@@ -81,7 +83,7 @@ function CancelDialog({ open, onOpenChange, onConfirm, isPending }: CancelDialog
               }}
               placeholder="Informe o motivo do cancelamento..."
               rows={3}
-              className="w-full rounded-md border border-[#e8dfc8] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-dark/30 resize-none"
+              className="border-[#e8dfc8] focus-visible:ring-amber-dark/30 resize-none"
             />
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
@@ -202,13 +204,13 @@ function CompleteDialog({ open, onOpenChange, onConfirm, isPending }: CompleteDi
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="complete-notes">Notas (opcional)</Label>
-            <textarea
+            <Textarea
               id="complete-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Observações finais sobre a consulta..."
               rows={3}
-              className="w-full rounded-md border border-[#e8dfc8] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-dark/30 resize-none"
+              className="border-[#e8dfc8] focus-visible:ring-amber-dark/30 resize-none"
             />
           </div>
           <div className="flex justify-end gap-3">
@@ -439,6 +441,8 @@ function DetailSkeleton() {
 export function DoctorAppointmentDetailPage() {
   const { appointmentId } = useParams({ strict: false }) as { appointmentId: string }
 
+  const [addNoteOpen, setAddNoteOpen] = React.useState(false)
+
   const { data, isLoading, isError } = useQuery(appointmentDetailQueryOptions(appointmentId))
 
   if (isLoading) {
@@ -590,13 +594,21 @@ export function DoctorAppointmentDetailPage() {
 
       {/* Notas clínicas */}
       <div className="rounded-xl border border-[#e8dfc8] bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-amber-dark flex items-center gap-2 mb-4">
-          <FileText className="w-4 h-4" />
-          Notas clínicas
-          {clinicalNotes.length > 0 && (
-            <span className="ml-1 text-xs font-normal text-amber-mid">({clinicalNotes.length})</span>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-amber-dark flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Notas clínicas
+            {clinicalNotes.length > 0 && (
+              <span className="ml-1 text-xs font-normal text-amber-mid">({clinicalNotes.length})</span>
+            )}
+          </h2>
+          {patient && (
+            <Button size="sm" onClick={() => setAddNoteOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Adicionar nota
+            </Button>
           )}
-        </h2>
+        </div>
 
         {clinicalNotes.length === 0 ? (
           <div className="text-center py-6 text-amber-mid">
@@ -614,6 +626,16 @@ export function DoctorAppointmentDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Dialog de adicionar nota — só renderiza se patient existir */}
+      {patient && (
+        <CreateClinicalNoteDialog
+          open={addNoteOpen}
+          onOpenChange={setAddNoteOpen}
+          appointmentId={appointment.id}
+          patientId={patient.id}
+        />
+      )}
     </div>
   )
 }

@@ -1,9 +1,10 @@
+import * as React from 'react'
 import { useParams, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, ChevronRight, FileText, Calendar, Paperclip, User } from 'lucide-react'
+import { ArrowLeft, ChevronRight, FileText, Calendar, Paperclip, User, Upload } from 'lucide-react'
 
 import { patientProfileQueryOptions, useUpdatePatient, type UpdatePatientPayload } from '@/lib/queries/patients'
 import type { PatientAppointment } from '@/types/api'
@@ -16,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge } from '@/components/status-badge'
+import { DocumentUploadDialog } from '@/components/doctor/DocumentUploadDialog'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,13 @@ const appointmentStatusStyles: Record<PatientAppointment['status'], string> = {
   cancelled: 'bg-red-100 text-red-600',
   no_show: 'bg-gray-100 text-gray-500',
   rescheduled: 'bg-purple-100 text-purple-700',
+}
+
+const documentTypeLabels: Record<string, string> = {
+  prescription: 'Receita',
+  certificate: 'Atestado',
+  exam: 'Exame',
+  other: 'Outro',
 }
 
 // ─── Schema de edição ─────────────────────────────────────────────────────────
@@ -239,12 +248,16 @@ interface NotesTabProps {
 }
 
 function NotesTab({ notes }: NotesTabProps) {
+  // appointmentId é obrigatório no backend para criar nota clínica.
+  // Notas são criadas a partir da página de detalhe da consulta.
   if (notes.length === 0) {
     return (
       <div className="text-center py-12 text-amber-mid">
         <FileText className="w-10 h-10 mx-auto mb-3 text-amber-bright opacity-50" />
         <p className="font-medium text-amber-dark">Nenhuma nota clínica</p>
-        <p className="text-sm mt-1">As notas clínicas registradas para este paciente aparecerão aqui.</p>
+        <p className="text-sm mt-1">
+          Notas clínicas são criadas a partir das consultas do paciente.
+        </p>
       </div>
     )
   }
@@ -264,50 +277,96 @@ function NotesTab({ notes }: NotesTabProps) {
 // ─── Tab: Documentos ──────────────────────────────────────────────────────────
 
 interface DocumentsTabProps {
+  patientId: string
   documents: Array<{
     id: string
     file_name: string
     type: string
     file_url: string
+    description?: string
     mime_type: string
     created_at: string
   }>
 }
 
-function DocumentsTab({ documents }: DocumentsTabProps) {
-  if (documents.length === 0) {
-    return (
-      <div className="text-center py-12 text-amber-mid">
-        <Paperclip className="w-10 h-10 mx-auto mb-3 text-amber-bright opacity-50" />
-        <p className="font-medium text-amber-dark">Nenhum documento anexado</p>
-        <p className="text-sm mt-1">Os documentos enviados para este paciente aparecerão aqui.</p>
-      </div>
-    )
-  }
+function DocumentsTab({ patientId, documents }: DocumentsTabProps) {
+  const [uploadOpen, setUploadOpen] = React.useState(false)
+  const [selectedType, setSelectedType] = React.useState('')
+
+  const filteredDocuments = selectedType
+    ? documents.filter((d) => d.type === selectedType)
+    : documents
 
   return (
-    <div className="space-y-3">
-      {documents.map((doc) => (
-        <div
-          key={doc.id}
-          className="rounded-lg border border-[#e8dfc8] bg-white p-4 flex items-center justify-between gap-4"
-        >
-          <div className="min-w-0">
-            <p className="font-medium text-sm text-amber-dark truncate">{doc.file_name}</p>
-            <p className="text-xs text-amber-mid mt-0.5">
-              {doc.type} · {formatDate(doc.created_at)}
-            </p>
-          </div>
-          <a
-            href={doc.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 text-sm text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors"
-          >
-            Download
-          </a>
+    <div className="space-y-4">
+      {/* Header com botão upload e filtro */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="w-48">
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos os tipos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value="prescription">Receita</SelectItem>
+              <SelectItem value="certificate">Atestado</SelectItem>
+              <SelectItem value="exam">Exame</SelectItem>
+              <SelectItem value="other">Outro</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      ))}
+
+        <Button size="sm" onClick={() => setUploadOpen(true)}>
+          <Upload className="w-4 h-4" />
+          Enviar documento
+        </Button>
+      </div>
+
+      {/* Lista de documentos */}
+      {filteredDocuments.length === 0 ? (
+        <div className="text-center py-12 text-amber-mid">
+          <Paperclip className="w-10 h-10 mx-auto mb-3 text-amber-bright opacity-50" />
+          <p className="font-medium text-amber-dark">Nenhum documento encontrado</p>
+          <p className="text-sm mt-1">
+            {selectedType
+              ? 'Nenhum documento com este tipo. Tente outro filtro ou faça upload.'
+              : 'Os documentos enviados para este paciente aparecerão aqui.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredDocuments.map((doc) => (
+            <div
+              key={doc.id}
+              className="rounded-lg border border-[#e8dfc8] bg-white p-4 flex items-center justify-between gap-4"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-sm text-amber-dark truncate">{doc.file_name}</p>
+                <p className="text-xs text-amber-mid mt-0.5">
+                  {documentTypeLabels[doc.type] ?? doc.type} · {formatDate(doc.created_at)}
+                </p>
+                {doc.description && (
+                  <p className="text-xs text-amber-mid mt-0.5 truncate">{doc.description}</p>
+                )}
+              </div>
+              <a
+                href={doc.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-sm text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors"
+              >
+                Download
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <DocumentUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        patientId={patientId}
+      />
     </div>
   )
 }
@@ -428,7 +487,7 @@ export function DoctorPatientProfilePage() {
         </TabsContent>
 
         <TabsContent value="documents">
-          <DocumentsTab documents={documents} />
+          <DocumentsTab patientId={patientId} documents={documents} />
         </TabsContent>
       </Tabs>
     </div>

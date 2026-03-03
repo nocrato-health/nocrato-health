@@ -56,12 +56,12 @@
 
 ---
 
-## US-6.5: [FRONTEND] Notas e documentos
+## ✅ US-6.5: [FRONTEND] Notas e documentos
 
 **Agentes:** `frontend` → `designer` → `qa`
 
-- [ ] Dialog/pagina para criar nota clinica (a partir da consulta)
-- [ ] Tab "Notas" no perfil do paciente (ja criada no EPIC 4)
-- [ ] Tab "Documentos" no perfil do paciente: lista + botao upload
-- [ ] Dialog de upload (tipo, descricao, arquivo)
-- [ ] **Criterio:** Criar nota, upload doc, ver nas tabs
+- [x] Dialog/pagina para criar nota clinica (a partir da consulta)
+- [x] Tab "Notas" no perfil do paciente (ja criada no EPIC 4)
+- [x] Tab "Documentos" no perfil do paciente: lista + botao upload
+- [x] Dialog de upload (tipo, descricao, arquivo)
+- [x] **Criterio:** Criar nota, upload doc, ver nas tabs

@@ -278,7 +278,7 @@
 6. Verificar nota listada na seção "Notas Clínicas"
 7. Verificar toast de sucesso
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -290,7 +290,7 @@
 **When** usuário navega para `/doctor/patients/{id}` e clica na tab "Notas"
 **Then** lista de notas exibida em ordem decrescente de data, com conteúdo e data de cada nota; nenhuma nota de outro paciente aparece
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -312,7 +312,7 @@
 7. Verificar documento listado: nome "exame.pdf", tipo "Exame", data de hoje
 8. Verificar toast de sucesso
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -324,7 +324,7 @@
 **When** usuário abre perfil do paciente e alterna entre tab "Notas" e tab "Documentos"
 **Then** ambas exibem empty state com mensagem explicativa e botão de ação ("Adicionar nota" / "Upload"); nenhum erro de carregamento
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -336,4 +336,4 @@
 **When** usuário seleciona filtro "Prescrição" na tab "Documentos"
 **Then** apenas documentos do tipo prescrição são exibidos; ao limpar filtro, todos voltam a aparecer
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
