@@ -145,7 +145,7 @@
 3. POST `/api/v1/doctor/documents` `{ patientId: "{id}", type: "prescription", fileUrl, fileName, description: "Receita ibuprofeno" }`
 4. Verificar HTTP 201 com documento registrado no banco
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -157,7 +157,7 @@
 **When** `dr-silva` faz upload de `laudo.pdf`
 **Then** arquivo salvo em `./uploads/{tenantId-de-dr-silva}/laudo.pdf` — diretório de `dra-carvalho` não é acessado
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -169,7 +169,7 @@
 **When** POST `/api/v1/doctor/upload` sem `Authorization`
 **Then** HTTP 401 Unauthorized
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -181,7 +181,7 @@
 **When** POST `/api/v1/doctor/documents` `{ patientId, type: "invoice", fileUrl, fileName }`
 **Then** HTTP 400 Bad Request com erro indicando valores aceitos: `prescription | certificate | exam | other`
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -193,7 +193,7 @@
 **When** POST `/api/v1/doctor/documents` `{ patientId, type: "exam", fileUrl, fileName }` sem `appointmentId`
 **Then** HTTP 201 com `{ id, appointmentId: null, type: "exam", ... }` — documento registrado sem vínculo de consulta
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 

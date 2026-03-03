@@ -32,15 +32,15 @@
 
 ---
 
-## US-6.3: Como doutor, quero fazer upload de um documento para um paciente
+## ✅ US-6.3: Como doutor, quero fazer upload de um documento para um paciente
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] POST /api/v1/doctor/upload (multipart/form-data) → { fileUrl, fileName }
-- [ ] Salva em ./uploads/{tenantId}/
-- [ ] POST /api/v1/doctor/documents { patientId, appointmentId?, type, fileUrl, fileName, description? }
-- [ ] type: 'prescription' | 'certificate' | 'exam' | 'other'
-- [ ] **Criterio:** Upload + registro funcional
+- [x] POST /api/v1/doctor/upload (multipart/form-data) → { fileUrl, fileName }
+- [x] Salva em ./uploads/{tenantId}/ (basename sanitizado — sem path traversal)
+- [x] POST /api/v1/doctor/documents { patientId, appointmentId?, type, fileUrl, fileName, description? }
+- [x] type: 'prescription' | 'certificate' | 'exam' | 'other'
+- [x] **Criterio:** Upload + registro funcional
 
 ---
 
