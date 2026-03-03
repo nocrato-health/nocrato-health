@@ -10,17 +10,21 @@ Notas clínicas são registros internos do médico — nunca expostas ao portal 
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
+| GET | `/api/v1/doctor/clinical-notes` | Lista notas clínicas por appointmentId ou patientId, com paginação |
 | POST | `/api/v1/doctor/clinical-notes` | Cria nota clínica vinculada a consulta e paciente |
+
+**Atenção — ordem obrigatória no controller:** `@Get()` deve estar ANTES de qualquer `@Get(':id')` futuro para evitar captura como parâmetro de rota.
 
 ## Arquivos principais
 
 | Arquivo | Responsabilidade |
 |---------|-----------------|
 | `clinical-note.module.ts` | Registra controller e service; não reimporta DatabaseModule (é `@Global()`) |
-| `clinical-note.controller.ts` | Handler HTTP POST; extrai tenantId via `@TenantId()`, actorId via `@CurrentUser().sub` |
-| `clinical-note.service.ts` | Queries Knex: validação de appointment/patient + insert na transação + event_log |
+| `clinical-note.controller.ts` | Handlers HTTP GET e POST; extrai tenantId via `@TenantId()`, actorId via `@CurrentUser().sub` |
+| `clinical-note.service.ts` | Queries Knex: listagem paginada + validação de appointment/patient + insert na transação + event_log |
 | `dto/create-clinical-note.dto.ts` | Zod schema para body de criação (appointmentId, patientId, content) |
-| `clinical-note.service.spec.ts` | Testes unitários do ClinicalNoteService — mock manual do Knex com transaction |
+| `dto/list-clinical-notes.dto.ts` | Zod schema para query params de listagem (appointmentId, patientId, page, limit) |
+| `clinical-note.service.spec.ts` | Testes unitários do ClinicalNoteService — mock manual do Knex com transaction e builder |
 
 ## Tabelas envolvidas
 
@@ -29,11 +33,27 @@ Notas clínicas são registros internos do médico — nunca expostas ao portal 
 - `patients` — validação: deve existir e pertencer ao tenant (WHERE { id, tenant_id })
 - `event_log` — escrita de `note.created` dentro da mesma transação
 
-## Campos retornados (US-6.1)
+## Campos retornados (US-6.1 e US-6.2)
 
 `id`, `appointment_id`, `patient_id`, `content`, `created_at`
 
+Constante `CLINICAL_NOTE_FIELDS` exportada de `clinical-note.service.ts` para reutilização em `appointment.service` e `patient.service` (sem alias de tabela).
+
 ## Regras de negócio
+
+### Listagem de notas clínicas (US-6.2)
+
+- **Endpoint:** `GET /api/v1/doctor/clinical-notes`
+- **Query params:** `appointmentId` (UUID, opcional), `patientId` (UUID, opcional), `page` (default 1), `limit` (default 10, máx 100)
+- **Response 200:** `{ data: [...], pagination: { page, limit, total, totalPages } }`
+- **Ordenação:** `created_at DESC`
+- **Isolamento de tenant:** `WHERE tenant_id = tenantId` sempre aplicado — base do builder antes de qualquer filtro adicional
+- **appointmentId tem precedência:** `if (appointmentId) { WHERE appointment_id } else if (patientId) { WHERE patient_id }`
+- **Sem lançar exceção para IDs de outro tenant:** WHERE tenant_id garante retorno de `data: []` naturalmente
+- **clone() obrigatório antes do count:** `builder.clone().count().first()` — não contamina o builder de dados
+- **Knex count retorna string PostgreSQL:** `Number(countResult?.count ?? 0)` obrigatório
+- **totalPages:** `Math.ceil(total / limit)` — retorna 0 quando total=0
+- **z.coerce.number()** em page e limit: HTTP entrega query params como strings
 
 ### Criação de nota clínica (US-6.1)
 

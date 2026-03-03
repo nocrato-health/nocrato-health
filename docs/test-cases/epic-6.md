@@ -77,7 +77,7 @@
 **When** GET `/api/v1/doctor/clinical-notes?appointmentId={id}`
 **Then** HTTP 200 com array de notas `[{ id, content, createdAt, ... }]` da consulta, em ordem decrescente de `created_at`
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -89,7 +89,7 @@
 **When** GET `/api/v1/doctor/clinical-notes?patientId={id}&page=1&limit=3`
 **Then** HTTP 200 com `{ data: [3 notas], pagination: { page: 1, limit: 3, total: 5, totalPages: 2 } }`
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -101,7 +101,7 @@
 **When** `dr-silva` faz GET `/api/v1/doctor/clinical-notes?patientId={id de paciente de dra-carvalho}`
 **Then** HTTP 200 com `data: []` — nenhuma nota exposta de tenant alheio
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -113,7 +113,7 @@
 **When** GET `/api/v1/doctor/clinical-notes?appointmentId=qualquer-id` sem `Authorization`
 **Then** HTTP 401 Unauthorized
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -125,7 +125,7 @@
 **When** GET `/api/v1/doctor/clinical-notes?appointmentId={id}`
 **Then** HTTP 200 com `{ data: [], pagination: { total: 0 } }`
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 

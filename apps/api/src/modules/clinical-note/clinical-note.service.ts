@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import { CreateClinicalNoteDto } from './dto/create-clinical-note.dto'
+import { ListClinicalNotesDto } from './dto/list-clinical-notes.dto'
 
 // Campos retornados em queries de notas clínicas
 // Exclui tenant_id (interno) e updated_at (não relevante para o response)
@@ -72,6 +73,39 @@ export class ClinicalNoteService {
 
       return note
     })
+  }
+
+  // US-6.2: Listagem de notas clínicas por consulta ou por paciente, com paginação
+  async listClinicalNotes(tenantId: string, query: ListClinicalNotesDto) {
+    const { appointmentId, patientId, page, limit } = query
+
+    const builder = this.knex('clinical_notes').where({ tenant_id: tenantId })
+
+    if (appointmentId) {
+      builder.where({ appointment_id: appointmentId })
+    } else if (patientId) {
+      builder.where({ patient_id: patientId })
+    }
+
+    // Clonar antes de adicionar terminais count para não interferir na query de dados
+    const countResult = await builder.clone().count('id as count').first()
+    const total = Number(countResult?.count ?? 0)
+
+    const data = await builder
+      .select([...CLINICAL_NOTE_FIELDS])
+      .orderBy('created_at', 'desc')
+      .offset((page - 1) * limit)
+      .limit(limit)
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }
   }
 }
 

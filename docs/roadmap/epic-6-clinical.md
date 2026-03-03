@@ -22,13 +22,13 @@
 
 ---
 
-## US-6.2: Como doutor, quero ver notas de um paciente ou consulta
+## ✅ US-6.2: Como doutor, quero ver notas de um paciente ou consulta
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] GET /api/v1/doctor/clinical-notes?appointmentId=X
-- [ ] GET /api/v1/doctor/clinical-notes?patientId=X&page=1
-- [ ] **Criterio:** Listagem por consulta e por paciente
+- [x] GET /api/v1/doctor/clinical-notes?appointmentId=X
+- [x] GET /api/v1/doctor/clinical-notes?patientId=X&page=1
+- [x] **Criterio:** Listagem por consulta e por paciente
 
 ---
 
