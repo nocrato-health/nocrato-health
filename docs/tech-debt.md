@@ -76,6 +76,63 @@ Não há pipeline de CI. Testes Jest e Playwright só rodam localmente.
 
 ---
 
+### TD-07 — Specs de controller ausentes
+**Módulo:** `auth`, `agency`, `booking`, `clinical-note`, `document`, `invite`
+**Identificado em:** Auditoria pós-Epic 7
+**Prioridade:** P2
+
+Nenhum controller tem `*.controller.spec.ts`. Os testes cobrem os services, mas validações de rota, query params inválidos, respostas HTTP e guards ficam sem teste isolado. O `booking.controller.ts` é o mais crítico por ser público (sem guards).
+
+**Fix:** Adicionar `*.controller.spec.ts` usando `Test.createTestingModule()` + `supertest`. Priorizar `booking.controller.spec.ts` por ser público.
+
+---
+
+### TD-08 — event_log cresce indefinidamente sem política de retenção
+**Módulo:** `event-log`
+**Identificado em:** ADR-007 / Auditoria pós-Epic 7
+**Prioridade:** P2
+
+A tabela `event_log` recebe uma linha por evento de negócio (appointments, documentos, notas clínicas, etc.) sem TTL ou arquivamento. Em produção com múltiplos tenants ativos, a tabela pode atingir milhões de linhas em meses, degradando queries de audit.
+
+**Fix pós-deploy:** Definir política de retenção (sugestão: 180 dias). Implementar job de arquivamento trimestral ou particionamento por mês.
+
+---
+
+### TD-09 — Refresh tokens sem possibilidade de revogação imediata
+**Módulo:** `auth`
+**Identificado em:** ADR-006 / Auditoria pós-Epic 7
+**Prioridade:** P2
+
+Refresh tokens são stateless (não armazenados no banco). Impossível revogar sessão ativa de um usuário comprometido antes do token expirar (7 dias). Mitigação atual: access tokens curtos (15 min).
+
+**Fix pós-escala:** Implementar Redis blacklist para refresh tokens ou armazenar hash do token no banco com flag `revoked`.
+
+---
+
+### TD-10 — Uploads de documentos em disco local sem backup
+**Módulo:** `document`
+**Identificado em:** ADR-003 / Auditoria pós-Epic 7
+**Prioridade:** P2
+
+Arquivos enviados (`/uploads/{tenantId}/`) ficam no disco da instância Hetzner sem replicação. Falha de disco = perda de todos os documentos dos pacientes.
+
+**Fix pós-deploy:** Configurar cron job de sync para S3/R2. Longo prazo: substituir disco local por object storage (fora do escopo do MVP).
+
+---
+
+### TD-11 — EventEmitter2 sem retry (eventos de negócio podem ser perdidos)
+**Módulo:** `agent`
+**Identificado em:** ADR-014 / Auditoria pós-Epic 7
+**Prioridade:** P2
+
+`EventEmitter2` é síncrono e in-process. Se o processo NestJS cair durante a execução de um handler (ex: envio de notificação WhatsApp), o evento é descartado sem retry. O `event_log` garante rastreabilidade mas não reprocessamento automático.
+
+**Mitigação atual:** Gravar no `event_log` ANTES de emitir o evento (já implementado) — permite reprocessamento manual.
+
+**Fix pós-escala:** Migrar eventos críticos para BullMQ (Redis-backed) com retry automático e dead-letter queue.
+
+---
+
 ## Resolvidos
 
 *(nenhum ainda)*
