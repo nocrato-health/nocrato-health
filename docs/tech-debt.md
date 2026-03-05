@@ -146,6 +146,32 @@ Quando `getSlotsInternal(tenantId, date)` é chamado para um tenant sem doutor a
 
 ---
 
+### TD-14 — formatTime/formatDateTime com timezone fixo; todayDate usa fuso local do browser
+**Módulo:** `apps/web` (routes/book/$slug.tsx)
+**Identificado em:** US-7.5 (OBS-TL-2 tech-lead)
+**Prioridade:** P2
+
+`formatTime` e `formatDateTime` usam `timeZone: 'America/Sao_Paulo'` fixo, ignorando `SlotsResponse.timezone` retornado pelo backend. `todayDate()` calcula a data mínima do input usando o fuso local do browser, criando janela de até 3h de inconsistência para médicos em UTC vs browser UTC-3.
+
+**Impacto atual:** Nenhum — todos os médicos estão em `America/Sao_Paulo`. Manifesta-se com médicos em outros fusos ou servidor em fuso diferente.
+
+**Fix:** Passar `timezone` da `SlotsResponse` para `formatTime`; calcular `todayDate()` convertendo `new Date()` para o fuso do médico via `Intl.DateTimeFormat`. Resolver antes do Epic 11 se escopo incluir médicos fora de SP.
+
+---
+
+### TD-15 — Campo phone readonly (booking) bypassável via DevTools; backend não valida correspondência
+**Módulo:** `booking` (backend + apps/web)
+**Identificado em:** US-7.5 (OBS-TL-3 tech-lead)
+**Prioridade:** P2
+
+O frontend aplica `readOnly` visual no campo `phone` quando o token tem um número vinculado. Esse atributo pode ser removido via DevTools, permitindo enviar um telefone diferente no POST `/book`. O `BookingService.book()` não verifica se o `phone` do body corresponde ao `phone` do token.
+
+**Impacto atual:** Baixo — o agente WhatsApp gera o token com o phone do contato que iniciou a conversa. Um usuário malicioso poderia agendar em nome de outro número. Para o MVP com base de pacientes gerenciada, o risco é aceitável.
+
+**Fix:** No `BookingService.book()`: se `bookingToken.phone` não for null, verificar `dto.phone === bookingToken.phone`; caso contrário, lançar `BadRequestException('Telefone não corresponde ao link de agendamento')`.
+
+---
+
 ### TD-11 — EventEmitter2 sem retry (eventos de negócio podem ser perdidos)
 **Módulo:** `agent`
 **Identificado em:** ADR-014 / Auditoria pós-Epic 7
@@ -156,6 +182,19 @@ Quando `getSlotsInternal(tenantId, date)` é chamado para um tenant sem doutor a
 **Mitigação atual:** Gravar no `event_log` ANTES de emitir o evento (já implementado) — permite reprocessamento manual.
 
 **Fix pós-escala:** Migrar eventos críticos para BullMQ (Redis-backed) com retry automático e dead-letter queue.
+
+---
+
+### TD-12 — Timezone hardcoded `America/Sao_Paulo` no frontend de booking (OBS-TL-01/02)
+**Módulo:** `apps/web/routes/book/`, `booking`
+**Identificado em:** US-7.5 / Revisão tech-lead
+**Prioridade:** P2
+
+Em `$slug.tsx`, `formatDateTime` e a formatação de data no Step2 usam `timeZone: 'America/Sao_Paulo'` fixo. Além disso, o `dateTime` enviado ao POST `/book` é construído com offset fixo `-03:00` (`${date}T${slot.start}:00-03:00`). Doutores com timezone diferente (ex: `America/Manaus`) veriam horários incorretos.
+
+**Mitigação atual:** Todos os doutores do MVP estão em BRT — comportamento correto para o caso de uso atual.
+
+**Fix:** Expor `timezone` no `ValidateTokenResponse`; consumir no frontend para formatar datas e construir o offset correto. Relacionado ao TD-07 (backend) — resolver juntos.
 
 ---
 

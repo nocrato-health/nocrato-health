@@ -61,12 +61,17 @@
 
 ---
 
-## US-7.5: [FRONTEND] Pagina publica de agendamento
+## ✅ US-7.5: [FRONTEND] Pagina publica de agendamento
 
 **Agentes:** `frontend` → `designer` → `qa`
 
-- [ ] routes/book/$slug.tsx
-- [ ] Valida token na entrada
-- [ ] Calendario (selecionar data) → lista de slots → form (nome, telefone) → confirmar
-- [ ] Tela de confirmacao: "Consulta agendada! Voce recebera confirmacao no WhatsApp"
-- [ ] **Criterio:** Booking completo no browser
+- [x] `apps/web/src/routes/book/$slug.tsx` — página pública com 4 estados (validando, erro, booking flow 3-steps, confirmação)
+- [x] `apps/web/src/lib/queries/booking.ts` — `validateTokenQueryOptions`, `availableSlotsQueryOptions`, `useBookAppointment`
+- [x] `apps/web/src/main.tsx` — `bookingRoute` registrado sem guard (público)
+- [x] Valida token na entrada (`GET /validate`) — exibe mensagem adequada por `reason` (expired/used/not_found)
+- [x] Step 1: input de data com `min=hoje`; Step 2: grid de slots 3-col; Step 3: form (nome, telefone) com phone pré-preenchido readonly se token vinculado
+- [x] Tela de confirmação: "Consulta agendada! Você receberá confirmação no WhatsApp." com data/hora e médico
+- [x] Race condition (409 SLOT_CONFLICT) → retorna ao step 2 com mensagem
+- [x] Design system: paleta âmbar/creme/azul aço, Montserrat headings, mobile-first max-w-lg
+- [x] `app.css`: corrigido `--color-amber-mid` de `#9a7a2e` para `#af830d`
+- [x] **Criterio:** Booking completo no browser (CT-75-01 a CT-75-05 — Playwright 5/5 ✅)

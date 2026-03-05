@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UsePipes,
 } from '@nestjs/common'
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
 import { BookingService } from './booking.service'
@@ -64,10 +63,9 @@ export class BookingController {
    * Rota pública — sem JwtAuthGuard / TenantGuard.
    */
   @Post('book')
-  @UsePipes(new ZodValidationPipe(BookAppointmentSchema))
   async bookAppointment(
     @Param('slug') slug: string,
-    @Body() dto: BookAppointmentDto,
+    @Body(new ZodValidationPipe(BookAppointmentSchema)) dto: BookAppointmentDto,
   ) {
     return this.bookingService.bookAppointment(slug, dto)
   }

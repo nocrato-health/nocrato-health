@@ -303,7 +303,7 @@
 6. Clicar em "Confirmar"
 7. Verificar tela de sucesso com dados da consulta
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -315,7 +315,7 @@
 **When** usuário abre a URL no browser
 **Then** página de erro é exibida (ex: "Link inválido ou expirado") — não exibe calendário
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -327,7 +327,7 @@
 **When** usuário abre a URL
 **Then** `GET /validate` retorna `{ valid: false, reason: "expired" }`; frontend exibe "Este link expirou. Solicite um novo link pelo WhatsApp." — sem calendário
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -339,7 +339,7 @@
 **When** usuário abre a página e `GET /validate` retorna os dados do token com phone
 **Then** campo de telefone aparece pré-preenchido com `(11) 98765-4321` e está desabilitado (read-only)
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -351,4 +351,4 @@
 **When** usuário clica "Confirmar" com slot das 10:00
 **Then** frontend exibe mensagem de erro "Este horário não está mais disponível" — usuário pode selecionar outro slot
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou

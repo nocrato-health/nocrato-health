@@ -40,6 +40,15 @@ export const TEST_DOCTOR_DONE = {
   tenantSlug: 'test-done-doctor',
 }
 
+// Tokens de booking para a suíte Playwright (CT-75-xx)
+// Cada token tem 64 chars hexadecimais (padrão do generateToken)
+export const BOOKING_TOKENS = {
+  valid:    'abcdef01'.repeat(8), // CT-75-01 happy path (será consumido)
+  expired:  'dead0000'.repeat(8), // CT-75-03 expirado
+  withPhone:'cafe1234'.repeat(8), // CT-75-04 phone='+5511987654321'
+  conflict: 'beef5678'.repeat(8), // CT-75-05 race condition
+}
+
 async function setupTestData() {
   const db = knex({
     client: 'pg',
@@ -82,6 +91,7 @@ async function setupTestData() {
     })
 
     await setupPatients(db, doneTenantId)
+    await setupBookingTokens(db, doneTenantId)
 
     console.log('✅ Dados de teste criados/resetados com sucesso.')
   } finally {
@@ -202,6 +212,43 @@ async function setupPatients(db: ReturnType<typeof knex>, tenantId: string): Pro
       },
     ])
   }
+}
+
+async function setupBookingTokens(db: ReturnType<typeof knex>, tenantId: string): Promise<void> {
+  const now = new Date()
+  const expiredAt = new Date(now.getTime() - 2 * 60 * 60 * 1000)  // 2h atrás
+  const validAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)    // 24h à frente
+
+  await db('booking_tokens').insert([
+    {
+      tenant_id: tenantId,
+      token: BOOKING_TOKENS.valid,
+      phone: null,
+      expires_at: validAt,
+      used: false,
+    },
+    {
+      tenant_id: tenantId,
+      token: BOOKING_TOKENS.expired,
+      phone: null,
+      expires_at: expiredAt,
+      used: false,
+    },
+    {
+      tenant_id: tenantId,
+      token: BOOKING_TOKENS.withPhone,
+      phone: '+5511987654321',
+      expires_at: validAt,
+      used: false,
+    },
+    {
+      tenant_id: tenantId,
+      token: BOOKING_TOKENS.conflict,
+      phone: null,
+      expires_at: validAt,
+      used: false,
+    },
+  ])
 }
 
 setupTestData().catch((err) => {
