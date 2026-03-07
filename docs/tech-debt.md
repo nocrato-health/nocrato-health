@@ -146,6 +146,17 @@ Quando `getSlotsInternal(tenantId, date)` é chamado para um tenant sem doutor a
 
 ---
 
+### TD-15 — AgentSettingsRow duplicada entre agent-settings.service.ts e onboarding.service.ts
+**Módulo:** `doctor`
+**Identificado em:** US-8.1 (OBS-TL-1)
+**Prioridade:** P3
+
+A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.service.ts` (privada) e `onboarding.service.ts` (exportada). Se a tabela `agent_settings` ganhar colunas novas (ex: `extra_config` exposto), a manutenção acontece em dois pontos.
+
+**Fix:** Mover a interface para `doctor.types.ts` e reutilizar em ambos os services.
+
+---
+
 ### TD-14 — formatTime/formatDateTime com timezone fixo; todayDate usa fuso local do browser
 **Módulo:** `apps/web` (routes/book/$slug.tsx)
 **Identificado em:** US-7.5 (OBS-TL-2 tech-lead)

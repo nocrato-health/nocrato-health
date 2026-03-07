@@ -8,16 +8,18 @@
 | **Dependencies** | EPIC 3 (Onboarding do Doutor) |
 | **User Stories** | 3 |
 
+> **Casos de teste:** [docs/test-cases/epic-8.md](../test-cases/epic-8.md)
+
 ---
 
-## US-8.1: Como doutor, quero editar as configuracoes do meu agente
+## ✅ US-8.1: Como doutor, quero editar as configuracoes do meu agente
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] GET /api/v1/doctor/agent-settings
-- [ ] PATCH /api/v1/doctor/agent-settings { welcomeMessage?, personality?, faq?, appointmentRules?, bookingMode?, enabled? }
-- [ ] bookingMode: 'link' | 'chat' | 'both'
-- [ ] **Criterio:** Config salva, agente interno le via `agentSettingsService.findByTenant(tenantId)` no inicio de cada conversa
+- [x] GET /api/v1/doctor/agent-settings
+- [x] PATCH /api/v1/doctor/agent-settings { welcomeMessage?, personality?, faq?, appointmentRules?, bookingMode?, enabled? }
+- [x] bookingMode: 'link' | 'chat' | 'both'
+- [x] **Criterio:** Config salva, agente interno le via `agentSettingsService.findByTenant(tenantId)` no inicio de cada conversa
 
 ---
 
