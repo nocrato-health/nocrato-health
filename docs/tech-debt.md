@@ -235,6 +235,28 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
+### TD-18 — Type guard do webhook controller não valida `data.key` antes do cast
+**Módulo:** `agent`
+**Identificado em:** US-9.2 (OBS-TL-2 tech-lead)
+**Prioridade:** P2
+
+`agent.controller.ts` verifica `'event' in body` e `'data' in body` mas não valida `'key' in body.data` nem `'remoteJid' in body.data.key`. O optional chaining (`?.`) previne crash em US-9.2 (stub vazio), mas em US-9.3 um payload mal-formado chegaria em `handleMessage` com `remoteJid: undefined`, causando bug silencioso na resolução de tenant e lookup de paciente.
+
+**Fix:** Validar `payload.data?.key?.remoteJid` antes de chamar `handleMessage`. Alternativamente, validar o payload com um schema Zod no início do handler e retornar 200 silenciosamente se inválido. Resolver no início de US-9.3.
+
+---
+
+### TD-19 — Webhook controller sem decorator explícito de rota pública
+**Módulo:** `agent`
+**Identificado em:** US-9.2 (OBS-TL-3 tech-lead)
+**Prioridade:** P3
+
+`agent.controller.ts` não usa `JwtAuthGuard` mas também não tem um decorator `@Public()` ou `@SkipAuth()` para documentar explicitamente a ausência de auth. Auditoria de rotas públicas fica dependente de leitura manual.
+
+**Fix:** Criar `@Public()` decorator em `common/decorators/` e aplicar no controller. Útil quando o projeto escalar e múltiplos desenvolvedores precisarem auditar rotas sem auth.
+
+---
+
 ## Resolvidos
 
 *(nenhum ainda)*

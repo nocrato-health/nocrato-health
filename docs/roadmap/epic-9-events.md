@@ -24,16 +24,16 @@
 
 ---
 
-## US-9.2: Como agente, quero receber mensagens do WhatsApp via webhook
+## ✅ US-9.2: Como agente, quero receber mensagens do WhatsApp via webhook
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] `whatsapp.service.ts` → HTTP client para Evolution API (envio de mensagens)
-- [ ] `agent.controller.ts` → `POST /api/v1/agent/webhook` (recebe payload da Evolution API)
-- [ ] Valida token da Evolution API via header `apikey`
-- [ ] Ignora mensagens `fromMe=true`
-- [ ] Chama `agentService.handleMessage(payload)`
-- [ ] **Criterio:** Mensagens do WhatsApp chegam ao NestJS e sao processadas
+- [x] `whatsapp.service.ts` → HTTP client para Evolution API (envio de mensagens)
+- [x] `agent.controller.ts` → `POST /api/v1/agent/webhook` (recebe payload da Evolution API)
+- [x] Valida token da Evolution API via header `apikey`
+- [x] Ignora mensagens `fromMe=true`
+- [x] Chama `agentService.handleMessage(payload)`
+- [x] **Criterio:** Mensagens do WhatsApp chegam ao NestJS e sao processadas
 
 ---
 

@@ -77,7 +77,7 @@
 **When** POST `/api/v1/agent/webhook` com header `apikey: token-secreto` e body `{ event: "messages.upsert", data: { key: { remoteJid: "5511999999999@s.whatsapp.net", fromMe: false }, message: { conversation: "Quero agendar uma consulta" }, pushName: "Joao Santos" } }`
 **Then** HTTP 200, `agentService.handleMessage()` e chamado com o payload completo
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
@@ -89,7 +89,7 @@
 **When** POST `/api/v1/agent/webhook` com header `apikey: token-errado`
 **Then** HTTP 401 Unauthorized — nenhuma mensagem processada
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  [ ] falhou
 
 ---
 
