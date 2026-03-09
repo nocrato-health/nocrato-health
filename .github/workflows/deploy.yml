@@ -1,0 +1,39 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            APP_DIR="/opt/nocrato-health-v2"
+            COMPOSE="docker compose -f $APP_DIR/docker/docker-compose.prod.yml --env-file $APP_DIR/.env"
+
+            echo "==> git pull"
+            cd $APP_DIR
+            git pull origin main
+
+            echo "==> build"
+            $COMPOSE build
+
+            echo "==> migrations"
+            $COMPOSE run --rm -e NODE_ENV=production api node dist/database/migrate.js
+
+            echo "==> up"
+            $COMPOSE up -d
+
+            echo "==> done"
