@@ -1,5 +1,6 @@
 /**
  * US-9.3 — AgentService.handleMessage
+ * TD-20 — resolveTenantFromInstance com multitenancy por instanceName
  *
  * Casos de teste cobertos:
  *  CT-93-01: Mensagem simples sem tool_calls → LLM responde → sendText chamado → appendMessages chamado
@@ -12,6 +13,9 @@
  *  CT-93-08: Mensagem vazia (messageText = '') → handleMessage retorna early
  *  CT-93-09: agentCtx.enabled = false (loadAgentContext retorna null) → retorna early
  *  CT-93-10: Erro na tool executeTool → retorna JSON de erro → fluxo continua sem quebrar
+ *  CT-TD20-01: resolveTenantFromInstance filtra por evolution_instance_name correta → retorna tenantId
+ *  CT-TD20-02: resolveTenantFromInstance com instância desconhecida → retorna null → early return
+ *  CT-TD20-03: payload sem campo instance → early return silencioso
  */
 
 // ---------------------------------------------------------------------------
@@ -65,9 +69,11 @@ import { KNEX } from '@/database/knex.provider'
 const TENANT_ID = 'tenant-uuid-xpto'
 const PHONE = '5511999990001'
 const CONVERSATION_ID = 'conv-uuid-abc'
+const INSTANCE_NAME = 'dr-marcos-instance'
 
-const makePayload = (overrides: Partial<EvolutionWebhookPayload['data']> = {}): EvolutionWebhookPayload => ({
+const makePayload = (overrides: Partial<EvolutionWebhookPayload['data']> = {}, instance = INSTANCE_NAME): EvolutionWebhookPayload => ({
   event: 'messages.upsert',
+  instance,
   data: {
     key: {
       remoteJid: `${PHONE}@s.whatsapp.net`,
@@ -159,7 +165,6 @@ const makeDoctorRow = () => ({
 const mockAgentSettingsQB = {
   where: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
-  orderBy: jest.fn().mockReturnThis(),
   first: jest.fn(),
 }
 const mockDoctorQB = {
@@ -452,6 +457,43 @@ describe('AgentService', () => {
     }
     const userMsg = openaiCall.messages.find((m) => m.role === 'user')
     expect(userMsg?.content).toBe('Boa tarde, preciso de informações')
+  })
+
+  // CT-TD20-01: resolveTenantFromInstance filtra por evolution_instance_name correta
+  it('CT-TD20-01: where chamado com evolution_instance_name correto → tenant resolvido e fluxo continua', async () => {
+    const resposta = 'Olá! Como posso ajudar?'
+    mockOpenAICreate.mockResolvedValue(makeSimpleResponse(resposta))
+
+    await service.handleMessage(makePayload())
+
+    // Verificar que o where foi chamado com o nome da instância para resolveTenantFromInstance
+    expect(mockAgentSettingsQB.where).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true, evolution_instance_name: INSTANCE_NAME }),
+    )
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta)
+  })
+
+  // CT-TD20-02: instância desconhecida → resolveTenantFromInstance retorna null → early return
+  it('CT-TD20-02: instância Evolution desconhecida → resolveTenantFromInstance retorna null → early return sem OpenAI', async () => {
+    mockAgentSettingsQB.first
+      .mockReset()
+      .mockResolvedValueOnce(undefined) // instância não mapeada para nenhum tenant
+
+    await service.handleMessage(makePayload({}, 'instancia-nao-configurada'))
+
+    expect(mockOpenAICreate).not.toHaveBeenCalled()
+    expect(mockWhatsAppService.sendText).not.toHaveBeenCalled()
+    expect(mockConversationService.getOrCreate).not.toHaveBeenCalled()
+  })
+
+  // CT-TD20-03: payload sem campo instance → early return silencioso
+  it('CT-TD20-03: payload com instance string vazia → resolveTenantFromInstance retorna null → early return', async () => {
+    mockAgentSettingsQB.first.mockReset().mockResolvedValueOnce(undefined)
+
+    await service.handleMessage(makePayload({}, ''))
+
+    expect(mockOpenAICreate).not.toHaveBeenCalled()
+    expect(mockWhatsAppService.sendText).not.toHaveBeenCalled()
   })
 })
 

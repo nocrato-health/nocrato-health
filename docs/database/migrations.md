@@ -21,7 +21,7 @@ The schema is split into 14 sequential migration files. The ordering strictly re
 | 013 | `013_create_conversations.sql` | `conversations` | `tenants` (tenant_id) |
 | 014 | `014_add_booking_mode_to_agent_settings.sql` | `agent_settings.booking_mode` column | `agent_settings` |
 | 015 | `015_alter_doctors_nullable_crm.ts` | `doctors.crm`, `doctors.crm_state` → nullable; `doctors.working_hours` DEFAULT `'{}'` → `NULL` (BUG-01 + BUG-02) | `doctors` |
-| 016 | `016_alter_invites_password_reset.sql` | `invites.type` → adds 'password_reset'; `invites.invited_by` → nullable | `invites` |
+| 016 | `016_add_evolution_instance_to_agent_settings.ts` | `agent_settings.evolution_instance_name VARCHAR(100) NULL` + index parcial (TD-20) | `agent_settings` |
 
 ---
 

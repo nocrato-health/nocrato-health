@@ -33,6 +33,7 @@ Também reage a eventos internos do sistema (EventEmitter2) para notificar pacie
 ```typescript
 interface EvolutionWebhookPayload {
   event: string
+  instance: string  // Nome da instância Evolution — usado para resolver o tenant (TD-20)
   data: {
     key: {
       remoteJid: string

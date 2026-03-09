@@ -253,14 +253,10 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-20 — resolveTenantFromInstance não suporta múltiplos tenants ativos simultaneamente
+### ~~TD-20 — resolveTenantFromInstance não suportava múltiplos tenants ativos~~ ✅ RESOLVIDO
 **Módulo:** `agent`
 **Identificado em:** US-9.3 (OBS-TL-4 tech-lead)
-**Prioridade:** P1
-
-`resolveTenantFromInstance()` busca o `agent_settings` com `enabled=true` mais recente por `updated_at`. Com dois ou mais doutores ativos, mensagens de pacientes de um tenant podem ser processadas com contexto de outro tenant — vazamento de dados entre tenants.
-
-**Fix:** Adicionar coluna `evolution_instance VARCHAR(100)` em `agent_settings`. Cada tenant configura sua própria instância. A resolução passa a ser `WHERE evolution_instance = env.EVOLUTION_INSTANCE`. Resolver antes de onboarding do segundo cliente.
+**Resolvido em:** TD-20 fix — migration `016_add_evolution_instance_to_agent_settings.ts` adicionou coluna `evolution_instance_name VARCHAR(100) NULL` em `agent_settings`. `resolveTenantFromInstance(instanceName)` agora filtra `WHERE enabled=true AND evolution_instance_name=instanceName`. Controller extrai `payload.instance` e valida sua presença antes de chamar `handleMessage`. Isolamento de tenant garantido por instância.
 
 ---
 
@@ -299,6 +295,13 @@ As chamadas a `openai.chat.completions.create()` em `handleMessage` não têm `t
 
 ### TD-18 — Type guard do webhook controller não validava `data.key.remoteJid`
 **Resolvido em:** US-9.3 — adicionado guard `!payload.data?.key?.remoteJid` no controller antes de chamar `handleMessage`
+
+---
+
+### TD-20 — resolveTenantFromInstance não suportava múltiplos tenants ativos
+**Módulo:** `agent`
+**Identificado em:** US-9.3 (OBS-TL-4 tech-lead)
+**Resolvido em:** TD-20 fix — migration `016`, coluna `evolution_instance_name VARCHAR(100) NULL` em `agent_settings`. `resolveTenantFromInstance(instanceName: string)` filtra `WHERE enabled=true AND evolution_instance_name=instanceName`. Controller valida `payload.instance` antes de chamar `handleMessage`. Interface `EvolutionWebhookPayload` atualizada com campo `instance: string`.
 
 ---
 

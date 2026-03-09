@@ -16,6 +16,7 @@ import { WhatsAppService } from './whatsapp.service'
 
 export interface EvolutionWebhookPayload {
   event: string
+  instance: string
   data: {
     key: {
       remoteJid: string
@@ -78,10 +79,12 @@ export class AgentService {
       return // ignora mensagens sem texto (imagens, áudios, etc.)
     }
 
-    // 2. Resolver tenant pela instância Evolution configurada (MVP: instância única)
-    const tenantId = await this.resolveTenantFromInstance()
+    // 2. Resolver tenant pela instância Evolution que recebeu a mensagem
+    const tenantId = await this.resolveTenantFromInstance(payload.instance)
     if (!tenantId) {
-      this.logger.warn('[AgentService] Instância Evolution não mapeada para nenhum tenant ativo')
+      this.logger.warn(
+        `[AgentService] Instância Evolution "${payload.instance}" não mapeada para nenhum tenant ativo`,
+      )
       return
     }
 
@@ -182,18 +185,24 @@ export class AgentService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Resolve o tenant_id a partir da instância Evolution configurada no env.
+   * Resolve o tenant_id a partir do nome da instância Evolution que recebeu a mensagem.
    *
-   * MVP com instância única: busca o agent_settings com enabled=true e retorna
-   * o tenant_id correspondente. Não usa coluna evolution_instance (não existe no schema).
-   * Se houver múltiplos tenants ativos no futuro, esta estratégia deve ser revisitada
-   * (TD: adicionar coluna evolution_instance em agent_settings).
+   * Cada doutor configura seu próprio `evolution_instance_name` em agent_settings.
+   * A resolução filtra por `enabled=true AND evolution_instance_name=instanceName`,
+   * garantindo isolamento de tenant: mensagens de uma instância nunca são processadas
+   * com o contexto de outro tenant.
+   *
+   * Retorna null (sem lançar exceção) se nenhum tenant ativo for encontrado para a instância,
+   * permitindo que o webhook handler retorne 200 silenciosamente (não quebra o fluxo).
    */
-  private async resolveTenantFromInstance(): Promise<string | null> {
+  private async resolveTenantFromInstance(instanceName: string): Promise<string | null> {
+    if (!instanceName) {
+      return null
+    }
+
     const row = await this.knex('agent_settings')
-      .where({ enabled: true })
+      .where({ enabled: true, evolution_instance_name: instanceName })
       .select('tenant_id')
-      .orderBy('updated_at', 'desc')
       .first()
 
     return (row?.tenant_id as string | undefined) ?? null

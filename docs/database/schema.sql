@@ -233,6 +233,11 @@ CREATE TABLE agent_settings (
     -- its own column yet. Keeps the schema flexible without migrations.
     enabled             BOOLEAN      NOT NULL DEFAULT true,
     -- Master switch to enable/disable the agent for this tenant.
+    evolution_instance_name VARCHAR(100) NULL,
+    -- Nome da instância Evolution API configurada por este tenant.
+    -- NULL para doutores que ainda não configuraram a integração WhatsApp.
+    -- Usado para resolver tenant_id a partir do campo 'instance' do webhook payload.
+    -- Cada tenant DEVE ter um valor único para evitar vazamento de dados entre tenants.
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
@@ -246,6 +251,10 @@ CREATE TABLE agent_settings (
 
 -- Index: tenant lookup (primary access pattern)
 CREATE INDEX idx_agent_settings_tenant_id ON agent_settings (tenant_id);
+
+-- Index: instance name lookup for webhook tenant resolution (1 query per incoming message)
+CREATE INDEX idx_agent_settings_evolution_instance ON agent_settings (evolution_instance_name)
+    WHERE evolution_instance_name IS NOT NULL;
 
 COMMENT ON TABLE agent_settings IS 'WhatsApp AI agent configuration. 1:1 with tenant. Read by internal agent module (agent.service.ts).';
 COMMENT ON COLUMN agent_settings.extra_config IS 'Flexible JSONB for agent config that does not warrant its own column yet.';

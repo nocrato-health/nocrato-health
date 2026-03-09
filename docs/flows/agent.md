@@ -113,7 +113,7 @@ Headers enviados pela Evolution API:
 ```json
 {
   "event": "messages.upsert",
-  "instance": "nocrato-instance",
+  "instance": "dr-marcos-instance",
   "data": {
     "key": {
       "remoteJid": "5511999999999@s.whatsapp.net",
@@ -134,10 +134,11 @@ Headers enviados pela Evolution API:
 ```typescript
 @Post('webhook')
 async handleWebhook(@Headers('apikey') apiKey: string, @Body() body: WhatsappWebhookDto) {
-  if (apiKey !== this.configService.get('EVOLUTION_WEBHOOK_TOKEN')) {
-    throw new UnauthorizedException();
-  }
-  if (body.data?.key?.fromMe) return; // ignora mensagens enviadas pelo proprio agente
+  if (apiKey !== env.EVOLUTION_WEBHOOK_TOKEN) throw new UnauthorizedException('Token inválido');
+  if (body.event !== 'messages.upsert') return;
+  if (!body.instance) return;             // campo obrigatório para resolução do tenant
+  if (!body.data?.key?.remoteJid) return; // TD-18
+  if (body.data.key.fromMe === true) return; // anti-loop
   await this.agentService.handleMessage(body);
 }
 ```
@@ -159,8 +160,9 @@ async handleWebhook(@Headers('apikey') apiKey: string, @Body() body: WhatsappWeb
               text = message.conversation
               pushName = nome do WhatsApp
 
-   b. Resolve tenant pelo numero da instancia Evolution
-      (cada doutor tem sua instancia configurada)
+   b. Resolve tenant pelo nome da instancia Evolution (payload.instance):
+      agent_settings WHERE enabled=true AND evolution_instance_name=payload.instance
+      → NotFoundException silenciosa (log + early return) se não encontrar
 
    c. Busca contexto do paciente:
       patientService.findByPhone(tenantId, phone)
@@ -463,4 +465,4 @@ OPENAI_API_KEY=sk-...
 AGENT_MODEL=gpt-4o-mini   # barato, rapido, excelente tool calling para PT-BR
 ```
 
-> **Nota**: Cada doutor com seu proprio numero WhatsApp teria sua propria instancia Evolution API. Para o MVP com um unico doutor, uma instancia e suficiente. Multi-instancia (um numero por doutor) e uma evolucao pos-MVP.
+> **Nota**: Cada doutor configura seu proprio `evolution_instance_name` em `agent_settings`. O campo `payload.instance` do webhook é usado para resolver o `tenant_id` sem ambiguidade, garantindo isolamento total entre tenants. Doutores sem `evolution_instance_name` configurado não recebem mensagens do agente (resolveTenantFromInstance retorna null silenciosamente).

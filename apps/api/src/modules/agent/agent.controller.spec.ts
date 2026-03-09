@@ -1,5 +1,6 @@
 /**
  * US-9.2 — Receber mensagens do WhatsApp via webhook
+ * TD-20 — Validação do campo instance no payload
  *
  * Casos de teste cobertos:
  *  CT-92-01: webhook válido (apikey correta, messages.upsert, fromMe=false) → HTTP 200, handleMessage chamado
@@ -7,6 +8,7 @@
  *  CT-92-03: fromMe=true → HTTP 200, handleMessage NÃO chamado (anti-loop)
  *  CT-92-04: sem header apikey → HTTP 401 UnauthorizedException
  *  CT-92-05: evento diferente de messages.upsert → HTTP 200, handleMessage não chamado
+ *  CT-92-06: payload sem campo instance → HTTP 200, handleMessage não chamado
  */
 
 jest.mock('@/config/env', () => ({
@@ -48,6 +50,7 @@ describe('AgentController', () => {
 
   const validBody = {
     event: 'messages.upsert',
+    instance: 'dr-marcos-instance',
     data: {
       key: {
         remoteJid: '5511999999999@s.whatsapp.net',
@@ -117,6 +120,26 @@ describe('AgentController', () => {
     }
 
     await controller.handleWebhook('test-token-secreto', connectionUpdateBody)
+
+    expect(agentService.handleMessage).not.toHaveBeenCalled()
+  })
+
+  // CT-92-06 — payload sem campo instance → ignorado silenciosamente
+  it('CT-92-06: payload sem campo instance → retorna sem chamar handleMessage', async () => {
+    const bodyWithoutInstance = {
+      event: 'messages.upsert',
+      data: {
+        key: {
+          remoteJid: '5511999999999@s.whatsapp.net',
+          fromMe: false,
+        },
+        message: {
+          conversation: 'Quero agendar',
+        },
+      },
+    }
+
+    await controller.handleWebhook('test-token-secreto', bodyWithoutInstance)
 
     expect(agentService.handleMessage).not.toHaveBeenCalled()
   })
