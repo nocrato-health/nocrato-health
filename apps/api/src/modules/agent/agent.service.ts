@@ -507,10 +507,16 @@ export class AgentService {
   async onPortalActivated(payload: {
     tenantId: string
     patientId: string
-    phone: string
+    phone: string | undefined
     portalAccessCode: string
   }): Promise<void> {
     try {
+      if (!payload.phone) {
+        this.logger.warn(
+          `Paciente sem telefone — não foi possível enviar código do portal via WhatsApp. patientId=${payload.patientId}`,
+        )
+        return
+      }
       const message = `Seu portal de saúde está pronto! Acesse ${env.FRONTEND_URL}/patient e use o código: ${payload.portalAccessCode}`
       await this.whatsappService.sendText(payload.phone, message)
     } catch (err) {

@@ -860,7 +860,7 @@ describe('AppointmentService — updateAppointmentStatus', () => {
   const createMockTrxNormal = (opts: {
     existing?: Record<string, unknown> | null
     updated?: Record<string, unknown>
-    patient?: { portal_access_code: string | null; phone?: string } | null
+    patient?: { portal_access_code: string | null; phone?: string; name?: string } | null
   }) => {
     const {
       existing = makeAppt('scheduled'),
@@ -1133,7 +1133,7 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     const { trx } = createMockTrxNormal({
       existing,
       updated,
-      patient: { portal_access_code: null, phone: '11999990000' },
+      patient: { portal_access_code: null, phone: '11999990000', name: 'João Santos' },
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockKnex.transaction.mockImplementation((cb: (t: any) => unknown) => cb(trx))
@@ -1143,10 +1143,124 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     expect(mockEventLogService.append).toHaveBeenCalledWith(
       TENANT_ID,
       'patient.portal_activated',
-      'doctor',
-      ACTOR_ID,
-      expect.objectContaining({ patient_id: PATIENT_ID }),
+      'system',
+      null,
+      expect.objectContaining({ patient_id: PATIENT_ID, patient_name: 'João Santos' }),
     )
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-101-01: primeira conclusão ativa o portal do paciente
+  // -------------------------------------------------------------------------
+
+  it('CT-101-01: should activate portal on first completion — actor_type=system, actor_id=null', async () => {
+    const existing = makeAppt('in_progress')
+    const updated = makeAppt('completed', { status: 'completed', completed_at: new Date() })
+    const { trx, patientUpdateBuilder } = createMockTrxNormal({
+      existing,
+      updated,
+      patient: { portal_access_code: null, phone: '+5511999999999', name: 'João Santos' },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockKnex.transaction.mockImplementation((cb: (t: any) => unknown) => cb(trx))
+
+    await service.updateAppointmentStatus(TENANT_ID, APPOINTMENT_ID, { status: 'completed' }, ACTOR_ID)
+
+    // patients.update deve receber o código gerado e portal_active: true
+    expect(patientUpdateBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        portal_access_code: expect.stringMatching(/^[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}$/),
+        portal_active: true,
+      }),
+    )
+
+    // eventLogService.append deve usar actor_type='system' e actor_id=null
+    expect(mockEventLogService.append).toHaveBeenCalledWith(
+      TENANT_ID,
+      'patient.portal_activated',
+      'system',
+      null,
+      expect.objectContaining({
+        patient_id: PATIENT_ID,
+        patient_name: 'João Santos',
+        portal_access_code: expect.stringMatching(/^[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}$/),
+      }),
+    )
+
+    // eventEmitter.emit deve ser chamado com o evento patient.portal_activated
+    expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+      'patient.portal_activated',
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        patientId: PATIENT_ID,
+        phone: '+5511999999999',
+        portalAccessCode: expect.stringMatching(/^[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}$/),
+      }),
+    )
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-101-02: segunda conclusão NÃO reativa o portal
+  // -------------------------------------------------------------------------
+
+  it('CT-101-02: should NOT activate portal when patient already has portal_access_code', async () => {
+    const existing = makeAppt('in_progress')
+    const updated = makeAppt('completed', { status: 'completed', completed_at: new Date() })
+    const { trx, patientUpdateBuilder } = createMockTrxNormal({
+      existing,
+      updated,
+      patient: { portal_access_code: 'ABC-1234-XYZ', phone: '+5511999999999', name: 'João Santos' },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockKnex.transaction.mockImplementation((cb: (t: any) => unknown) => cb(trx))
+
+    await service.updateAppointmentStatus(TENANT_ID, APPOINTMENT_ID, { status: 'completed' }, ACTOR_ID)
+
+    // patients.update NÃO deve ser chamado para portal_access_code
+    expect(patientUpdateBuilder.update).not.toHaveBeenCalled()
+
+    // eventEmitter.emit NÃO deve ser chamado com patient.portal_activated
+    expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+      'patient.portal_activated',
+      expect.anything(),
+    )
+
+    // eventLogService.append NÃO deve registrar patient.portal_activated
+    expect(mockEventLogService.append).not.toHaveBeenCalledWith(
+      TENANT_ID,
+      'patient.portal_activated',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    )
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-101-03: formato do código de acesso está correto (charset sem I/O)
+  // -------------------------------------------------------------------------
+
+  it('CT-101-03: generated portal_access_code must match AAA-9999-AAA format without I and O', async () => {
+    const existing = makeAppt('in_progress')
+    const updated = makeAppt('completed', { status: 'completed', completed_at: new Date() })
+    const { trx, patientUpdateBuilder } = createMockTrxNormal({
+      existing,
+      updated,
+      patient: { portal_access_code: null, phone: '+5511999999999', name: 'João Santos' },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockKnex.transaction.mockImplementation((cb: (t: any) => unknown) => cb(trx))
+
+    await service.updateAppointmentStatus(TENANT_ID, APPOINTMENT_ID, { status: 'completed' }, ACTOR_ID)
+
+    const [[updateArg]] = patientUpdateBuilder.update.mock.calls as [[Record<string, unknown>]]
+    const code = updateArg.portal_access_code as string
+
+    // Formato correto: 3 letras - 4 dígitos - 3 letras
+    expect(code).toMatch(/^[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}$/)
+
+    // Garante que I e O não aparecem nas letras
+    const lettersOnly = code.replace(/-/g, '').replace(/\d/g, '')
+    expect(lettersOnly).not.toMatch(/[IO]/)
   })
 
   // -------------------------------------------------------------------------

@@ -8,19 +8,21 @@
 | **Dependencies** | EPIC 9 (Agente WhatsApp - Modulo Interno), EPIC 5 (Gestão de Consultas) |
 | **User Stories** | 3 |
 
+> **Casos de teste:** [docs/test-cases/epic-10.md](../test-cases/epic-10.md)
+
 ---
 
-## US-10.1: Como sistema, quero gerar codigo de acesso apos primeira consulta
+## US-10.1: Como sistema, quero gerar codigo de acesso apos primeira consulta ✅
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [ ] Requer que o EPIC 5 emita evento `appointment.status_changed` com `newStatus='completed'` ao marcar consulta como concluída
-- [ ] Quando appointment.status → 'completed' e paciente nao tem portal_access_code:
+- [x] Requer que o EPIC 5 emita evento `appointment.status_changed` com `newStatus='completed'` ao marcar consulta como concluída
+- [x] Quando appointment.status → 'completed' e paciente nao tem portal_access_code:
   - Gera codigo unico (ex: "ABC-1234-XYZ")
   - Salva em patients.portal_access_code, portal_active = true
-  - Emite evento patient.portal_activated
+  - Emite evento patient.portal_activated (actor_type='system', actor_id=null)
   - Agente interno envia codigo via WhatsApp (@OnEvent('patient.portal_activated'))
-- [ ] **Criterio:** Codigo gerado automaticamente na primeira conclusao
+- [x] **Criterio:** Codigo gerado automaticamente na primeira conclusao
 
 ---
 

@@ -365,7 +365,7 @@ export class AppointmentService {
       if (dto.status === 'completed') {
         const patient = await trx('patients')
           .where({ id: appointment.patient_id, tenant_id: tenantId })
-          .select(['portal_access_code', 'phone'])
+          .select(['portal_access_code', 'phone', 'name'])
           .first()
 
         if (!patient?.portal_access_code) {
@@ -377,9 +377,13 @@ export class AppointmentService {
           await this.eventLogService.append(
             tenantId,
             'patient.portal_activated',
-            'doctor',
-            actorId,
-            { patient_id: appointment.patient_id, portal_access_code: code },
+            'system',
+            null,
+            {
+              patient_id: appointment.patient_id,
+              patient_name: patient?.name as string | undefined,
+              portal_access_code: code,
+            },
           )
 
           // Emitir evento via EventEmitter2 para que o agente envie o código ao paciente
