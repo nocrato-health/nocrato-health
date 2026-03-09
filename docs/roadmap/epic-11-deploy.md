@@ -8,6 +8,8 @@
 | **Dependencies** | EPIC 10 (Portal do Paciente) |
 | **User Stories** | 4 |
 
+> **Casos de teste:** [docs/test-cases/epic-11.md](../test-cases/epic-11.md)
+
 ---
 
 ## US-11.1: Como usuario, quero uma experiencia fluida
@@ -26,10 +28,10 @@
 
 **Agentes:** `backend` → `tech-lead`
 
-- [ ] Swagger setup (@nestjs/swagger)
-- [ ] Todos controllers com @ApiTags, @ApiOperation, @ApiResponse
-- [ ] Acessivel em /api/docs
-- [ ] **Criterio:** Documentacao completa e navegavel
+- [x] Swagger setup (@nestjs/swagger)
+- [x] Todos controllers com @ApiTags, @ApiOperation, @ApiResponse
+- [x] Acessivel em /api/docs
+- [x] **Criterio:** Documentacao completa e navegavel
 
 ---
 

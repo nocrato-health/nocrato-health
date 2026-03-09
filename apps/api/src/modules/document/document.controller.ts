@@ -11,6 +11,15 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger'
 import { diskStorage } from 'multer'
 import { mkdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -27,6 +36,8 @@ import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
 import { CreateDocumentSchema, CreateDocumentDto } from './dto/create-document.dto'
 import { ListDocumentsSchema, ListDocumentsDto } from './dto/list-documents.dto'
 
+@ApiTags('Doctor Documents')
+@ApiBearerAuth()
 @Controller('doctor')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles('doctor')
@@ -36,6 +47,30 @@ export class DocumentController {
   // US-6.3: Upload de arquivo para disco local — multipart/form-data, campo "file"
   @Post('upload')
   @HttpCode(201)
+  @ApiOperation({ summary: 'Upload de arquivo para disco local (campo "file", multipart/form-data)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Arquivo a enviar' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Arquivo enviado. Retorna fileUrl e fileName para usar em POST /documents',
+    schema: {
+      type: 'object',
+      properties: {
+        fileUrl: { type: 'string', example: '/uploads/{tenantId}/arquivo.pdf' },
+        fileName: { type: 'string', example: 'arquivo.pdf' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Arquivo não enviado' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -69,6 +104,14 @@ export class DocumentController {
 
   // US-6.4: Listagem paginada de documentos de um paciente — patientId obrigatório via query
   @Get('documents')
+  @ApiOperation({ summary: 'Listar documentos de um paciente com filtro por tipo e paginação' })
+  @ApiQuery({ name: 'patientId', required: true, type: String, description: 'UUID do paciente (obrigatório)' })
+  @ApiQuery({ name: 'type', required: false, enum: ['prescription', 'certificate', 'exam', 'other'] })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiResponse({ status: 200, description: 'Lista paginada de documentos' })
+  @ApiResponse({ status: 400, description: 'patientId inválido ou ausente' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
   listDocuments(
     @TenantId() tenantId: string,
     @Query(new ZodValidationPipe(ListDocumentsSchema)) query: ListDocumentsDto,
@@ -79,6 +122,25 @@ export class DocumentController {
   // US-6.3: Registrar documento no banco após upload
   @Post('documents')
   @HttpCode(201)
+  @ApiOperation({ summary: 'Registrar documento no banco após upload (usar fileUrl retornado pelo POST /upload)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['patientId', 'type', 'fileUrl', 'fileName'],
+      properties: {
+        patientId: { type: 'string', format: 'uuid' },
+        appointmentId: { type: 'string', format: 'uuid', description: 'Opcional — vincular a uma consulta' },
+        type: { type: 'string', enum: ['prescription', 'certificate', 'exam', 'other'] },
+        fileUrl: { type: 'string', example: '/uploads/{tenantId}/arquivo.pdf' },
+        fileName: { type: 'string', example: 'arquivo.pdf' },
+        description: { type: 'string', example: 'Receita de anti-hipertensivo' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Documento registrado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  @ApiResponse({ status: 404, description: 'Paciente não encontrado no tenant' })
   createDocument(
     @TenantId() tenantId: string,
     @CurrentUser() user: JwtPayload,
