@@ -49,6 +49,10 @@ Thumbs.db
 *.swp
 *.swo
 
+# Claude Code
+.claude/settings.json
+.claude/settings.local.json
+
 # Uploads (disco local no MVP)
 uploads/
 
