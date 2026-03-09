@@ -24,7 +24,8 @@
 import knex from 'knex'
 import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
-import * as path from 'path'
+import * as path from 'node:path'
+import * as fs from 'node:fs'
 
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
 
@@ -39,6 +40,9 @@ export const TEST_DOCTOR_DONE = {
   email: 'test-done@nocrato.com',
   tenantSlug: 'test-done-doctor',
 }
+
+// Código de acesso do portal do paciente (CT-103-xx)
+export const PORTAL_ACCESS_CODE = 'MRO-5678-PAC'
 
 // Tokens de booking para a suíte Playwright (CT-75-xx)
 // Cada token tem 64 chars hexadecimais (padrão do generateToken)
@@ -88,9 +92,11 @@ async function setupTestData() {
       crmState: 'SP',
       workingHours: { monday: [{ start: '08:00', end: '17:00' }] },
       welcomeMessage: 'Olá! Sou a assistente da Dra. Teste.',
+      primaryColor: '#D97706',
     })
 
     await setupPatients(db, doneTenantId)
+    await setupPatientPortal(db, doneTenantId)
     await setupBookingTokens(db, doneTenantId)
 
     console.log('✅ Dados de teste criados/resetados com sucesso.')
@@ -112,12 +118,14 @@ async function setupDoctor(
     crmState: string | null
     workingHours: object | null
     welcomeMessage: string | null
+    primaryColor?: string
   },
 ): Promise<string> {
   // Remover registros existentes em ordem correta (FK constraints)
   const existingTenant = await db('tenants').where({ slug: opts.tenantSlug }).first()
 
   if (existingTenant) {
+    await db('documents').where({ tenant_id: existingTenant.id }).delete()
     await db('appointments').where({ tenant_id: existingTenant.id }).delete()
     await db('patients').where({ tenant_id: existingTenant.id }).delete()
     await db('agent_settings').where({ tenant_id: existingTenant.id }).delete()
@@ -133,6 +141,7 @@ async function setupDoctor(
     .insert({
       slug: opts.tenantSlug,
       name: opts.tenantName,
+      ...(opts.primaryColor ? { primary_color: opts.primaryColor } : {}),
     })
     .returning(['id'])
 
@@ -212,6 +221,68 @@ async function setupPatients(db: ReturnType<typeof knex>, tenantId: string): Pro
       },
     ])
   }
+}
+
+async function setupPatientPortal(db: ReturnType<typeof knex>, tenantId: string): Promise<void> {
+  // Criar paciente Maria Oliveira com portal ativo (CT-103-xx)
+  const [maria] = await db('patients')
+    .insert({
+      tenant_id: tenantId,
+      name: 'Maria Oliveira',
+      phone: '(11) 91111-0099',
+      source: 'manual',
+      status: 'active',
+      portal_access_code: PORTAL_ACCESS_CODE,
+      portal_active: true,
+    })
+    .returning(['id'])
+
+  // Appointment futuro (scheduled) — deve aparecer primeiro na ordenação
+  const futureDate = new Date()
+  futureDate.setDate(futureDate.getDate() + 7)
+  futureDate.setUTCHours(14, 0, 0, 0)
+
+  // Appointment passado (completed)
+  await db('appointments').insert([
+    {
+      tenant_id: tenantId,
+      patient_id: maria.id,
+      date_time: futureDate.toISOString(),
+      status: 'scheduled',
+      duration_minutes: 30,
+    },
+    {
+      tenant_id: tenantId,
+      patient_id: maria.id,
+      date_time: '2025-06-15T10:00:00Z',
+      status: 'completed',
+      duration_minutes: 45,
+    },
+  ])
+
+  // Criar diretório de uploads para o tenant (necessário para download no CT-103-05)
+  const uploadsDir = path.resolve(__dirname, '../../../../../apps/api/uploads', tenantId)
+  fs.mkdirSync(uploadsDir, { recursive: true })
+
+  // Copiar fixture PDF para simular documento real no disco
+  const fixtureSource = path.resolve(__dirname, '../../../../../apps/web/e2e/fixtures/test-doc.pdf')
+  const destFilename = 'portal-test-doc.pdf'
+  const destPath = path.join(uploadsDir, destFilename)
+  if (fs.existsSync(fixtureSource)) {
+    fs.copyFileSync(fixtureSource, destPath)
+  }
+
+  const fileUrl = `/uploads/${tenantId}/${destFilename}`
+
+  await db('documents').insert({
+    tenant_id: tenantId,
+    patient_id: maria.id,
+    type: 'prescription',
+    file_url: fileUrl,
+    file_name: 'receita_2024.pdf',
+    mime_type: 'application/pdf',
+    description: 'Receita de teste para Playwright',
+  })
 }
 
 async function setupBookingTokens(db: ReturnType<typeof knex>, tenantId: string): Promise<void> {

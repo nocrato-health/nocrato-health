@@ -204,7 +204,7 @@
 7. Verificar que a seção de consultas está visível com pelo menos 1 item
 8. Verificar que a seção de documentos está visível
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-01)
 
 ---
 
@@ -216,7 +216,7 @@
 **When** paciente digita `ZZZ-0000-ZZZ` (código inexistente) e clica em "Acessar Portal"
 **Then** mensagem de erro é exibida na tela (ex: "Código inválido") sem redirecionar para o portal
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-02)
 
 ---
 
@@ -228,7 +228,7 @@
 **When** seção de dados pessoais é visualizada
 **Then** nome, telefone, e-mail e data de nascimento são exibidos sem campos de edição — nenhum botão "Editar" ou input editável
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-03)
 
 ---
 
@@ -240,7 +240,7 @@
 **When** portal é acessado e seção de consultas é visualizada
 **Then** consulta futura aparece no topo, seguida pelas concluídas em ordem decrescente de data
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-04)
 
 ---
 
@@ -252,7 +252,7 @@
 **When** clica no botão/link de download do documento
 **Then** download do arquivo é iniciado no browser
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-05)
 
 ---
 
@@ -264,6 +264,6 @@
 **When** paciente acessa o portal com código válido
 **Then** a cor primária `#D97706` é aplicada visualmente no portal e o logo do médico é exibido
 
-**Resultado atual:** [ ] ok  [ ] falhou
+**Resultado atual:** [x] ok  — 2026-03-09 (Playwright CT-103-06)
 
 ---
