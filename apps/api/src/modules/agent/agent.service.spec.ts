@@ -16,6 +16,8 @@
  *  CT-TD20-01: resolveTenantFromInstance filtra por evolution_instance_name correta → retorna tenantId
  *  CT-TD20-02: resolveTenantFromInstance com instância desconhecida → retorna null → early return
  *  CT-TD20-03: payload sem campo instance → early return silencioso
+ *  CT-TD21-01: OpenAI rejeita na chamada inicial → retorna sem enviar mensagem (não propaga exceção)
+ *  CT-TD21-02: OpenAI rejeita dentro do loop de tool_calls → retorna sem enviar mensagem (não propaga exceção)
  */
 
 // ---------------------------------------------------------------------------
@@ -436,6 +438,32 @@ describe('AgentService', () => {
 
     // Resposta final deve ser enviada mesmo assim
     expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal)
+  })
+
+  // CT-TD21-01: falha na chamada inicial à OpenAI → retorna silenciosamente (sem enviar mensagem)
+  it('CT-TD21-01: OpenAI rejeita na chamada inicial → retorna sem enviar mensagem (não propaga exceção)', async () => {
+    mockOpenAICreate.mockRejectedValue(new Error('Connection timeout'))
+
+    await expect(service.handleMessage(makePayload())).resolves.toBeUndefined()
+
+    expect(mockWhatsAppService.sendText).not.toHaveBeenCalled()
+    expect(mockConversationService.appendMessages).not.toHaveBeenCalled()
+  })
+
+  // CT-TD21-02: falha na chamada OpenAI dentro do loop de tool_calls → retorna silenciosamente
+  it('CT-TD21-02: OpenAI rejeita dentro do loop de tool_calls → retorna sem enviar mensagem (não propaga exceção)', async () => {
+    mockOpenAICreate
+      .mockResolvedValueOnce(makeToolCallResponse('list_slots', { date: '2025-03-15' }))
+      .mockRejectedValueOnce(new Error('Rate limit exceeded'))
+
+    mockBookingService.getSlotsInternal.mockResolvedValue({ slots: [] })
+
+    await expect(service.handleMessage(makePayload())).resolves.toBeUndefined()
+
+    // Primeira chamada (inicial) foi bem sucedida, segunda (pós-tool) falhou
+    expect(mockOpenAICreate).toHaveBeenCalledTimes(2)
+    expect(mockWhatsAppService.sendText).not.toHaveBeenCalled()
+    expect(mockConversationService.appendMessages).not.toHaveBeenCalled()
   })
 
   // Extra: mensagem via extendedTextMessage (path alternativo)

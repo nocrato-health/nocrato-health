@@ -260,17 +260,6 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-21 — Erros da API OpenAI não são capturados com contexto de tenant/phone
-**Módulo:** `agent`
-**Identificado em:** US-9.3 (OBS-TL-1 tech-lead)
-**Prioridade:** P2
-
-As chamadas a `openai.chat.completions.create()` em `handleMessage` não têm `try/catch`. Em caso de erro (quota, timeout, rede), o NestJS retorna 500 mas o log não identifica tenant/phone afetado.
-
-**Fix:** Envolver o bloco do loop OpenAI em `try/catch` com log contextualizado e envio de mensagem de fallback ao paciente via `whatsappService.sendText`. Resolver antes do deploy.
-
----
-
 ### TD-22 — Instância OpenAI criada por mensagem recebida
 **Módulo:** `agent`
 **Identificado em:** US-9.3 (OBS-TL-2 tech-lead)
@@ -302,6 +291,13 @@ As chamadas a `openai.chat.completions.create()` em `handleMessage` não têm `t
 **Módulo:** `agent`
 **Identificado em:** US-9.3 (OBS-TL-4 tech-lead)
 **Resolvido em:** TD-20 fix — migration `016`, coluna `evolution_instance_name VARCHAR(100) NULL` em `agent_settings`. `resolveTenantFromInstance(instanceName: string)` filtra `WHERE enabled=true AND evolution_instance_name=instanceName`. Controller valida `payload.instance` antes de chamar `handleMessage`. Interface `EvolutionWebhookPayload` atualizada com campo `instance: string`.
+
+---
+
+### TD-21 — Erros da API OpenAI não eram capturados com contexto de tenant/phone
+**Módulo:** `agent`
+**Identificado em:** US-9.3 (OBS-TL-1 tech-lead)
+**Resolvido em:** TD-21 fix — `agent.service.ts`: try/catch ao redor da chamada inicial e da chamada dentro do loop de tool_calls, com log contextualizado incluindo `tenant=` e `phone=`. `agent.controller.ts`: try/catch ao redor de `handleMessage` garantindo retorno 200 à Evolution API mesmo em exceções inesperadas. Novos CTs: CT-TD21-01, CT-TD21-02, CT-TD21-03.
 
 ---
 

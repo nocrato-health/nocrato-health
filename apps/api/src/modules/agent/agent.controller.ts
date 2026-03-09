@@ -1,4 +1,4 @@
-import { Controller, Post, Headers, Body, HttpCode, UnauthorizedException } from '@nestjs/common'
+import { Controller, Post, Headers, Body, HttpCode, UnauthorizedException, Logger } from '@nestjs/common'
 import { ApiBody, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { AgentService, EvolutionWebhookPayload } from './agent.service'
 import { env } from '@/config/env'
@@ -6,6 +6,8 @@ import { env } from '@/config/env'
 @ApiTags('WhatsApp Agent')
 @Controller('agent')
 export class AgentController {
+  private readonly logger = new Logger(AgentController.name)
+
   constructor(private readonly agentService: AgentService) {}
 
   @Post('webhook')
@@ -84,6 +86,13 @@ export class AgentController {
       return
     }
 
-    await this.agentService.handleMessage(payload)
+    try {
+      await this.agentService.handleMessage(payload)
+    } catch (err) {
+      // Nunca retornar 5xx para a Evolution API — webhook deve sempre receber 200
+      this.logger.error(
+        `[AgentController] Erro inesperado ao processar webhook — instance=${payload.instance}: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 }

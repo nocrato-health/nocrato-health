@@ -120,15 +120,24 @@ export class AgentService {
     // 8. Chamar OpenAI com tools
     const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
-    let response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }, ...openaiMessages],
-      tools: this.getTools(agentCtx.bookingMode),
-      tool_choice: 'auto',
-    })
+    let response: OpenAI.Chat.Completions.ChatCompletion
+    let iterations = 0
+
+    try {
+      response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: systemPrompt }, ...openaiMessages],
+        tools: this.getTools(agentCtx.bookingMode),
+        tool_choice: 'auto',
+      })
+    } catch (err) {
+      this.logger.error(
+        `[AgentService] Falha na chamada inicial à OpenAI — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      return
+    }
 
     // 9. Loop de execução de tools (máx MAX_TOOL_ITERATIONS para evitar loop infinito)
-    let iterations = 0
     const toolMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
 
     while (response.choices[0].message.tool_calls?.length && iterations < MAX_TOOL_ITERATIONS) {
@@ -152,16 +161,23 @@ export class AgentService {
       toolMessages.push(...toolResultMessages)
 
       // Nova chamada ao LLM com os resultados das tools
-      response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...openaiMessages,
-          ...toolMessages,
-        ],
-        tools: this.getTools(agentCtx.bookingMode),
-        tool_choice: 'auto',
-      })
+      try {
+        response = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...openaiMessages,
+            ...toolMessages,
+          ],
+          tools: this.getTools(agentCtx.bookingMode),
+          tool_choice: 'auto',
+        })
+      } catch (err) {
+        this.logger.error(
+          `[AgentService] Falha na chamada à OpenAI após ${iterations} iteração(ões) de tool_calls — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+        )
+        return
+      }
     }
 
     // 10. Extrair resposta final

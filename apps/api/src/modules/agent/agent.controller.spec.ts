@@ -9,6 +9,7 @@
  *  CT-92-04: sem header apikey → HTTP 401 UnauthorizedException
  *  CT-92-05: evento diferente de messages.upsert → HTTP 200, handleMessage não chamado
  *  CT-92-06: payload sem campo instance → HTTP 200, handleMessage não chamado
+ *  CT-TD21-03: handleMessage lança exceção inesperada → controller captura e retorna 200 (não propaga)
  */
 
 jest.mock('@/config/env', () => ({
@@ -149,5 +150,16 @@ describe('AgentController', () => {
     await controller.handleWebhook('test-token-secreto', null)
 
     expect(agentService.handleMessage).not.toHaveBeenCalled()
+  })
+
+  // CT-TD21-03: handleMessage lança exceção inesperada → controller não propaga (webhook retorna 200)
+  it('CT-TD21-03: handleMessage rejeita com exceção inesperada → controller captura e retorna sem relançar', async () => {
+    agentService.handleMessage.mockRejectedValueOnce(new Error('Erro inesperado no service'))
+
+    await expect(
+      controller.handleWebhook('test-token-secreto', validBody),
+    ).resolves.toBeUndefined()
+
+    expect(agentService.handleMessage).toHaveBeenCalledTimes(1)
   })
 })
