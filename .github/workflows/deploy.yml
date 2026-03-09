@@ -26,7 +26,9 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" << 'EOF'
+          CLEAN_USER=$(printf '%s' "$VPS_USER" | tr -d '[:space:]')
+          CLEAN_HOST=$(printf '%s' "$VPS_HOST" | tr -d '[:space:]')
+          ssh -i ~/.ssh/id_rsa -l "$CLEAN_USER" "$CLEAN_HOST" << 'EOF'
             set -e
 
             APP_DIR="/opt/nocrato-health-v2"
