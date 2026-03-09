@@ -24,7 +24,7 @@
 
 ---
 
-## US-11.2: Como desenvolvedor, quero documentacao da API
+## ✅ US-11.2: Como desenvolvedor, quero documentacao da API
 
 **Agentes:** `backend` → `tech-lead`
 
@@ -35,7 +35,7 @@
 
 ---
 
-## US-11.3: Como desenvolvedor, quero seed data para testes
+## ✅ US-11.3: Como desenvolvedor, quero seed data para testes
 
 **Agentes:** `backend` → `tech-lead`
 

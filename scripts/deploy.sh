@@ -23,6 +23,11 @@ APP_DIR="/opt/nocrato-health-v2"
 DOMAIN="app.nocrato.com"
 CERTBOT_EMAIL="devops@nocrato.com.br"
 
+# Nota: --env-file é obrigatório porque o compose file fica em docker/
+# e o Docker Compose procura .env no mesmo diretório do compose file.
+# Com --env-file apontando para a raiz, a interpolação ${VAR} funciona corretamente.
+COMPOSE="docker compose -f $APP_DIR/docker/docker-compose.prod.yml --env-file $APP_DIR/.env"
+
 # ──────────────────────────────────────────
 # Funções utilitárias
 # ──────────────────────────────────────────
@@ -185,7 +190,7 @@ else
 fi
 
 # Configura renovação automática via cron (a cada 12h)
-(crontab -l 2>/dev/null; echo "0 */12 * * * certbot renew --quiet --deploy-hook 'docker compose -f $APP_DIR/docker/docker-compose.prod.yml restart nginx'") | sort -u | crontab -
+(crontab -l 2>/dev/null; echo "0 */12 * * * certbot renew --quiet --deploy-hook '$COMPOSE restart nginx'") | sort -u | crontab -
 echo "Renovação automática configurada (cron 0 */12 * * *)"
 
 # ──────────────────────────────────────────
@@ -194,7 +199,7 @@ echo "Renovação automática configurada (cron 0 */12 * * *)"
 log "8/10 Fazendo build das imagens Docker"
 
 cd "$APP_DIR"
-docker compose -f docker/docker-compose.prod.yml build --no-cache
+$COMPOSE build --no-cache
 
 # ──────────────────────────────────────────
 # 9. Subir banco e rodar migrations
@@ -203,18 +208,18 @@ docker compose -f docker/docker-compose.prod.yml build --no-cache
 log "9/10 Subindo PostgreSQL e rodando migrations"
 
 # Sobe apenas o banco
-docker compose -f docker/docker-compose.prod.yml up -d postgres
+$COMPOSE up -d postgres
 
 # Aguarda o healthcheck passar (pg_isready)
 echo "Aguardando PostgreSQL ficar saudável..."
 RETRIES=30
-until docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+until $COMPOSE exec -T postgres \
   pg_isready -U "$(grep DB_USER "$APP_DIR/.env" | cut -d= -f2)" \
   -d "$(grep DB_NAME "$APP_DIR/.env" | cut -d= -f2)" 2>/dev/null; do
   RETRIES=$((RETRIES - 1))
   if [[ $RETRIES -eq 0 ]]; then
     echo "ERRO: PostgreSQL não ficou saudável a tempo"
-    docker compose -f docker/docker-compose.prod.yml logs postgres
+    $COMPOSE logs postgres
     exit 1
   fi
   echo "  aguardando... ($RETRIES tentativas restantes)"
@@ -225,7 +230,7 @@ echo "PostgreSQL saudável."
 # Roda migrations com o container da API
 # migrate.ts é compilado explicitamente no Dockerfile.api via tsc (não pelo nest build)
 # WORKDIR do container é /app/apps/api — dist/database/migrate.js é o caminho correto
-docker compose -f docker/docker-compose.prod.yml run --rm \
+$COMPOSE run --rm \
   -e NODE_ENV=production \
   api \
   node dist/database/migrate.js
@@ -237,7 +242,7 @@ echo "Migrations aplicadas com sucesso."
 # ──────────────────────────────────────────
 log "10/10 Subindo todos os serviços"
 
-docker compose -f docker/docker-compose.prod.yml up -d
+$COMPOSE up -d
 
 # Aguarda a API responder no health check
 echo "Aguardando API ficar disponível..."
@@ -246,7 +251,7 @@ until curl -sf "https://$DOMAIN/health" > /dev/null 2>&1; do
   RETRIES=$((RETRIES - 1))
   if [[ $RETRIES -eq 0 ]]; then
     echo "AVISO: health check não respondeu a tempo (pode ainda estar subindo)"
-    echo "Verifique com: docker compose -f $APP_DIR/docker/docker-compose.prod.yml logs api"
+    echo "Verifique com: $COMPOSE logs api"
     break
   fi
   echo "  aguardando... ($RETRIES tentativas restantes)"
@@ -267,11 +272,11 @@ echo "╠═══════════════════════�
 echo "║  Comandos úteis:                          ║"
 echo "║                                           ║"
 echo "║  Ver logs:                                ║"
-echo "║    docker compose -f docker/docker-compose.prod.yml logs -f"
+echo "║    $COMPOSE logs -f"
 echo "║                                           ║"
 echo "║  Status dos serviços:                     ║"
-echo "║    docker compose -f docker/docker-compose.prod.yml ps"
+echo "║    $COMPOSE ps"
 echo "║                                           ║"
 echo "║  Rodar seed (dados iniciais):             ║"
-echo "║    docker compose -f docker/docker-compose.prod.yml run --rm -e NODE_ENV=production api node dist/database/seed.js"
+echo "║    $COMPOSE run --rm -e NODE_ENV=production api node dist/database/seed.js"
 echo "╚══════════════════════════════════════════╝"
