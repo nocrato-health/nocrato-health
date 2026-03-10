@@ -109,14 +109,9 @@ Refresh tokens são stateless (não armazenados no banco). Impossível revogar s
 
 ---
 
-### TD-10 — Uploads de documentos em disco local sem backup
-**Módulo:** `document`
-**Identificado em:** ADR-003 / Auditoria pós-Epic 7
-**Prioridade:** P2
+### ~~TD-10 — Uploads de documentos em disco local sem backup~~ ✅ RESOLVIDO (parcial)
 
-Arquivos enviados (`/uploads/{tenantId}/`) ficam no disco da instância Hetzner sem replicação. Falha de disco = perda de todos os documentos dos pacientes.
-
-**Fix pós-deploy:** Configurar cron job de sync para S3/R2. Longo prazo: substituir disco local por object storage (fora do escopo do MVP).
+**Resolvido em:** TD-10 fix — `scripts/backup-uploads.sh` criado no repositório. Deploy workflow configura cron diário às 03:00 que executa `rsync -a --delete uploads/ → /opt/backups/nocrato-uploads/`. Proteção contra delete acidental do app. Backup real (S3/R2) permanece como melhoria futura.
 
 ---
 

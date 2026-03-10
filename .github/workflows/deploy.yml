@@ -42,4 +42,8 @@ jobs:
             $COMPOSE run --rm -e NODE_ENV=production api node dist/database/migrate.js
             echo "==> up"
             $COMPOSE up -d
+            echo "==> backup cron (TD-10)"
+            mkdir -p /opt/backups/nocrato-uploads
+            chmod +x $APP_DIR/scripts/backup-uploads.sh
+            (crontab -l 2>/dev/null | grep -q "backup-uploads" || (crontab -l 2>/dev/null; echo "0 3 * * * /opt/nocrato-health-v2/scripts/backup-uploads.sh >> /var/log/nocrato-backup.log 2>&1") | crontab -)
             echo "==> done"'
