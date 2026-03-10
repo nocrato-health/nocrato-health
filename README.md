@@ -107,13 +107,15 @@ pnpm install
 # 2. Subir PostgreSQL e Evolution API
 docker compose -f docker/docker-compose.dev.yml up -d
 
-# 3. Criar .env na raiz de apps/api (ver apps/api/.env.example)
+# 3. Configurar variáveis de ambiente
 cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+# Edite apps/api/.env com suas chaves (JWT_SECRET, OPENAI_API_KEY, etc.)
 
 # 4. Rodar migrations
-pnpm --filter @nocrato/api migrate:latest
+pnpm --filter @nocrato/api migrate
 
-# 5. Seed inicial (cria o primeiro admin da agência)
+# 5. Seed inicial (cria dados de exemplo + primeiro admin da agência)
 pnpm --filter @nocrato/api seed
 
 # 6. Subir backend e frontend em paralelo
@@ -124,6 +126,32 @@ pnpm dev
 - Backend: http://localhost:3000
 - Swagger: http://localhost:3000/api/docs
 - Frontend: http://localhost:5173
+
+**Credenciais criadas pelo seed:**
+| Portal | Email | Senha |
+|--------|-------|-------|
+| Agência (admin) | `admin@nocrato.com` | `admin123` |
+| Doutor (demo) | `dr.ana@silva.com` | `Doctor123!` |
+
+> Booking público demo: `http://localhost:5173/book/dr-ana-silva?token=seed-booking-token-0000000000000000000000000000000000000`
+
+---
+
+## Rodando testes
+
+```bash
+# Testes unitários (todos os apps)
+pnpm test
+
+# Testes unitários — só o backend
+pnpm --filter @nocrato/api test
+
+# Testes E2E com Playwright (requer frontend + backend rodando)
+pnpm --filter @nocrato/web test:e2e
+
+# Typecheck completo
+pnpm typecheck
+```
 
 ---
 
@@ -190,18 +218,18 @@ appointment.status → 'completed' (primeira vez)
 
 | Epic | Nome | Status |
 |------|------|--------|
-| 0 | Fundação (monorepo, banco, NestJS bootstrap) | Pendente |
-| 1 | Autenticação & Convites | Pendente |
-| 2 | Portal da Agência | Pendente |
-| 3 | Onboarding do Doutor | Pendente |
-| 4 | Gestão de Pacientes | Pendente |
-| 5 | Gestão de Consultas | Pendente |
-| 6 | Notas Clínicas & Documentos | Pendente |
-| 7 | Agendamento Público (Booking) | Pendente |
-| 8 | Configurações & Agente | Pendente |
-| 9 | Agente WhatsApp (Módulo Interno) | Pendente |
-| 10 | Portal do Paciente | Pendente |
-| 11 | Polish & Deploy | Pendente |
+| 0 | Fundação (monorepo, banco, NestJS bootstrap) | ✅ Concluído |
+| 1 | Autenticação & Convites | ✅ Concluído |
+| 2 | Portal da Agência | ✅ Concluído |
+| 3 | Onboarding do Doutor | ✅ Concluído |
+| 4 | Gestão de Pacientes | ✅ Concluído |
+| 5 | Gestão de Consultas | ✅ Concluído |
+| 6 | Notas Clínicas & Documentos | ✅ Concluído |
+| 7 | Agendamento Público (Booking) | ✅ Concluído |
+| 8 | Configurações & Agente | ✅ Concluído |
+| 9 | Agente WhatsApp (Módulo Interno) | ✅ Concluído |
+| 10 | Portal do Paciente | ✅ Concluído |
+| 11 | Polish & Deploy | ✅ Concluído |
 
 Detalhes em [`docs/roadmap/epics-overview.md`](docs/roadmap/epics-overview.md).
 
@@ -216,7 +244,7 @@ docs/
 │   ├── tech-stack.md                # Justificativas de cada tecnologia
 │   ├── backend-structure.md         # Módulos NestJS, guards, decorators
 │   ├── frontend-structure.md        # Rotas React, hooks, componentes
-│   └── decisions.md                 # 15 ADRs de decisões arquiteturais
+│   └── decisions.md                 # ADRs de decisões arquiteturais
 ├── database/
 │   ├── schema.sql                   # DDL completo (fonte de verdade)
 │   ├── entity-relationship.md       # Diagrama ER e relacionamentos
@@ -227,9 +255,12 @@ docs/
 │   ├── appointment-lifecycle.md     # Máquina de estados das consultas
 │   ├── patient-portal.md            # Portal read-only do paciente
 │   └── agent.md                     # Módulo WhatsApp: LLM tools e eventos
-└── roadmap/
-    ├── epics-overview.md            # Visão geral dos 12 epics
-    └── epic-{0-11}-*.md             # Detalhes de cada epic
+├── roadmap/
+│   ├── epics-overview.md            # Visão geral dos 12 epics
+│   └── epic-{0-11}-*.md             # Detalhes de cada epic
+├── security/
+│   └── audit-report.md              # Relatório de auditoria de segurança (SEC-NN)
+└── tech-debt.md                     # Débitos técnicos com prioridade (TD-NN)
 ```
 
 ---
