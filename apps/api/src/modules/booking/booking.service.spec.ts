@@ -29,6 +29,8 @@
  *  CT-73-05: token expirado → ForbiddenException
  *  CT-73-06: token já usado → ForbiddenException
  *  CT-73-07: doutor inativo (status !== 'active') → NotFoundException
+ *  CT-73-08: phone mismatch (token tem phone diferente do dto) → ForbiddenException('Token inválido') [TD-15]
+ *  CT-73-09: token sem phone (phone=null) → booking prossegue normalmente sem validar phone [TD-15]
  *
  * US-7.4 — Booking in-chat (chamadas internas do agent)
  *
@@ -671,6 +673,7 @@ describe('BookingService — bookAppointment', () => {
   const TENANT_ROW = { id: TENANT_ID, name: 'Clínica Silva' }
   const TOKEN_ROW = {
     id: 'token-uuid-1',
+    phone: null, // token sem phone vinculado — bypass da verificação TD-15
     used: false,
     expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1h no futuro
   }
@@ -1006,6 +1009,61 @@ describe('BookingService — bookAppointment', () => {
     service = await buildService(mockKnex)
 
     await expect(service.bookAppointment(SLUG, BASE_DTO)).rejects.toThrow(NotFoundException)
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-73-08: Phone mismatch — token vinculado a phone diferente do dto → ForbiddenException (TD-15)
+  //
+  // Segurança: se o token foi gerado para o paciente +5511999990000 mas a requisição
+  // chega com dto.phone = '+5511988887777', o service deve rejeitar com ForbiddenException
+  // usando a mesma mensagem 'Token inválido' para não criar oracle (atacante não distingue
+  // "token inválido" de "phone errado").
+  // -------------------------------------------------------------------------
+
+  it('CT-73-08: should throw ForbiddenException when token phone does not match dto phone [TD-15]', async () => {
+    const tokenWithPhone = {
+      id: 'token-uuid-1',
+      phone: '+5511999990000', // phone vinculado ao token
+      used: false,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    }
+    // BASE_DTO.phone = '+5511988887777' — diferente do token.phone
+    const { mockKnex } = buildBookingKnex({ token: tokenWithPhone })
+    service = await buildService(mockKnex)
+
+    const error = await service.bookAppointment(SLUG, BASE_DTO).catch((e) => e)
+    expect(error).toBeInstanceOf(ForbiddenException)
+    expect((error as ForbiddenException).message).toBe('Token inválido')
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-73-09: Token sem phone (phone=null) → booking prossegue sem validar phone (TD-15)
+  //
+  // Tokens gerados sem phone vinculado (acesso público/anônimo) devem permitir
+  // qualquer dto.phone. A condição `bookingToken.phone !== null` deve ser falsa.
+  // -------------------------------------------------------------------------
+
+  it('CT-73-09: should succeed when token has phone=null regardless of dto phone [TD-15]', async () => {
+    const tokenWithNullPhone = {
+      id: 'token-uuid-1',
+      phone: null, // sem phone vinculado — qualquer dto.phone é aceito
+      used: false,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    }
+    const { mockKnex } = buildBookingKnexWithActiveCount({
+      token: tokenWithNullPhone,
+      conflictCount: 0,
+      activeCount: 0,
+      existingPatient: null,
+      newPatientRows: [NEW_PATIENT_ROW],
+      appointmentRows: [APPOINTMENT_ROW],
+    })
+    service = await buildService(mockKnex)
+
+    // Deve completar sem exceção, independente do phone no dto
+    const result = await service.bookAppointment(SLUG, BASE_DTO)
+    expect(result.message).toBe('Consulta agendada com sucesso')
+    expect(result.appointment.id).toBe(APPOINTMENT_ROW.id)
   })
 })
 

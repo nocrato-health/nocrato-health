@@ -548,7 +548,7 @@ export class BookingService {
       // 2. Buscar token — cross-tenant protection: filtra por tenant_id
       const bookingToken = await trx('booking_tokens')
         .where({ token: dto.token, tenant_id: tenantId })
-        .select('id', 'used', trx.raw('expires_at as "expiresAt"'))
+        .select('id', 'phone', 'used', trx.raw('expires_at as "expiresAt"'))
         .first()
 
       if (!bookingToken) {
@@ -563,6 +563,13 @@ export class BookingService {
       // 4. Token expirado
       if (new Date() > new Date(bookingToken.expiresAt as string)) {
         throw new ForbiddenException('Token expirado')
+      }
+
+      // 4b. Verificar correspondência de phone — evita bypass via DevTools (TD-15)
+      // ForbiddenException (não BadRequest) para não criar oracle: atacante não distingue
+      // "token válido com phone errado" de "token inválido/expirado"
+      if (bookingToken.phone !== null && dto.phone !== bookingToken.phone) {
+        throw new ForbiddenException('Token inválido')
       }
 
       // 5. Buscar doctor ativo do tenant

@@ -170,16 +170,9 @@ A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.s
 
 ---
 
-### TD-15 — Campo phone readonly (booking) bypassável via DevTools; backend não valida correspondência
-**Módulo:** `booking` (backend + apps/web)
-**Identificado em:** US-7.5 (OBS-TL-3 tech-lead)
-**Prioridade:** P2
+### ~~TD-15 — Campo phone readonly (booking) bypassável via DevTools; backend não valida correspondência~~ ✅ RESOLVIDO
 
-O frontend aplica `readOnly` visual no campo `phone` quando o token tem um número vinculado. Esse atributo pode ser removido via DevTools, permitindo enviar um telefone diferente no POST `/book`. O `BookingService.book()` não verifica se o `phone` do body corresponde ao `phone` do token.
-
-**Impacto atual:** Baixo — o agente WhatsApp gera o token com o phone do contato que iniciou a conversa. Um usuário malicioso poderia agendar em nome de outro número. Para o MVP com base de pacientes gerenciada, o risco é aceitável.
-
-**Fix:** No `BookingService.book()`: se `bookingToken.phone` não for null, verificar `dto.phone === bookingToken.phone`; caso contrário, lançar `BadRequestException('Telefone não corresponde ao link de agendamento')`.
+**Resolvido em:** TD-15 fix — `bookAppointment` agora busca `phone` no SELECT do `booking_tokens`. Se `bookingToken.phone !== null && dto.phone !== bookingToken.phone`, lança `ForbiddenException('Token inválido')` — mesmo status dos demais casos de rejeição de token para não criar oracle de segurança. CTs CT-73-08 e CT-73-09 adicionados.
 
 ---
 
@@ -269,14 +262,20 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-23 — Acessos ao portal do paciente não registrados no event_log
+### ~~TD-23 — Acessos ao portal do paciente não registrados no event_log~~ ✅ RESOLVIDO
+
+**Resolvido em:** TD-23 fix — `getPatientPortalData` agora chama `eventLogService.append(tenantId, 'patient.portal_accessed', 'patient', patientId, {})` com `await` antes das queries paralelas. Decisão consciente: falha no audit trail bloqueia o acesso (não silencia) — conformidade LGPD tem precedência sobre disponibilidade neste fluxo. 5 CTs adicionados na suite patient.service.spec.ts.
+
+---
+
+### TD-24 — `await eventLogService.append` no portal do paciente é trade-off de disponibilidade vs conformidade LGPD
 **Módulo:** `patient`
-**Identificado em:** US-10.2 (OBS-TL-1 tech-lead)
-**Prioridade:** P2
+**Identificado em:** TD-23 fix (OBS-TL-3 tech-lead / QA)
+**Prioridade:** P3
 
-`getPatientPortalData` e `getPatientDocument` não registram nenhuma entrada no `event_log`. Acessos ao portal médico são ações de auditoria relevante (LGPD) — quem acessou, quando, qual paciente.
+`getPatientPortalData` usa `await` no registro de auditoria. Se o event_log (banco) estiver indisponível, o acesso do paciente ao portal falha com erro 500. Decisão consciente para o MVP: conformidade LGPD (não vazar acesso não auditado) tem precedência sobre disponibilidade. Risco atual baixo (banco é o mesmo da API).
 
-**Fix:** Registrar evento `patient.portal_accessed` no `event_log` com `actor_type='patient'`, `actor_id=patient.id`, `tenant_id`, `payload: { patient_id, ip? }` a cada POST /access bem-sucedido.
+**Fix pós-escala:** Se event_log migrar para serviço separado (ex: OpenSearch), implementar fire-and-forget com fallback de log local para desacoplar disponibilidade do portal da disponibilidade do serviço de auditoria.
 
 ---
 

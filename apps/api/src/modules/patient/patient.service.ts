@@ -297,7 +297,10 @@ export class PatientService {
 
     const { tenant_id: tenantId, id: patientId } = row
 
-    // 3. Buscar appointments e documentos em paralelo — clinical_notes NUNCA são expostas ao paciente
+    // 3. Registrar acesso ao portal no event_log (auditoria LGPD — TD-23)
+    await this.eventLogService.append(tenantId, 'patient.portal_accessed', 'patient', patientId, {})
+
+    // 4. Buscar appointments e documentos em paralelo — clinical_notes NUNCA são expostas ao paciente
     const [appointments, documents] = await Promise.all([
       this.knex('appointments')
         .where({ tenant_id: tenantId, patient_id: patientId })

@@ -1665,6 +1665,83 @@ describe('PatientService — getPatientPortalData', () => {
       expect(selectArgs).toContain('cancellation_reason')
     })
   })
+
+  // -------------------------------------------------------------------------
+  // CT-102-08: eventLogService.append chamado com 'patient.portal_accessed' (TD-23)
+  //
+  // Todo acesso ao portal do paciente deve ser auditado via event_log para
+  // conformidade LGPD. O append é chamado ANTES das queries paralelas.
+  // -------------------------------------------------------------------------
+
+  describe('CT-102-08: eventLogService.append chamado com patient.portal_accessed [TD-23]', () => {
+    it('should call eventLogService.append with patient.portal_accessed on valid access', async () => {
+      const row = makePortalRow()
+
+      await service.getPatientPortalData(CODE)
+
+      expect(mockEventLogService.append).toHaveBeenCalledWith(
+        row.tenant_id,
+        'patient.portal_accessed',
+        'patient',
+        row.id,
+        {},
+      )
+    })
+
+    it('should call eventLogService.append exactly once per portal access', async () => {
+      await service.getPatientPortalData(CODE)
+
+      const appendCalls = (mockEventLogService.append as jest.Mock).mock.calls.filter(
+        (call: unknown[]) => call[1] === 'patient.portal_accessed',
+      )
+      expect(appendCalls).toHaveLength(1)
+    })
+
+    it('should NOT call eventLogService.append when code is invalid', async () => {
+      const joinBuilder = makeJoinBuilder(null) // código não encontrado
+      mockKnexPortal.mockImplementation((table: string) => {
+        if (table === 'patients') return joinBuilder
+        return makeJoinBuilder(null)
+      })
+
+      await expect(service.getPatientPortalData('INVALID-CODE')).rejects.toThrow(NotFoundException)
+
+      expect(mockEventLogService.append).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'patient.portal_accessed',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+
+    it('should NOT call eventLogService.append when portal is inactive', async () => {
+      const row = makePortalRow({ portal_active: false })
+      const joinBuilder = makeJoinBuilder(row)
+      mockKnexPortal.mockImplementation((table: string) => {
+        if (table === 'patients') return joinBuilder
+        return makeJoinBuilder(null)
+      })
+
+      await expect(service.getPatientPortalData(CODE)).rejects.toThrow('Portal inativo')
+
+      expect(mockEventLogService.append).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'patient.portal_accessed',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+
+    it('should propagate exception if eventLogService.append fails', async () => {
+      // O await é intencional — falha no audit trail deve propagar (não silenciar)
+      const appendError = new Error('Event log unavailable')
+      ;(mockEventLogService.append as jest.Mock).mockRejectedValueOnce(appendError)
+
+      await expect(service.getPatientPortalData(CODE)).rejects.toThrow('Event log unavailable')
+    })
+  })
 })
 
 // =============================================================================
