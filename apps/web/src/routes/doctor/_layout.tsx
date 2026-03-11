@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Outlet, Link } from '@tanstack/react-router'
 import { LayoutDashboard, Users, Calendar, Settings, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 function NavLink({
   to,
@@ -101,7 +102,9 @@ export function DoctorLayout() {
         </div>
 
         <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

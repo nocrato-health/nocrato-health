@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Outlet } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { AgencySidebar } from '@/components/agency-sidebar'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 export function AgencyLayout() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
@@ -51,7 +52,9 @@ export function AgencyLayout() {
         </div>
 
         <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

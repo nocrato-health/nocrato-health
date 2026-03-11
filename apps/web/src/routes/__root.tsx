@@ -1,10 +1,13 @@
 import { Outlet } from '@tanstack/react-router'
 import { ToastContainer } from '@/components/toast-container'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 export function RootLayout() {
   return (
     <>
-      <Outlet />
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
       <ToastContainer />
     </>
   )

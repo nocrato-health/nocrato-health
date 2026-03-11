@@ -299,6 +299,14 @@ Risco residual adicional: o email vai na URL (`GET resolve-email/:email`) e apar
 
 ---
 
+### TD-23 — ErrorBoundary não invalida cache do TanStack Query ao tentar novamente
+**Módulo:** `apps/web/src/components/error-boundary.tsx`
+**Identificado em:** US-11.1 (OBS-TL-1 tech-lead)
+**Prioridade:** P2
+**Descrição:** O botão "Tentar novamente" reseta o estado do boundary (`setState({ hasError: false })`) mas não invalida o cache do TanStack Query. Se o erro foi causado por dados corrompidos em cache, o componente filho vai re-lançar o erro imediatamente e o usuário fica em loop visual. Fix: chamar `queryClient.resetQueries()` no handler antes de resetar o state — requer acesso ao queryClient via contexto ou instância singleton.
+
+---
+
 ## Como usar este arquivo
 
 - Ao identificar um novo débito, adicionar entrada com ID sequencial (`TD-NN`), módulo, US de origem e prioridade.
