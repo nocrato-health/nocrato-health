@@ -198,13 +198,13 @@
 
 ---
 
-## US-11.4 — Deploy em Hetzner
+## US-11.4 — Deploy em Hostinger
 
 ### CT-114-01 — Aplicação acessível via HTTPS com certificado válido
 
 **Categoria:** Happy path
 
-**Given** deploy realizado em Hetzner CX22 com Nginx + Let's Encrypt configurados
+**Given** deploy realizado em Hostinger VPS com Nginx + Let's Encrypt configurados
 **When** acesso a `https://app.nocrato.com` via browser
 **Then** página carrega sem aviso de certificado inválido; cadeado verde exibido; redirecionamento automático de HTTP → HTTPS
 

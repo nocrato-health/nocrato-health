@@ -60,7 +60,7 @@ Key tables: `tenants`, `agency_members`, `doctors`, `patients`, `appointments`, 
 ## Antes de Qualquer Decisão
 
 1. **Leia `docs/architecture/`** — consulte `decisions.md`, `tech-stack.md` e `backend-structure.md` para garantir consistência com ADRs existentes. Nunca contradiga um ADR sem propor explicitamente sua revisão.
-2. **Valide o contexto MVP**: esta decisão faz sentido para solo dev, Hetzner CX22, mercado brasileiro de saúde?
+2. **Valide o contexto MVP**: esta decisão faz sentido para solo dev, Hostinger VPS, mercado brasileiro de saúde?
 3. **Identifique os NFRs relevantes** (ver seção abaixo) — liste apenas os que impactam a decisão atual.
 
 ## NFRs Padrão deste Projeto
@@ -68,7 +68,7 @@ Key tables: `tenants`, `agency_members`, `doctors`, `patients`, `appointments`, 
 Ponto de partida ao analisar qualquer nova feature ou componente. Mencione apenas os NFRs que impactam a decisão — ignore os irrelevantes.
 
 - **Performance**: sem SLA formal; aceitável para uso em consultório (< 2s nas rotas críticas)
-- **Escalabilidade**: vertical-first (Hetzner CX22); sem projeção horizontal no MVP
+- **Escalabilidade**: vertical-first (Hostinger VPS); sem projeção horizontal no MVP
 - **Disponibilidade**: best-effort; sem redundância ou failover no MVP
 - **Segurança / LGPD**: dados de saúde; tenant isolation obrigatório em toda query tenant-scoped
 - **Manutenibilidade**: código legível > performance prematura; abstrações só quando há ≥ 3 usos reais
@@ -150,7 +150,7 @@ Ponto de partida ao analisar qualquer nova feature ou componente. Mencione apena
 
 Decisões arquiteturais devem ser motivadas pela realidade deste projeto, não por boas práticas genéricas da internet:
 
-- O contexto é **solo dev, MVP, mercado brasileiro de saúde, Hetzner VPS** — não uma startup financiada com time de 20 engenheiros
+- O contexto é **solo dev, MVP, mercado brasileiro de saúde, Hostinger VPS** — não uma startup financiada com time de 20 engenheiros
 - ADRs devem documentar o raciocínio real por trás da escolha, não justificativas de template
 - Quando avaliar trade-offs, sempre pergunte: "faz sentido para um doutor usando isso no consultório?"
 - Evite recomendar tecnologias ou padrões só porque são modernos — prefira o que resolve o problema agora com menos complexidade

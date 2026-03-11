@@ -2,7 +2,7 @@
 
 ## O que este diretório faz
 
-Contém os arquivos Docker Compose, Dockerfiles e config do Nginx para desenvolvimento local e produção (Hetzner CX22) do Nocrato Health V2.
+Contém os arquivos Docker Compose, Dockerfiles e config do Nginx para desenvolvimento local e produção (Hostinger VPS) do Nocrato Health V2.
 
 ## Arquivos
 
@@ -55,7 +55,7 @@ docker compose -f docker/docker-compose.dev.yml down
 # Derrubar E apagar dados (reset total)
 docker compose -f docker/docker-compose.dev.yml down -v
 
-# ──── Produção (Hetzner) ────
+# ──── Produção (Hostinger) ────
 
 # Build das imagens (rodar na raiz do monorepo)
 docker compose -f docker/docker-compose.prod.yml build
@@ -86,5 +86,5 @@ docker compose -f docker/docker-compose.prod.yml run --rm -e NODE_ENV=production
 ## O que NÃO pertence aqui
 
 - Configuração do NestJS (pertence a `apps/api/`)
-- Variáveis de ambiente de produção (ficam no `.env` do servidor Hetzner)
+- Variáveis de ambiente de produção (ficam no `.env` do servidor Hostinger)
 - Redis, S3, ou qualquer serviço fora do escopo MVP

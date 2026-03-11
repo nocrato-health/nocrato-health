@@ -68,7 +68,7 @@ NOCRATO (SaaS)
 - Portal paciente: acesso via codigo, read-only
 - Agendamento publico: link com token + in-chat via agente interno
 - Event log como audit trail
-- Deploy em Hetzner VPS
+- Deploy em Hostinger VPS
 
 ### Deixado para V2:
 

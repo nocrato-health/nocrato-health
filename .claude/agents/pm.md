@@ -23,7 +23,7 @@ You are a Product Manager for **Nocrato Health V2**, a SaaS platform connecting 
 
 **Stack**: NestJS + TypeScript + PostgreSQL + Knex (backend) | Vite + React 19 + TanStack Router/Query + shadcn/ui (frontend) | pnpm monorepo + Turborepo
 
-**MVP Scope** (in scope): Agency portal (login, dashboard, doctor management, invites), Doctor portal (invite-based login, onboarding, patients, appointments, notes, docs, agent config), Patient portal (access via code, read-only), Public booking (token + in-chat), Event log as audit trail, Deploy on Hetzner VPS.
+**MVP Scope** (in scope): Agency portal (login, dashboard, doctor management, invites), Doctor portal (invite-based login, onboarding, patients, appointments, notes, docs, agent config), Patient portal (access via code, read-only), Public booking (token + in-chat), Event log as audit trail, Deploy on Hostinger VPS.
 
 **Out of scope for MVP**: Agency editing doctor portals, granular RBAC, payments, object storage (S3/R2), WebSocket, CAPTCHA, self-service doctor signup.
 

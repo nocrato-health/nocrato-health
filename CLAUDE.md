@@ -210,7 +210,7 @@ Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda l
 | `epic-8-settings.md`        | Configurações do agente e do portal                              |
 | `epic-9-events.md`          | Módulo NestJS do agente WhatsApp                                 |
 | `epic-10-patient-portal.md` | Portal do paciente                                               |
-| `epic-11-deploy.md`         | Polish, Swagger, seed, deploy Hetzner                            |
+| `epic-11-deploy.md`         | Polish, Swagger, seed, deploy Hostinger                          |
 
 ### `docs/test-cases/`
 
@@ -248,7 +248,7 @@ Registro centralizado de débitos técnicos com ID sequencial (`TD-NN`), módulo
 | `dba.md`       | Schema SQL, migrations, índices, Knex queries                |
 | `frontend.md`  | React, TanStack Router, TanStack Query, componentes          |
 | `designer.md`  | Design system, Tailwind, shadcn/ui, design tokens            |
-| `devops.md`    | Docker, Nginx, CI/CD, Hetzner, variáveis de ambiente         |
+| `devops.md`    | Docker, Nginx, CI/CD, Hostinger, variáveis de ambiente       |
 | `qa.md`        | Testes, critérios de aceitação, edge cases                   |
 | `security.md`  | Auditoria de segurança: OWASP Top 10, tenant isolation, JWT  |
 
@@ -301,7 +301,7 @@ Registro centralizado de débitos técnicos com ID sequencial (`TD-NN`), módulo
 | WhatsApp    | Evolution API + módulo NestJS interno              |
 | LLM (agent) | OpenAI SDK — gpt-4o-mini                           |
 | Eventos     | @nestjs/event-emitter (EventEmitter2)              |
-| Deploy      | Hetzner CX22 + Docker + Nginx                      |
+| Deploy      | Hostinger VPS + Docker + Nginx                     |
 
 ---
 
@@ -357,7 +357,7 @@ nocrato-health-v2/
 - Agendamento público: link com token + in-chat via agente
 - Agente WhatsApp interno (Evolution API + gpt-4o-mini + EventEmitter2)
 - Event log como audit trail
-- Deploy em Hetzner com Docker + Nginx
+- Deploy em Hostinger VPS com Docker + Nginx
 
 ### Deixado para V2 (não implementar no MVP)
 

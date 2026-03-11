@@ -49,7 +49,7 @@ These decisions emerged from the architectural review of V1, where domain modeli
 **Decision**: For the MVP, files are stored on the local filesystem at `./uploads/{tenantId}/`. The `upload.service.ts` saves files to disk and returns a URL path. Nginx serves the uploads directory in production.
 
 **Consequences**:
-- Simple to implement and deploy (single server on Hetzner).
+- Simple to implement and deploy (single Hostinger VPS).
 - Tenant isolation is enforced by directory structure (`./uploads/{tenantId}/`).
 - Files are not replicated -- if the server disk fails, uploads are lost. Backups must be configured separately.
 - Migration to S3/R2 post-MVP requires changing only the `upload.service.ts` implementation. The rest of the system references files by URL, so the switch is transparent.
@@ -82,7 +82,7 @@ ALTER TABLE doctors ADD COLUMN appointment_duration INTEGER NOT NULL DEFAULT 30;
 
 **Status**: Accepted
 
-**Context**: A opcao original era usar N8N como plataforma de orquestracao externa para o agente WhatsApp. Para um dev solo no MVP, isso significaria manter dois sistemas separados (NestJS + N8N), debugar dois ambientes distintos, e consumir recursos extras no servidor (Hetzner CX22 com 4 GB RAM).
+**Context**: A opcao original era usar N8N como plataforma de orquestracao externa para o agente WhatsApp. Para um dev solo no MVP, isso significaria manter dois sistemas separados (NestJS + N8N), debugar dois ambientes distintos, e consumir recursos extras no servidor Hostinger VPS.
 
 **Decision**: O agente WhatsApp e implementado como um modulo NestJS (`agent/`) dentro do proprio backend. A Evolution API envia webhooks diretamente para `POST /api/v1/agent/webhook`. O modulo gerencia o estado de conversa no banco, chama o LLM (OpenAI SDK — modelo `gpt-4o-mini`, mais barato e rapido para chatbot de agendamento), e envia respostas de volta via Evolution API HTTP client.
 
@@ -97,7 +97,7 @@ Evolution API → webhook → agent.controller.ts → agent.service.ts → LLM +
 - Toda a logica em TypeScript com type safety e testes unitarios.
 - O estado de conversa fica no PostgreSQL (tabela `conversations`), sem dependencia de servico externo.
 - Eventos internos via `EventEmitter2` (built-in no NestJS) substituem o polling de 30s do N8N.
-- Sem o N8N, o servidor economiza ~500MB-1GB de RAM no Hetzner CX22.
+- Sem o N8N, o servidor economiza ~500MB-1GB de RAM.
 - A unica dependencia externa de infra para o agente e a Evolution API (ja necessaria de qualquer forma).
 
 ---

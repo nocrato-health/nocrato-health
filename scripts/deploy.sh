@@ -1,7 +1,7 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────────────
 # Nocrato Health V2 — Script de deploy inicial
-# Hetzner CX22 (Ubuntu 22.04 LTS)
+# Hostinger VPS (Ubuntu 22.04 LTS)
 #
 # USO: executar UMA VEZ no servidor recém-provisionado
 #   sudo bash deploy.sh

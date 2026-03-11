@@ -20,7 +20,7 @@ Nocrato Health V2 is a complete rebuild of the original V1 project. The V1 was a
 | **UI** | shadcn/ui + Tailwind CSS v4 | shadcn/ui provides copy-paste components that are fully customizable (not a dependency). Tailwind v4 brings faster compilation and a streamlined config. Both were proven in V1. |
 | **Data Fetching** | TanStack Query | Provides caching, background refetching (refetchInterval: 30s for near-real-time updates), and optimistic updates. Handles loading/error states declaratively. |
 | **Agent** | Modulo NestJS interno | Modulo `agent/` dentro do proprio NestJS que orquestra o agente WhatsApp. Recebe webhooks diretamente da Evolution API, processa com LLM (OpenAI SDK — gpt-4o-mini, mais barato e rapido para chatbot), gerencia estado de conversa no banco, e envia respostas de volta. Sem dependencia de ferramenta externa. |
-| **Container** | Docker (PostgreSQL) | Provides consistent local development with `docker compose up -d`. PostgreSQL 16 runs in a container, matching the production environment on Hetzner. |
+| **Container** | Docker (PostgreSQL) | Provides consistent local development with `docker compose up -d`. PostgreSQL 16 runs in a container, matching the production environment on Hostinger. |
 
 ---
 
@@ -63,7 +63,7 @@ Knex was kept from V1 because it provides the right level of abstraction for thi
 
 ### Why Local Uploads over S3?
 
-For the MVP phase, files are stored locally at `./uploads/{tenantId}/`. This simplifies deployment (single Hetzner server with Nginx) and avoids the cost/complexity of cloud storage. Migration to S3/R2 is planned for post-MVP when scaling requires it.
+For the MVP phase, files are stored locally at `./uploads/{tenantId}/`. This simplifies deployment (single Hostinger VPS with Nginx) and avoids the cost/complexity of cloud storage. Migration to S3/R2 is planned for post-MVP when scaling requires it.
 
 ### Why Stateless Refresh Tokens?
 
@@ -75,7 +75,7 @@ Refresh tokens are stateless JWTs with 7-day expiration, stored only on the clie
 
 | Component | Specification |
 |-----------|--------------|
-| **Server** | Hetzner CX22 (2 vCPU, 4 GB RAM) |
+| **Server** | Hostinger VPS (Ubuntu 22.04 LTS) |
 | **Reverse Proxy** | Nginx + SSL (Let's Encrypt) |
 | **Database** | PostgreSQL 16 (Docker container) |
 | **WhatsApp** | Evolution API (Docker container) |

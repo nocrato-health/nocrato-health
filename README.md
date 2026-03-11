@@ -36,7 +36,7 @@ O **agente WhatsApp** é um módulo interno do NestJS que recebe webhooks da Evo
 | WhatsApp | Evolution API (Docker) |
 | LLM (agente) | OpenAI SDK — gpt-4o-mini |
 | Eventos internos | @nestjs/event-emitter (EventEmitter2) |
-| Deploy | Hetzner CX22 + Docker Compose + Nginx |
+| Deploy | Hostinger VPS + Docker Compose + Nginx |
 
 ---
 
@@ -83,7 +83,7 @@ nocrato-health-v2/
 │
 ├── docker/
 │   ├── docker-compose.dev.yml   # PostgreSQL + Evolution API (local)
-│   └── docker-compose.prod.yml  # Produção (Hetzner)
+│   └── docker-compose.prod.yml  # Produção (Hostinger)
 │
 └── docs/                        # Documentação completa (ver abaixo)
 ```

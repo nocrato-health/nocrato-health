@@ -49,7 +49,7 @@
 
 **Agentes:** `devops` → `tech-lead`
 
-- [x] Hetzner CX22 (2vCPU, 4GB RAM)
+- [x] Hostinger VPS (Ubuntu 22.04 LTS)
 - [x] Docker Compose producao (PostgreSQL, Evolution API)
 - [x] Nginx reverse proxy + SSL (Let's Encrypt)
 - [x] NestJS build + serve producao
