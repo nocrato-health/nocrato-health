@@ -44,8 +44,8 @@ Constante `DOCUMENT_FIELDS` exportada de `document.service.ts` para reutilizaç�
 
 - Recebe `multipart/form-data` com campo `file`
 - Salva em `./uploads/{tenantId}/` (diretório criado via `mkdirSync` se não existir)
-- Filename no disco = `file.originalname` (preservado para MVP)
-- Retorna `{ fileUrl: "/uploads/{tenantId}/{filename}", fileName: "originalname" }`
+- Filename no disco = `{randomUUID()}{extname(originalname)}` — previne colisão/sobrescrita (SEC-03)
+- Retorna `{ fileUrl: "/uploads/{tenantId}/{uuid.ext}", fileName: "originalname" }`
 
 ### Registro de documento (POST /documents)
 

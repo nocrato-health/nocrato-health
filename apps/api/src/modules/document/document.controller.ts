@@ -22,7 +22,8 @@ import {
 } from '@nestjs/swagger'
 import { diskStorage } from 'multer'
 import { mkdirSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { extname, join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import type { Request } from 'express'
 import { DocumentService } from './document.service'
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard'
@@ -82,8 +83,8 @@ export class DocumentController {
           cb(null, uploadDir)
         },
         filename: (_req, file, cb) => {
-          // basename() previne path traversal via originalname com "../"
-          cb(null, basename(file.originalname))
+          // UUID previne colisão e sobrescrita de documentos (SEC-03)
+          cb(null, `${randomUUID()}${extname(file.originalname)}`)
         },
       }),
     }),

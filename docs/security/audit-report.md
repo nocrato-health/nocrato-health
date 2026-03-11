@@ -19,8 +19,9 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ### HIGH
 
-#### SEC-01 — Ausência de Content-Security-Policy no Nginx
+#### SEC-01 — Ausência de Content-Security-Policy no Nginx ✅ RESOLVIDO
 - **Severidade:** HIGH
+- **Fix:** `docker/nginx.conf` — adicionados `Content-Security-Policy` e `Permissions-Policy` ao bloco HTTPS (commit pós-auditoria).
 - **Módulo:** `docker/nginx.conf:106-111`
 - **Evidência:**
   ```nginx
@@ -41,8 +42,9 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-02 — Ausência de Helmet no NestJS
+#### SEC-02 — Ausência de Helmet no NestJS ✅ RESOLVIDO
 - **Severidade:** HIGH
+- **Fix:** `apps/api/src/main.ts` — instalado `helmet` e adicionado `app.use(helmet())` antes do `enableCors()`.
 - **Módulo:** `apps/api/src/main.ts:13`
 - **Evidência:**
   ```typescript
@@ -61,8 +63,9 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-03 — Upload com filename baseado em `originalname` permite colisão e sobrescrita de documentos
+#### SEC-03 — Upload com filename baseado em `originalname` permite colisão e sobrescrita de documentos ✅ RESOLVIDO
 - **Severidade:** HIGH
+- **Fix:** `apps/api/src/modules/document/document.controller.ts` — `basename(originalname)` substituído por `${randomUUID()}${extname(originalname)}`. O `originalname` continua armazenado em `file_name` para exibição ao usuário.
 - **Módulo:** `apps/api/src/modules/document/document.controller.ts:84-87`
 - **Evidência:**
   ```typescript

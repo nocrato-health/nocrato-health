@@ -1,6 +1,7 @@
 import './config/env' // valida variáveis de ambiente na inicialização
 import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter'
 import { env } from './config/env'
@@ -10,6 +11,7 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   })
 
+  app.use(helmet())
   app.enableCors()
   app.setGlobalPrefix('api/v1', { exclude: ['health'] })
   app.useGlobalFilters(new HttpExceptionFilter())
