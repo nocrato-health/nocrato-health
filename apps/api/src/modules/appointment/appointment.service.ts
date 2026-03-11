@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { Knex } from 'knex'
+import { randomInt } from 'node:crypto'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { KNEX } from '@/database/knex.provider'
 import { EventLogService } from '@/modules/event-log/event-log.service'
@@ -12,7 +13,7 @@ import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto'
 function generatePortalAccessCode(): string {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ' // sem I, O
   const digits = '0123456789'
-  const rand = (charset: string) => charset[Math.floor(Math.random() * charset.length)]
+  const rand = (charset: string) => charset[randomInt(0, charset.length)]
   const p1 = [rand(letters), rand(letters), rand(letters)].join('')
   const p2 = [rand(digits), rand(digits), rand(digits), rand(digits)].join('')
   const p3 = [rand(letters), rand(letters), rand(letters)].join('')
@@ -382,7 +383,6 @@ export class AppointmentService {
             {
               patient_id: appointment.patient_id,
               patient_name: patient?.name as string | undefined,
-              portal_access_code: code,
             },
           )
 

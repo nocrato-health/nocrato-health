@@ -1,4 +1,5 @@
 # Security Audit Report — Nocrato Health V2
+
 Data: 2026-03-10
 Auditor: Claude Security Agent (claude-sonnet-4-6)
 Escopo: Backend completo (NestJS), Frontend (React/Vite), Nginx/Docker, dependências
@@ -9,7 +10,7 @@ Escopo: Backend completo (NestJS), Frontend (React/Vite), Nginx/Docker, dependê
 
 A auditoria cobriu todos os 16 tópicos solicitados. O projeto demonstra uma postura de segurança sólida para os riscos mais críticos: isolamento de tenant via JWT bem implementado, guards aplicados consistentemente em todos os controllers de doutor, sem SQL injection via interpolação de strings, e sem secrets hardcoded no código.
 
-Foram identificados **13 findings**, sendo **0 CRITICAL**, **3 HIGH**, **6 MEDIUM** e **4 LOW**.
+Foram identificados **22 findings**, sendo **0 CRITICAL**, **6 HIGH**, **8 MEDIUM** e **8 LOW**. Os findings SEC-01 a SEC-09 (HIGH + MEDIUM) foram todos resolvidos pós-auditoria inicial. SEC-10 a SEC-13 (LOW) e SEC-14 a SEC-22 (segunda auditoria) permanecem abertos.
 
 O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-01) combinada com a ausência de Helmet no NestJS (SEC-02). O segundo risco urgente é o padrão de nomeação de arquivos em upload que permite colisão e sobrescrita de documentos clínicos (SEC-03). O código de acesso do portal do paciente (6 dígitos) não possui rate limiting na camada de aplicação, apenas no Nginx (SEC-04).
 
@@ -20,6 +21,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ### HIGH
 
 #### SEC-01 — Ausência de Content-Security-Policy no Nginx ✅ RESOLVIDO
+
 - **Severidade:** HIGH
 - **Fix:** `docker/nginx.conf` — adicionados `Content-Security-Policy` e `Permissions-Policy` ao bloco HTTPS (commit pós-auditoria).
 - **Módulo:** `docker/nginx.conf:106-111`
@@ -43,27 +45,29 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-02 — Ausência de Helmet no NestJS ✅ RESOLVIDO
+
 - **Severidade:** HIGH
 - **Fix:** `apps/api/src/main.ts` — instalado `helmet` e adicionado `app.use(helmet())` antes do `enableCors()`.
 - **Módulo:** `apps/api/src/main.ts:13`
 - **Evidência:**
   ```typescript
-  app.enableCors()
-  app.setGlobalPrefix('api/v1', { exclude: ['health'] })
-  app.useGlobalFilters(new HttpExceptionFilter())
+  app.enableCors();
+  app.setGlobalPrefix("api/v1", { exclude: ["health"] });
+  app.useGlobalFilters(new HttpExceptionFilter());
   ```
   Não há `app.use(helmet())` nem importação de `@nestjs/helmet`.
 - **Descrição:** O NestJS não utiliza Helmet, que normalmente adicionaria camadas de segurança HTTP como `X-DNS-Prefetch-Control`, `X-Permitted-Cross-Domain-Policies`, `X-Download-Options` e removeria o header `X-Powered-By`. Embora o Nginx adicione alguns headers, a API NestJS responde diretamente a chamadas internas na rede Docker (porta 3000) e headers de segurança devem existir em múltiplas camadas.
 - **Impacto:** Requisições que chegam à API por caminhos que contornam o Nginx (acesso direto à porta 3000, em ambiente de dev ou via misconfiguration futura) não terão headers de segurança. O `X-Powered-By: Express` expõe informações sobre a stack em toda chamada direta.
 - **Recomendação:** Instalar e configurar `@nestjs/helmet` no `main.ts`:
   ```typescript
-  import helmet from 'helmet'
-  app.use(helmet())
+  import helmet from "helmet";
+  app.use(helmet());
   ```
 
 ---
 
 #### SEC-03 — Upload com filename baseado em `originalname` permite colisão e sobrescrita de documentos ✅ RESOLVIDO
+
 - **Severidade:** HIGH
 - **Fix:** `apps/api/src/modules/document/document.controller.ts` — `basename(originalname)` substituído por `${randomUUID()}${extname(originalname)}`. O `originalname` continua armazenado em `file_name` para exibição ao usuário.
 - **Módulo:** `apps/api/src/modules/document/document.controller.ts:84-87`
@@ -78,12 +82,12 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 - **Impacto:** Um doutor pode sobrescrever documentos clínicos de pacientes enviando um arquivo com o mesmo nome original. Um atacante autenticado como doutor pode substituir o arquivo de um exame por conteúdo malicioso que outro usuário fará download. Além disso, o `fileUrl` retornado ao cliente inclui o `originalname`, tornando o caminho previsível (SEC-10).
 - **Recomendação:** Gerar um nome único para o arquivo em disco, preservando apenas a extensão:
   ```typescript
-  import { extname } from 'node:path'
-  import { randomUUID } from 'node:crypto'
+  import { extname } from "node:path";
+  import { randomUUID } from "node:crypto";
   filename: (_req, file, cb) => {
-    const ext = extname(file.originalname) // '.pdf', '.jpg', etc.
-    cb(null, `${randomUUID()}${ext}`)
-  }
+    const ext = extname(file.originalname); // '.pdf', '.jpg', etc.
+    cb(null, `${randomUUID()}${ext}`);
+  };
   ```
   Armazenar o `originalname` na coluna `file_name` (já ocorre) para exibição ao usuário.
 
@@ -92,10 +96,12 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ### MEDIUM
 
 #### SEC-04 — Código de acesso do paciente sem rate limiting na camada de aplicação ✅ RESOLVIDO
+
 - **Severidade:** MEDIUM
 - **Fix:** `dto/get-portal-access.dto.ts` — regex `^[A-Z]{3}-\d{4}-[A-Z]{3}$` valida formato. `patient-portal.controller.ts` — `@UseGuards(ThrottlerGuard) @Throttle({ default: { limit: 5, ttl: 900000 } })` no método `access()`.
 - **Módulo:** `apps/api/src/modules/patient/patient-portal.controller.ts:25-43`; `apps/api/src/modules/patient/dto/get-portal-access.dto.ts:1-7`
 - **Evidência:**
+
   ```typescript
   // get-portal-access.dto.ts
   export const GetPortalAccessSchema = z.object({
@@ -108,6 +114,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
     return this.patientService.getPatientPortalData(dto.code)
   }
   ```
+
 - **Descrição:** O endpoint `POST /api/v1/patient/portal/access` aceita um código de acesso sem limitar tentativas no nível da aplicação. O Nginx aplica apenas `api_general: 30r/m` (30 req/min por IP), insuficiente contra brute force distribuído. O schema Zod aceita qualquer string com `min(1)`, sem validar o formato do código (`AAA-NNNN-BBB`).
 - **Impacto:** Um atacante com múltiplos IPs pode enumerar códigos de acesso e acessar histórico médico, documentos e informações pessoais de pacientes sem credenciais. Violação LGPD direta — dados de saúde de pacientes expostos.
 - **Recomendação:** (1) Validar formato no schema Zod. (2) Implementar `@nestjs/throttler` com limite de 5 tentativas por 15 minutos por IP neste endpoint. (3) Bloquear acesso temporariamente após N tentativas falhas para o mesmo código.
@@ -115,27 +122,32 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-05 — CORS completamente aberto (`app.enableCors()` sem restrições) ✅ RESOLVIDO
+
 - **Severidade:** MEDIUM
 - **Fix:** `apps/api/src/main.ts` — whitelist por `FRONTEND_URL` em produção; `localhost:5173` + `FRONTEND_URL` em dev. `credentials: true`, métodos explícitos.
 - **Módulo:** `apps/api/src/main.ts:13`
 - **Evidência:**
   ```typescript
-  app.enableCors()
+  app.enableCors();
   ```
 - **Descrição:** `enableCors()` sem parâmetros habilita CORS para todas as origens (`Access-Control-Allow-Origin: *`). Qualquer site na internet pode fazer requisições à API de um usuário logado.
 - **Impacto:** Scripts maliciosos injetados via XSS podem fazer chamadas autenticadas à API sem restrição de origem. Com CORS irrestrito, ataques CSRF via scripts também ficam facilitados caso futuramente se adotem cookies.
 - **Recomendação:**
   ```typescript
   app.enableCors({
-    origin: env.NODE_ENV === 'production' ? env.FRONTEND_URL : ['http://localhost:5173', env.FRONTEND_URL],
+    origin:
+      env.NODE_ENV === "production"
+        ? env.FRONTEND_URL
+        : ["http://localhost:5173", env.FRONTEND_URL],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  })
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  });
   ```
 
 ---
 
 #### SEC-06 — Entropia mínima insuficiente para JWT_SECRET (aceita 16 chars) ✅ RESOLVIDO
+
 - **Severidade:** MEDIUM
 - **Fix:** `apps/api/src/config/env.ts` — `JWT_SECRET` e `JWT_REFRESH_SECRET` agora exigem `min(64)`.
 - **Módulo:** `apps/api/src/config/env.ts:23-24`
@@ -156,6 +168,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-07 — Refresh token sem blacklist: tokens roubados permanecem válidos até expirar (7d) ✅ RESOLVIDO
+
 - **Severidade:** MEDIUM
 - **Fix aplicado:** Migration `017_add_refresh_token_version_to_users` adicionou `refresh_token_version INTEGER NOT NULL DEFAULT 0` em `agency_members` e `doctors`. `JwtPayload` estendido com `refreshTokenVersion?: number`. `loginAgency`, `loginDoctor` e `acceptDoctorInvite` embute a versão do banco no refresh token. `refreshToken` (ambos os services) valida que `payload.refreshTokenVersion === DB.refresh_token_version` antes de renovar — versão divergente lança `UnauthorizedException('Refresh token revogado')`. Incremento atômico via `knex.raw('refresh_token_version + 1')`. Access token não carrega a claim.
 - **Resultado:** Janela de exposição reduzida de 7 dias para a duração de uma única sessão. Token roubado é invalidado automaticamente no próximo refresh legítimo.
@@ -163,6 +176,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-08 — Endpoint público `/doctor/auth/resolve-email/:email` enumera emails e dados de clínicas ✅ RESOLVIDO (parcial)
+
 - **Severidade:** MEDIUM
 - **Fix aplicado:** `doctor-auth.controller.ts` — `@UseGuards(ThrottlerGuard) @Throttle({ default: { limit: 10, ttl: 60000 } })` no método `resolveEmail()`. Rate limit de 10 req/min por IP implementado.
 - **Pendente:** normalização da resposta (retornar erro genérico sem distinguir "não existe" de "convite pendente") — requer mudança no service e impacta UX do fluxo de login do doutor; aceito como trade-off MVP.
@@ -182,6 +196,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-09 — Ausência de rate limiting em endpoints de login e reset de senha (camada aplicação) ✅ RESOLVIDO
+
 - **Severidade:** MEDIUM
 - **Fix:** `agency-auth.controller.ts` e `doctor-auth.controller.ts` — `@UseGuards(ThrottlerGuard) @Throttle({ default: { limit: 5, ttl: 900000 } })` aplicado em `login`, `forgot-password` e `reset-password`. `ThrottlerModule.forRoot()` registrado em `app.module.ts`.
 - **Módulo:** `apps/api/src/modules/auth/agency-auth.controller.ts:16-33`; `apps/api/src/modules/auth/doctor-auth.controller.ts:62-79`
@@ -195,6 +210,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ### LOW
 
 #### SEC-10 — Documentos clínicos servidos diretamente pelo Nginx sem autenticação
+
 - **Severidade:** LOW
 - **Módulo:** `docker/nginx.conf:163-169`
 - **Evidência:**
@@ -212,13 +228,16 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-11 — Logger expõe endereços de email (PII) em logs de nível INFO e ERROR
+
 - **Severidade:** LOW
 - **Módulo:** `apps/api/src/modules/auth/agency-auth.service.ts:119,122`; `apps/api/src/modules/auth/doctor-auth.service.ts:333,336,135`
 - **Evidência:**
   ```typescript
-  this.logger.error(`Falha ao enviar e-mail de reset para ${email}: ${err.message}`)
-  this.logger.log(`Solicitação de reset de senha para agency member: ${email}`)
-  this.logger.log(`Doutor ${email} fez login no tenant ${tenant.slug}`)
+  this.logger.error(
+    `Falha ao enviar e-mail de reset para ${email}: ${err.message}`,
+  );
+  this.logger.log(`Solicitação de reset de senha para agency member: ${email}`);
+  this.logger.log(`Doutor ${email} fez login no tenant ${tenant.slug}`);
   ```
 - **Descrição:** Endereços de email de membros da agência e doutores são incluídos diretamente em mensagens de log. Logs frequentemente são coletados por sistemas externos (ELK, Datadog, Loki) e podem ser retidos por longos períodos com controles de acesso menos estritos que o banco de dados.
 - **Impacto:** Vazamento de PII em sistemas de log. Em caso de acesso indevido aos logs, emails de todos os usuários cadastrados ficam expostos, violando o princípio de minimização de dados da LGPD.
@@ -227,6 +246,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-12 — Dependências com CVEs de alta severidade em produção e build
+
 - **Severidade:** LOW (risco real limitado no contexto atual)
 - **Módulo:** `apps/api/package.json` — 13 vulnerabilidades (1 moderate, 12 high)
 - **Evidência (runtime):**
@@ -242,12 +262,13 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 ---
 
 #### SEC-13 — Swagger UI depende de `NODE_ENV=production` no `.env` para ser desabilitado
+
 - **Severidade:** LOW
 - **Módulo:** `apps/api/src/main.ts:17-26`
 - **Evidência:**
   ```typescript
-  if (env.NODE_ENV !== 'production') {
-    SwaggerModule.setup('api/docs', app, document)
+  if (env.NODE_ENV !== "production") {
+    SwaggerModule.setup("api/docs", app, document);
   }
   ```
   O `docker-compose.prod.yml` define `NODE_ENV: production` no campo `environment` do serviço, mas o `.env` é carregado antes via `env_file: ../.env` — se o `.env` tiver `NODE_ENV=development`, o Swagger ficará exposto.
@@ -255,16 +276,116 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 - **Impacto:** Swagger exposto em produção documenta todos os endpoints, schemas e exemplos de payload, facilitando reconhecimento por atacantes.
 - **Recomendação:** Inverter para opt-in explícito via variável `ENABLE_SWAGGER=true`, desabilitado por padrão independente do `NODE_ENV`. Adicionar `ENABLE_SWAGGER=false` ao `.env.example` como lembrete.
 
+### HIGH (novos)
+
+---
+
+#### SEC-14 — `portal_access_code` gravado em texto plano no `event_log` ✅ RESOLVIDO
+
+- **Severidade:** HIGH
+- **Fix:** `appointment.service.ts` — removido `portal_access_code: code` do payload do `eventLogService.append`. O evento `patient.portal_activated` agora registra apenas `{ patient_id, patient_name }`. O `eventEmitter.emit` interno continua enviando o código ao agente WhatsApp (canal interno, não audit log). Assertion negativa adicionada em `appointment.service.spec.ts` (CT-53-04b) para garantir que o campo nunca reapareça.
+- **Módulo:** `apps/api/src/modules/appointment/appointment.service.ts:385`
+- **Descrição:** Quando uma consulta é concluída e o portal do paciente é ativado pela primeira vez, o código de acesso gerado é inserido diretamente no payload do `event_log`: `{ ..., portal_access_code: code }`. O `event_log` é um audit trail append-only legível por qualquer membro da agência com acesso ao portal ou processo com acesso ao banco.
+- **Impacto:** O código de acesso (`AAA-NNNN-BBB`) é o único fator de autenticação do paciente no portal — equivale a uma senha. Qualquer `agency_member` ou atacante que leia o `event_log` obtém o código de todos os pacientes ativados e pode acessar histórico de consultas e documentos médicos. Violação LGPD Art. 46.
+- **Recomendação:** Remover `portal_access_code` do payload do evento. O evento `patient.portal_activated` deve registrar apenas `{ patientId, tenantId }` — o código é um segredo de autenticação, não dado de auditoria.
+
+---
+
+#### SEC-15 — Upload de arquivo sem validação de MIME type server-side ✅ RESOLVIDO
+
+- **Severidade:** HIGH
+- **Fix:** `document.controller.ts` — adicionados `limits: { fileSize: 10 * 1024 * 1024 }` (10MB) e `fileFilter` com allowlist `['application/pdf', 'image/jpeg', 'image/png']` ao `FileInterceptor`. Rejeição com `BadRequestException('Tipo de arquivo não permitido. Aceitos: PDF, JPEG, PNG')`.
+- **Módulo:** `apps/api/src/modules/document/document.controller.ts:75-104`
+- **Descrição:** O `FileInterceptor` configurado com `diskStorage` não define `fileFilter` nem `limits.fileSize`. O Multer aceita qualquer tipo de arquivo — `.js`, `.php`, `.sh`, ou executável renomeado com extensão válida. A extensão usada em disco vem do `extname(file.originalname)` controlado pelo cliente.
+- **Impacto:** Upload de arquivos maliciosos no volume compartilhado entre API e Nginx. Superfície para stored XSS via SVG malicioso. O arquivo fica acessível ao paciente via `GET /patient/portal/documents/:id`.
+- **Recomendação:** Adicionar `fileFilter` com allowlist de MIME types (`application/pdf`, `image/jpeg`, `image/png`). Validar magic bytes server-side. Adicionar `limits: { fileSize: 10 * 1024 * 1024 }`. Bloquear SVG explicitamente.
+
+---
+
+#### SEC-16 — `fileUrl` sem validação de prefixo permite path traversal no download do paciente ✅ RESOLVIDO
+
+- **Severidade:** HIGH
+- **Fix:** (a) `create-document.dto.ts` — `fileUrl` substituído de `z.string().min(1)` para `z.string().regex(/^\/uploads\/[a-f0-9-]+\/[a-f0-9-]+\.[a-zA-Z0-9]{2,5}$/)`, rejeitando qualquer path com `..` ou fora do padrão `/uploads/{tenantId}/{uuid.ext}`. (b) `patient-portal.controller.ts` — adicionada verificação de prefixo antes do `res.download`: calcula `uploadsRoot = join(process.cwd(), 'uploads')` e verifica `filePath.startsWith(uploadsRoot + '/')`, lançando `ForbiddenException('Acesso negado')` caso contrário. Defesa em profundidade: validação no write + verificação no read.
+- **Módulo:** `apps/api/src/modules/document/dto/create-document.dto.ts:11`; `apps/api/src/modules/patient/patient-portal.controller.ts:67`
+- **Descrição:** O DTO de criação de documento valida `fileUrl` apenas como `z.string().min(1)`. No download, o `file_url` armazenado é concatenado com o cwd via `join(process.cwd(), doc.file_url)`. Um doutor autenticado pode enviar `fileUrl: "../../../../etc/passwd"` no `POST /doctor/documents`, e qualquer paciente com código de acesso válido consegue baixar o arquivo resultante.
+- **Impacto:** Se `file_url` contiver `..`, o `path.join` atravessa o filesystem do container. O `.env` é montado como volume e contém `JWT_SECRET`, `DB_PASSWORD`, `OPENAI_API_KEY`.
+- **Recomendação:** No DTO, validar `z.string().regex(/^\/uploads\//)`. No download, usar `path.resolve()` e verificar que o resultado começa com o diretório de uploads antes de servir o arquivo.
+
+---
+
+### MEDIUM (novos)
+
+#### SEC-17 — `generatePortalAccessCode()` usa `Math.random()` em vez de CSPRNG ✅ RESOLVIDO
+
+- **Severidade:** MEDIUM
+- **Fix:** `appointment.service.ts` — adicionado `import { randomInt } from 'node:crypto'`; substituído `Math.floor(Math.random() * charset.length)` por `randomInt(0, charset.length)` na função `generatePortalAccessCode`. Formato `AAA-NNNN-BBB` preservado.
+- **Módulo:** `apps/api/src/modules/appointment/appointment.service.ts:12-20`
+- **Descrição:** A função usa `Math.floor(Math.random() * charset.length)` para gerar o código de acesso do portal do paciente. `Math.random()` não é criptograficamente seguro — o estado interno pode ser inferido a partir de saídas observadas.
+- **Impacto:** Em teoria, um atacante com acesso a múltiplos códigos consecutivos poderia predizer códigos futuros. Em app médico com dados LGPD, uso de CSPRNG é obrigatório por boas práticas e conformidade.
+- **Recomendação:** Substituir por `crypto.randomInt(0, charset.length)` do módulo `node:crypto`. Correção de 1 linha.
+
+---
+
+#### SEC-18 — Endpoints `/auth/refresh` sem rate limiting específico
+
+- **Severidade:** MEDIUM
+- **Módulo:** `apps/api/src/modules/auth/agency-auth.controller.ts:80-95`; `apps/api/src/modules/auth/doctor-auth.controller.ts:127-143`
+- **Descrição:** Os endpoints `POST /agency/auth/refresh` e `POST /doctor/auth/refresh` não têm `@UseGuards(ThrottlerGuard)` nem `@Throttle`. O SEC-09 cobriu login/forgot/reset, mas os endpoints de refresh ficaram sem proteção específica.
+- **Impacto:** Ataque automatizado de token stuffing com refresh tokens roubados. Embora a rotação de versão (SEC-07) invalide tokens após uso, a ausência de rate limiting facilita exploração antes da invalidação.
+- **Recomendação:** Adicionar `@UseGuards(ThrottlerGuard)` e `@Throttle({ default: { limit: 10, ttl: 60000 } })` em ambos os endpoints de refresh.
+
+---
+
+### LOW (novos)
+
+#### SEC-19 — `bcrypt` com cost factor 10 — abaixo do recomendado para 2026
+
+- **Severidade:** LOW
+- **Módulo:** `apps/api/src/modules/auth/agency-auth.service.ts:144`; `apps/api/src/modules/auth/doctor-auth.service.ts:206,420`
+- **Descrição:** `bcrypt.hash(password, 10)` usa cost factor 10. OWASP recomenda mínimo 12 para bcrypt em 2026 com hardware moderno.
+- **Impacto:** Banco comprometido → senhas quebradas mais rapidamente com cost 10 vs 12.
+- **Recomendação:** Aumentar para `bcrypt.hash(password, 12)`. Considerar migração progressiva: re-hash com cost 12 no próximo login bem-sucedido.
+
+---
+
+#### SEC-20 — Endpoints de booking público sem rate limiting na camada de aplicação
+
+- **Severidade:** LOW
+- **Módulo:** `apps/api/src/modules/booking/booking.controller.ts` (todos os endpoints)
+- **Descrição:** Os endpoints públicos `GET /validate`, `GET /slots`, `POST /book` não têm `@UseGuards(ThrottlerGuard)`. O Nginx aplica apenas `api_general: 30r/m` por IP.
+- **Impacto:** DoS contra o endpoint de slots: queries ao banco para datas aleatórias sem custo de autenticação.
+- **Recomendação:** Adicionar `@UseGuards(ThrottlerGuard)` com limite conservador (20 req/min) nos endpoints de booking público.
+
+---
+
+#### SEC-21 — Header `X-XSS-Protection` legado no Nginx
+
+- **Severidade:** LOW (informacional)
+- **Módulo:** `docker/nginx.conf:110`
+- **Descrição:** `add_header X-XSS-Protection "1; mode=block"` é obsoleto — o Chrome removeu o XSS Auditor em 2019. O header pode introduzir vulnerabilidades em browsers legados e adiciona surface desnecessária.
+- **Impacto:** Sem impacto prático em 2026. Proteção adequada já coberta pelo CSP (SEC-01).
+- **Recomendação:** Remover a linha `X-XSS-Protection` do nginx.conf.
+
+---
+
+#### SEC-22 — `id` do documento não validado como UUID no portal do paciente
+
+- **Severidade:** LOW
+- **Módulo:** `apps/api/src/modules/patient/patient-portal.controller.ts:61-69`
+- **Descrição:** O parâmetro `id` em `GET /patient/portal/documents/:id` não tem `ZodValidationPipe(z.string().uuid())`. Qualquer string é aceita e repassada ao banco, que retorna erro interno 500 se receber UUID inválido.
+- **Impacto:** Baixo risco direto (Knex usa binding parametrizado), mas viola defesa em profundidade. UUID inválido gera resposta 500 em vez de 400, expondo comportamento interno.
+- **Recomendação:** Adicionar `@Param('id', new ZodValidationPipe(z.string().uuid())) id: string`, idêntico ao padrão em `patient.controller.ts:48`.
+
 ---
 
 ## Resumo por Severidade
 
-| Severidade | Count | IDs |
-|------------|-------|-----|
-| CRITICAL   | 0     | — |
-| HIGH       | 3     | SEC-01, SEC-02, SEC-03 |
-| MEDIUM     | 6     | SEC-04, SEC-05, SEC-06, SEC-07, SEC-08, SEC-09 |
-| LOW        | 4     | SEC-10, SEC-11, SEC-12, SEC-13 |
+| Severidade | Count | IDs                                                                                              |
+| ---------- | ----- | ------------------------------------------------------------------------------------------------ |
+| CRITICAL   | 0     | —                                                                                                |
+| HIGH       | 6     | SEC-01 ✅, SEC-02 ✅, SEC-03 ✅, SEC-14 ✅, SEC-15 ✅, SEC-16 ✅                                |
+| MEDIUM     | 8     | SEC-04 ✅, SEC-05 ✅, SEC-06 ✅, SEC-07 ✅, SEC-08 ✅, SEC-09 ✅, SEC-17 ✅, SEC-18             |
+| LOW        | 8     | SEC-10, SEC-11, SEC-12, SEC-13, SEC-19, SEC-20, SEC-21, SEC-22                                   |
 
 ---
 
@@ -273,6 +394,7 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 Os itens a seguir foram verificados e considerados adequados:
 
 **Isolamento de Tenant:**
+
 - `tenant_id` extraído do JWT via `@TenantId()` em todos os controllers de doutor — nunca aceito do body (`apps/api/src/common/decorators/tenant.decorator.ts`)
 - Guards `JwtAuthGuard + TenantGuard + RolesGuard + @Roles('doctor')` aplicados na classe em todos os controllers tenant-scoped: `PatientController`, `AppointmentController`, `ClinicalNoteController`, `DocumentController`, `OnboardingController`, `ProfileController`, `AgentSettingsController`
 - Todas as queries Knex em tabelas tenant-scoped filtram por `WHERE tenant_id = tenantId` (verificado em todos os services)
@@ -280,6 +402,7 @@ Os itens a seguir foram verificados e considerados adequados:
 - `TenantGuard` (`apps/api/src/common/guards/tenant.guard.ts`) verifica `user?.tenantId` do JWT e rejeita com 403 se ausente
 
 **Autenticação JWT:**
+
 - Algoritmo padrão do `@nestjs/jwt` é HS256 — `none` nunca configurado
 - `ignoreExpiration: false` explicitamente configurado na JWT strategy (`apps/api/src/modules/auth/strategies/jwt.strategy.ts:19`)
 - Access token expira em 15m (padrão e documentado no `.env.example`)
@@ -288,23 +411,27 @@ Os itens a seguir foram verificados e considerados adequados:
 - Senhas comparadas com `bcrypt.compare()` — timing-safe, sem comparação direta de string
 
 **SQL Injection:**
+
 - Nenhuma interpolação de string em queries de domínio encontrada — todos os valores passam como parâmetros do Knex
 - `knex.raw()` usado apenas para aliases de coluna (ex: `knex.raw('primary_color as "primaryColor"')`) — sem variáveis de usuário interpoladas
 - `ConversationService.getOrCreate()` usa `knex.raw` com parâmetros nomeados (`:tenantId, :phone`) — seguro
 - Busca LIKE em `PatientService.listPatients()` sanitiza wildcards: `search.replaceAll(/[%_\\]/g, String.raw`\$&`)` antes do `whereILike` (`apps/api/src/modules/patient/patient.service.ts:93`)
 
 **Input Validation:**
+
 - Todos os endpoints POST/PATCH têm `ZodValidationPipe` aplicado no parâmetro `@Body()`
 - Query params de listagem usam `z.coerce.number()` para page/limit (HTTP entrega strings)
 - IDs de parâmetros de rota validados com `z.string().uuid()` nos controllers críticos (`patient.controller.ts:48,104`)
 
 **Tokens Públicos de Booking:**
+
 - Gerados com `crypto.randomBytes(32).toString('hex')` — 256 bits de entropia (`booking.service.ts:115`)
 - Expiram em 24h e marcados como `used: true` atomicamente com criação da consulta (transação)
 - Vinculados a `tenant_id` — validação cross-tenant implementada
 - Correspondência de phone verificada no `bookAppointment` para prevenir bypass via DevTools (`booking.service.ts:571`)
 
 **Webhook WhatsApp:**
+
 - Validação de `apikey` vs `EVOLUTION_WEBHOOK_TOKEN` antes de qualquer processamento (`agent.controller.ts:56`)
 - `payload.data?.key?.remoteJid` validado antes de processar (TD-18 resolvido, linha 81)
 - `fromMe === true` filtrado silenciosamente (linha 85)
@@ -312,6 +439,7 @@ Os itens a seguir foram verificados e considerados adequados:
 - Rate limiting via Nginx: zona `webhook: 60r/m` com burst de 20
 
 **Upload de Arquivos:**
+
 - `basename()` aplicado ao `originalname` — previne path traversal (embora SEC-03 identifique colisão)
 - Arquivos salvos em `process.cwd()/uploads/{tenantId}/` — separados por tenant
 - Tamanho máximo: `client_max_body_size 20m` no Nginx
@@ -319,6 +447,7 @@ Os itens a seguir foram verificados e considerados adequados:
 - Autenticação completa (JWT + TenantGuard) exigida no endpoint de upload
 
 **Headers de Segurança Nginx:**
+
 - HSTS com `max-age=31536000; includeSubDomains` presente
 - `X-Frame-Options: SAMEORIGIN` presente
 - `X-Content-Type-Options: nosniff` presente
@@ -327,22 +456,26 @@ Os itens a seguir foram verificados e considerados adequados:
 - HTTP redireciona para HTTPS com `return 301`
 
 **Secrets / Configuração:**
+
 - `.env` e `.env.production` no `.gitignore` — verificado com `git ls-files`: apenas `.env.example` e `apps/web/.env.example` estão commitados
 - Nenhum secret hardcoded encontrado no código-fonte
 - Todas as variáveis sensíveis (JWT_SECRET, DB_PASSWORD, EVOLUTION_API_KEY, OPENAI_API_KEY) são obrigatórias e validadas no startup via Zod com `process.exit(1)` em caso de falha
 
 **Docker / Infraestrutura:**
+
 - PostgreSQL não exposto publicamente — apenas na `nocrato_net` network interna
 - Evolution API não exposta na porta pública
 - Volumes de desenvolvimento não montados no `docker-compose.prod.yml`
 
 **LGPD — Proteção de Dados Sensíveis:**
+
 - `cpf` e `portal_access_code` nunca retornados em listagens — definidos em `PUBLIC_PATIENT_FIELDS` explicitamente sem esses campos (`patient.service.ts:28-36`)
 - `clinical_notes` não expostas no portal do paciente — verificado em `getPatientPortalData()` (`patient.service.ts:303-313`)
 - `password_hash` nunca serializado em nenhuma resposta (seleção explícita de campos em todos os services)
 - Acesso ao portal do paciente registrado em `event_log` (`patient.service.ts:301`)
 
 **Frontend (XSS):**
+
 - Nenhum uso de `dangerouslySetInnerHTML` encontrado em todo o código React (`apps/web/src/`)
 - Tokens armazenados em `localStorage` via Zustand persist — solução padrão para SPA stateless; risco mitigado pela ausência de XSS e configuração de CSP (SEC-01)
 

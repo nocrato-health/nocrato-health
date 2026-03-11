@@ -1147,6 +1147,14 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       null,
       expect.objectContaining({ patient_id: PATIENT_ID, patient_name: 'João Santos' }),
     )
+    // SEC-14: portal_access_code NUNCA deve aparecer no audit log (LGPD)
+    expect(mockEventLogService.append).not.toHaveBeenCalledWith(
+      TENANT_ID,
+      'patient.portal_activated',
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ portal_access_code: expect.anything() }),
+    )
   })
 
   // -------------------------------------------------------------------------
@@ -1175,6 +1183,7 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     )
 
     // eventLogService.append deve usar actor_type='system' e actor_id=null
+    // portal_access_code NÃO é gravado no event_log (SEC-14 — LGPD)
     expect(mockEventLogService.append).toHaveBeenCalledWith(
       TENANT_ID,
       'patient.portal_activated',
@@ -1183,7 +1192,6 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       expect.objectContaining({
         patient_id: PATIENT_ID,
         patient_name: 'João Santos',
-        portal_access_code: expect.stringMatching(/^[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}$/),
       }),
     )
 

@@ -87,6 +87,15 @@ export class DocumentController {
           cb(null, `${randomUUID()}${extname(file.originalname)}`)
         },
       }),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB (SEC-15)
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['application/pdf', 'image/jpeg', 'image/png']
+        if (allowed.includes(file.mimetype)) {
+          cb(null, true)
+        } else {
+          cb(new BadRequestException('Tipo de arquivo não permitido. Aceitos: PDF, JPEG, PNG'), false)
+        }
+      },
     }),
   )
   uploadFile(

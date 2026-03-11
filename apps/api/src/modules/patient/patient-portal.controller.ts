@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
 import { Response } from 'express'
@@ -64,7 +64,11 @@ export class PatientPortalController {
     @Res() res: Response,
   ) {
     const doc = await this.patientService.getPatientDocument(code, id)
+    const uploadsRoot = join(process.cwd(), 'uploads')
     const filePath = join(process.cwd(), doc.file_url as string)
+    if (!filePath.startsWith(uploadsRoot + '/')) {
+      throw new ForbiddenException('Acesso negado')
+    }
     res.download(filePath, doc.file_name as string)
   }
 }
