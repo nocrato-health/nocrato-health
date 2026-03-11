@@ -1310,7 +1310,7 @@ describe('PatientService — getPatientPortalData', () => {
   let service: PatientService
   let mockKnexPortal: jest.Mock
 
-  const CODE = 'MRO-5678-PAC'
+  const CODE = 'MRS-5678-PAC'
 
   /**
    * Row retornada pelo JOIN patients + tenants + doctors
@@ -1752,7 +1752,7 @@ describe('PatientService — getPatientDocument', () => {
   let service: PatientService
   let mockKnexDoc: jest.Mock
 
-  const CODE = 'MRO-5678-PAC'
+  const CODE = 'MRS-5678-PAC'
   const DOC_ID = 'doc-uuid-download'
 
   /**

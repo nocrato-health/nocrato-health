@@ -42,7 +42,7 @@ export const TEST_DOCTOR_DONE = {
 }
 
 // Código de acesso do portal do paciente (CT-103-xx)
-export const PORTAL_ACCESS_CODE = 'MRO-5678-PAC'
+export const PORTAL_ACCESS_CODE = 'MRS-5678-PAC'
 
 // Tokens de booking para a suíte Playwright (CT-75-xx)
 // Cada token tem 64 chars hexadecimais (padrão do generateToken)

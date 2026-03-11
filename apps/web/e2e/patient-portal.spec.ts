@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 // Código de acesso definido em setup-test-data.ts (PORTAL_ACCESS_CODE)
-const PORTAL_ACCESS_CODE = 'MRO-5678-PAC'
+const PORTAL_ACCESS_CODE = 'MRS-5678-PAC'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

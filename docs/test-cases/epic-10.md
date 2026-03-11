@@ -18,7 +18,7 @@
 **Passos detalhados:**
 1. Verificar paciente: `SELECT portal_access_code, portal_active FROM patients WHERE id = :id` → ambos NULL/false
 2. `PATCH /api/v1/doctor/appointments/:id/status { "status": "completed" }` com JWT de doutor
-3. Verificar banco: `portal_access_code` tem formato `[A-Z]{3}-\d{4}-[A-Z]{3}`, `portal_active = true`
+3. Verificar banco: `portal_access_code` tem formato `[A-HJ-NP-Z]{3}-\d{4}-[A-HJ-NP-Z]{3}` (sem I/O), `portal_active = true`
 4. Verificar event_log: evento `patient.portal_activated` com payload `{ patient_id, patient_name, patient_phone, portal_access_code }`
 5. Verificar que agente enviou mensagem WhatsApp com o código
 
@@ -80,8 +80,8 @@
 
 **Categoria:** Happy path
 
-**Given** paciente `Maria Oliveira` com `portal_access_code = 'MRO-5678-PAC'`, `portal_active = true`, `status = 'active'`, tenant ativo, 2 consultas e 1 documento
-**When** `POST /api/v1/patient/portal/access { "code": "MRO-5678-PAC" }` (sem Authorization header)
+**Given** paciente `Maria Oliveira` com `portal_access_code = 'MRS-5678-PAC'`, `portal_active = true`, `status = 'active'`, tenant ativo, 2 consultas e 1 documento
+**When** `POST /api/v1/patient/portal/access { "code": "MRS-5678-PAC" }` (sem Authorization header)
 **Then** HTTP 200 com corpo `{ patient, doctor, tenant, appointments, documents }` — `patient.name = 'Maria Oliveira'`, `appointments` com 2 itens, `documents` com 1 item, campo `clinicalNotes` ausente da resposta
 
 **Resultado atual:** [x] ok  — 2026-03-08
@@ -152,8 +152,8 @@
 
 **Categoria:** Happy path
 
-**Given** documento `receita_2024.pdf` vinculado ao paciente com código `'MRO-5678-PAC'`
-**When** `GET /api/v1/patient/portal/documents/:documentId?code=MRO-5678-PAC`
+**Given** documento `receita_2024.pdf` vinculado ao paciente com código `'MRS-5678-PAC'`
+**When** `GET /api/v1/patient/portal/documents/:documentId?code=MRS-5678-PAC`
 **Then** HTTP 200 com conteúdo do arquivo (Content-Type correto, stream do arquivo)
 
 **Resultado atual:** [x] ok  — 2026-03-08 (unit test verifica res.download chamado com path + filename corretos)
@@ -190,14 +190,14 @@
 
 **Categoria:** Happy path
 
-**Given** navegador em `http://localhost:5173/patient/access`, paciente com código `'MRO-5678-PAC'` no banco
-**When** paciente digita `MRO-5678-PAC` no campo e clica em "Acessar Portal"
+**Given** navegador em `http://localhost:5173/patient/access`, paciente com código `'MRS-5678-PAC'` no banco
+**When** paciente digita `MRS-5678-PAC` no campo e clica em "Acessar Portal"
 **Then** redireciona para a página do portal exibindo nome do paciente, histórico de consultas e documentos
 
 **Passos detalhados:**
 1. Navegar para `/patient/access`
 2. Verificar que o campo de código está visível
-3. Digitar `MRO-5678-PAC` no campo
+3. Digitar `MRS-5678-PAC` no campo
 4. Clicar em "Acessar Portal"
 5. Aguardar carregamento
 6. Verificar que exibe o nome do paciente (`Maria Oliveira`)

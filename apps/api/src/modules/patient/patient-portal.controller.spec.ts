@@ -26,6 +26,7 @@ jest.mock('@/config/env', () => ({
 
 import { Test, TestingModule } from '@nestjs/testing'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { ThrottlerGuard } from '@nestjs/throttler'
 import { join } from 'path'
 import { PatientPortalController } from './patient-portal.controller'
 import { PatientService } from './patient.service'
@@ -34,7 +35,7 @@ import { PatientService } from './patient.service'
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const CODE = 'MRO-5678-PAC'
+const CODE = 'MRS-5678-PAC'
 const DOC_ID = 'doc-uuid-1'
 
 const makePortalData = () => ({
@@ -91,7 +92,10 @@ describe('PatientPortalController', () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [PatientPortalController],
       providers: [{ provide: PatientService, useValue: service }],
-    }).compile()
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: jest.fn().mockResolvedValue(true) })
+      .compile()
 
     controller = moduleRef.get<PatientPortalController>(PatientPortalController)
   })

@@ -93,14 +93,9 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### TD-09 — Refresh tokens sem possibilidade de revogação imediata
-**Módulo:** `auth`
-**Identificado em:** ADR-006 / Auditoria pós-Epic 7
-**Prioridade:** P2
+### ~~TD-09 — Refresh tokens sem possibilidade de revogação imediata~~ ✅ RESOLVIDO
 
-Refresh tokens são stateless (não armazenados no banco). Impossível revogar sessão ativa de um usuário comprometido antes do token expirar (7 dias). Mitigação atual: access tokens curtos (15 min).
-
-**Fix pós-escala:** Implementar Redis blacklist para refresh tokens ou armazenar hash do token no banco com flag `revoked`.
+**Resolvido em:** SEC-07 fix — `refresh_token_version INTEGER NOT NULL DEFAULT 0` adicionado a `agency_members` e `doctors` (migration 017). Incrementar a versão no banco (via update manual ou endpoint de logout futuro) invalida imediatamente todos os refresh tokens em circulação para aquele usuário. Token com versão divergente lança `UnauthorizedException('Refresh token revogado')`. Redis blacklist permanece como opção de melhoria futura para granularidade por token individual (vs. por usuário).
 
 ---
 
@@ -265,6 +260,21 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 `getPatientPortalData` usa `await` no registro de auditoria. Se o event_log (banco) estiver indisponível, o acesso do paciente ao portal falha com erro 500. Decisão consciente para o MVP: conformidade LGPD (não vazar acesso não auditado) tem precedência sobre disponibilidade. Risco atual baixo (banco é o mesmo da API).
 
 **Fix pós-escala:** Se event_log migrar para serviço separado (ex: OpenSearch), implementar fire-and-forget com fallback de log local para desacoplar disponibilidade do portal da disponibilidade do serviço de auditoria.
+
+---
+
+### TD-25 — SEC-08: resolveEmail expõe enumeração de usuários sem normalização de resposta
+**Módulo:** `auth`
+**Identificado em:** Hardening pós-Epic 10 (SEC-08)
+**Prioridade:** P2
+
+`POST /doctor/auth/resolve-email` retorna estados distintos (`not_found`, `pending_invite`, `active`) que permitem confirmar se um email está cadastrado na plataforma. Mitigação atual: rate limiting (10 req/min por IP via ThrottlerGuard). A normalização completa das respostas foi rejeitada no MVP porque o frontend depende dos três estados para renderizar UX diferente — não é preferência, é requisito funcional do fluxo de login de dois passos.
+
+Risco residual adicional: o email vai na URL (`GET resolve-email/:email`) e aparece nos logs do Nginx e do NestJS — PII em log sem anonimização.
+
+**Impacto atual:** Rate limiting reduz throughput de enumeração a ~600/hora por IP. Risco baixo no contexto de médicos como usuários primários.
+
+**Fix pós-MVP:** (1) Mover email para body (`POST` com `{ email }`) para remover PII dos logs. (2) Normalizar resposta para `{ status: 'check_your_email' }` — requer redesenho do fluxo de login de dois passos (frontend + backend) para distinguir estados via tentativa de login, não via resolução prévia.
 
 ---
 
