@@ -67,6 +67,8 @@ docker compose -f docker/docker-compose.prod.yml up -d
 docker compose -f docker/docker-compose.prod.yml run --rm api node dist/database/migrate.js
 ```
 
+> **Nota:** o deploy também acontece automaticamente via GitHub Actions a cada push na branch `main`.
+
 ---
 
 ## Banco de Dados — Acesso
@@ -98,7 +100,66 @@ JOIN tenants t ON t.id = d.tenant_id;
 
 -- Listar tenants
 SELECT id, slug, name, status FROM tenants;
+
+-- Listar últimos agendamentos
+SELECT a.id, a.date_time, a.status, p.name as patient, t.slug as tenant
+FROM appointments a
+JOIN patients p ON p.id = a.patient_id
+JOIN tenants t ON t.id = a.tenant_id
+ORDER BY a.date_time DESC
+LIMIT 20;
+
+-- Listar conversas do agente WhatsApp
+SELECT phone, tenant_id, updated_at FROM conversations ORDER BY updated_at DESC LIMIT 20;
+
+-- Listar tokens de booking ativos
+SELECT token, tenant_id, used, expires_at FROM booking_tokens WHERE used = false ORDER BY expires_at DESC;
 ```
+
+---
+
+## Banco de Dados — Acesso via DBeaver (do computador local)
+
+O PostgreSQL em produção não expõe porta pública — o acesso é feito via túnel SSH.
+
+### Passo 1 — Criar o túnel SSH
+
+Abra um terminal e deixe-o **aberto enquanto usar o DBeaver**:
+
+```bash
+ssh -L 5433:localhost:5432 root@IP_DO_VPS -N
+```
+
+O terminal ficará "travado" sem mostrar nada — isso é normal, significa que o túnel está ativo.
+
+### Passo 2 — Configurar conexão no DBeaver
+
+Crie uma nova conexão PostgreSQL com:
+
+| Campo    | Valor                                          |
+|----------|------------------------------------------------|
+| Host     | `localhost`                                    |
+| Port     | `5433`                                         |
+| Database | `nocrato`                                      |
+| Username | `nocrato`                                      |
+| Password | valor de `DB_PASSWORD` no `.env` do servidor   |
+
+Para ver a senha:
+
+```bash
+grep DB_PASSWORD /opt/nocrato-health-v2/.env
+```
+
+> **Dica:** copie a senha direto do terminal — o valor é longo e qualquer caractere errado vai falhar na autenticação.
+
+### Verificar se o túnel funciona (antes de abrir o DBeaver)
+
+```bash
+# No seu computador local (requer psql instalado)
+psql -h localhost -p 5433 -U nocrato -d nocrato
+```
+
+Se pedir senha e aceitar, o túnel está funcionando corretamente.
 
 ---
 
@@ -124,6 +185,8 @@ WHERE email = 'admin@nocrato.com';
 -- Verificar
 SELECT email, role, status FROM agency_members;
 ```
+
+> **Atenção:** o `DB_PASSWORD` (senha do PostgreSQL) e o `password_hash` (senha do admin no app) são coisas diferentes. O DBeaver usa o `DB_PASSWORD`. O login no portal usa o hash bcrypt.
 
 ---
 
@@ -159,11 +222,49 @@ docker compose -f /opt/nocrato-health-v2/docker/docker-compose.prod.yml \
 # Ver o .env atual
 cat /opt/nocrato-health-v2/.env
 
+# Ver uma variável específica
+grep DB_PASSWORD /opt/nocrato-health-v2/.env
+
 # Editar
 nano /opt/nocrato-health-v2/.env
 
 # Após editar, reiniciar a API para aplicar
 docker compose -f /opt/nocrato-health-v2/docker/docker-compose.prod.yml restart api
+```
+
+---
+
+## Rate Limiting — Auth
+
+A API tem rate limit de **5 tentativas de login por hora por IP** (em memória). Se bloquear durante testes:
+
+```bash
+# Resetar o rate limit (reinicia o processo Node, limpa o store in-memory)
+docker restart nocrato_api_prod
+```
+
+---
+
+## Testar Endpoints de Dentro do Container
+
+O container da API não tem `curl` instalado. Use `node` com `fetch`:
+
+```bash
+# Exemplo: testar health check de dentro do container
+docker exec nocrato_api_prod node -e "
+  fetch('http://localhost:3000/health')
+    .then(r => r.json())
+    .then(console.log)
+"
+
+# Exemplo: testar login de dentro do container
+docker exec nocrato_api_prod node -e "
+  fetch('http://localhost:3000/api/v1/agency/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@nocrato.com', password: 'SuaSenha' })
+  }).then(r => r.json()).then(console.log)
+"
 ```
 
 ---
@@ -202,22 +303,6 @@ curl -I https://app.nocrato.com
 
 ---
 
-## Acesso ao Banco via DBeaver (do computador local)
-
-```bash
-# Criar túnel SSH (deixar rodando em background)
-ssh -L 5433:localhost:5432 root@IP_DO_VPS -N
-
-# Conectar no DBeaver:
-# Host:     localhost
-# Port:     5433
-# Database: nocrato
-# User:     nocrato
-# Password: (valor de DB_PASSWORD no .env do servidor)
-```
-
----
-
 ## Nomes dos Containers em Produção
 
 | Container | Serviço |
@@ -233,6 +318,6 @@ ssh -L 5433:localhost:5432 root@IP_DO_VPS -N
 ## Projeto no Servidor
 
 ```
-/opt/nocrato-health-v2/    ← raiz do projeto
+/opt/nocrato-health-v2/     ← raiz do projeto
 /opt/nocrato-health-v2/.env ← variáveis de ambiente (nunca commitar)
 ```
