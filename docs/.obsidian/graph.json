@@ -9,19 +9,19 @@
   "colorGroups": [
     {
       "query": "path:roadmap/",
-      "color": { "a": 1, "rgb": 14748965 }
+      "color": { "a": 1, "rgb": 16753920 }
     },
     {
       "query": "path:flows/",
-      "color": { "a": 1, "rgb": 3394815 }
+      "color": { "a": 1, "rgb": 3394611 }
     },
     {
       "query": "path:architecture/",
-      "color": { "a": 1, "rgb": 16744272 }
+      "color": { "a": 1, "rgb": 4613119 }
     },
     {
       "query": "path:database/",
-      "color": { "a": 1, "rgb": 10040166 }
+      "color": { "a": 1, "rgb": 8388736 }
     },
     {
       "query": "path:test-cases/",
@@ -30,6 +30,14 @@
     {
       "query": "path:security/",
       "color": { "a": 1, "rgb": 16724736 }
+    },
+    {
+      "query": "tag:onboarding",
+      "color": { "a": 1, "rgb": 16744272 }
+    },
+    {
+      "query": "tag:ops",
+      "color": { "a": 1, "rgb": 8947848 }
     }
   ],
   "collapse-display": false,

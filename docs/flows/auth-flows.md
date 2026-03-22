@@ -1,3 +1,8 @@
+---
+tags: [flow]
+type: flow
+---
+
 # Authentication Flows
 
 All authentication flows for the Nocrato Health V2 platform. Covers agency members, doctors, password recovery, and token refresh.

@@ -1,3 +1,8 @@
+---
+tags: [onboarding]
+type: guide
+---
+
 # Onboarding — Agência (Nocrato)
 
 Este guia é para o time interno da Nocrato. Explica o que o sistema faz, como acessar cada área e quais ações são responsabilidade da agência no dia a dia.

@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 5: Gestao de Consultas
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 3 (Onboarding do Doutor) |
 | **User Stories** | 6 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-5.md](test-cases/epic-5.md)
+> **Casos de teste:** [[test-cases/epic-5|Test Cases — Epic 5]]
 
 ---
 
@@ -97,3 +103,10 @@
 - [x] Seed atualizado com appointment de HOJE (dinâmico com new Date())
 - [x] 5/5 testes Playwright passando (CT-56-01 a CT-56-05)
 - [x] **Criterio:** Fluxo completo de consulta no browser — QA aprovado
+
+---
+
+## Links Relacionados
+
+- [[flows/appointment-lifecycle|Lifecycle de Consultas]]
+- [[architecture/decisions|ADRs]]

@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 10: Portal do Paciente
 
 > Epic doc: [docs/roadmap/epic-10-patient-portal.md](../roadmap/epic-10-patient-portal.md)

@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 6: Notas Clinicas & Documentos
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 4 (Gestao de Pacientes) |
 | **User Stories** | 5 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-6.md](test-cases/epic-6.md)
+> **Casos de teste:** [[test-cases/epic-6|Test Cases — Epic 6]]
 
 ---
 
@@ -65,3 +71,10 @@
 - [x] Tab "Documentos" no perfil do paciente: lista + botao upload
 - [x] Dialog de upload (tipo, descricao, arquivo)
 - [x] **Criterio:** Criar nota, upload doc, ver nas tabs
+
+---
+
+## Links Relacionados
+
+- [[flows/appointment-lifecycle|Lifecycle de Consultas]]
+- [[architecture/decisions|ADRs]]

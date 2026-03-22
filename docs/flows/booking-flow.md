@@ -1,3 +1,8 @@
+---
+tags: [flow]
+type: flow
+---
+
 # Booking Flow
 
 Two options for patient appointment booking: external calendar with token security, or in-chat via the internal WhatsApp agent (NestJS module). The doctor chooses their preferred mode in agent settings (`bookingMode: 'link' | 'chat' | 'both'`).

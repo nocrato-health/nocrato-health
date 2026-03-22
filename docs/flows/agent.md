@@ -1,3 +1,8 @@
+---
+tags: [flow]
+type: flow
+---
+
 # Agente WhatsApp (Modulo Interno NestJS)
 
 O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `agent/`. Ele se comunica com a Evolution API via webhook (recebe) e HTTP client (envia). Nao ha ferramenta externa de orquestracao (sem N8N).

@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 1: Autenticacao & Convites
 
 | Field | Value |
@@ -116,3 +122,10 @@
 - [x] apps/web/CLAUDE.md documentando o modulo
 - [x] **Criterio:** Typecheck passando — pnpm install + tsc --noEmit com 0 erros
 - [x] Tech-lead: APROVADO_COM_RESSALVAS → issues corrigidos (greeting, Array.isArray, Link, CardTitle ref, slug flag)
+
+---
+
+## Links Relacionados
+
+- [[flows/auth-flows|Fluxo de Autenticação]]
+- [[architecture/decisions|ADRs]]

@@ -1,3 +1,8 @@
+---
+tags: [architecture]
+type: architecture
+---
+
 # Frontend Structure - Nocrato Health V2
 
 ## Overview

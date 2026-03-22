@@ -1,3 +1,8 @@
+---
+tags: [architecture, adr]
+type: architecture
+---
+
 # Architecture Decision Records - Nocrato Health V2
 
 ## Overview

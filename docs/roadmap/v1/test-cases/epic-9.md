@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 9: Agente WhatsApp (Modulo Interno NestJS)
 
 > Epic doc: [docs/roadmap/epic-9-events.md](../roadmap/epic-9-events.md)

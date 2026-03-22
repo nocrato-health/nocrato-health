@@ -1,3 +1,8 @@
+---
+tags: [flow]
+type: flow
+---
+
 # Patient Portal
 
 The patient portal provides read-only access to a patient's medical information. It is activated automatically after the patient's first completed appointment and accessed via a unique code delivered through WhatsApp.

@@ -167,6 +167,16 @@ Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda l
 
 ## Mapa da Documentação
 
+### `docs/guides/`
+
+| Arquivo                                  | Conteúdo                                                  |
+| ---------------------------------------- | --------------------------------------------------------- |
+| `ambiente-de-desenvolvimento-do-zero.md` | Setup completo em máquina nova (clone → servidor rodando) |
+| `onboarding-dev.md`                      | Referência técnica: endpoints, credenciais, fluxos        |
+| `onboarding-agency.md`                   | Guia não-técnico para o time da agência                   |
+| `onboarding-qa.md`                       | Setup de testes E2E com Playwright                        |
+| `vps-cheatsheet.md`                      | Comandos do dia a dia no servidor de produção             |
+
 ### `docs/architecture/`
 
 | Arquivo                 | Conteúdo                                                       |

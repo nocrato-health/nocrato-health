@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 7: Agendamento Publico (Booking)
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 5 (Gestao de Consultas) |
 | **User Stories** | 5 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-7.md](test-cases/epic-7.md)
+> **Casos de teste:** [[test-cases/epic-7|Test Cases — Epic 7]]
 
 ---
 
@@ -75,3 +81,10 @@
 - [x] Design system: paleta âmbar/creme/azul aço, Montserrat headings, mobile-first max-w-lg
 - [x] `app.css`: corrigido `--color-amber-mid` de `#9a7a2e` para `#af830d`
 - [x] **Criterio:** Booking completo no browser (CT-75-01 a CT-75-05 — Playwright 5/5 ✅)
+
+---
+
+## Links Relacionados
+
+- [[flows/booking-flow|Fluxo de Booking]]
+- [[architecture/decisions|ADRs]]

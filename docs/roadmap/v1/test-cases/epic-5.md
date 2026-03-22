@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 5: Gestão de Consultas
 
 > Epic doc: [docs/roadmap/epic-5-appointments.md](../roadmap/epic-5-appointments.md)

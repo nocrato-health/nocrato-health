@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 11: Polish & Deploy
 
 > Epic doc: [docs/roadmap/epic-11-deploy.md](../roadmap/epic-11-deploy.md)

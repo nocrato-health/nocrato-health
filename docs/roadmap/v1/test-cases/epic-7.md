@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 7: Agendamento Público (Booking)
 
 > Epic doc: [docs/roadmap/epic-7-booking.md](../roadmap/epic-7-booking.md)

@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 9: Agente WhatsApp (Modulo Interno)
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 7 (Agendamento Publico), EPIC 8 (Configuracoes & Agente) |
 | **User Stories** | 4 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-9.md](test-cases/epic-9.md)
+> **Casos de teste:** [[test-cases/epic-9|Test Cases — Epic 9]]
 
 ---
 
@@ -73,3 +79,11 @@
 - [x] Knex direto com tenant isolation para busca de phone nos eventos que não carregam phone no payload
 - [x] 6 testes novos (CT-94-01 a CT-94-06) — total: 572/572
 - [x] **Criterio:** Paciente recebe confirmação imediata após agendamento e notificações automáticas sem latência (EventEmitter2, zero polling)
+
+---
+
+## Links Relacionados
+
+- [[flows/agent|Agente WhatsApp]]
+- [[flows/booking-flow|Fluxo de Booking]]
+- [[architecture/decisions|ADRs]]

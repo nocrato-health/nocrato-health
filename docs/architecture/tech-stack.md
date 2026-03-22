@@ -1,3 +1,8 @@
+---
+tags: [architecture]
+type: architecture
+---
+
 # Tech Stack - Nocrato Health V2
 
 ## Overview

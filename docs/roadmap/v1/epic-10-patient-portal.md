@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 10: Portal do Paciente
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 9 (Agente WhatsApp - Modulo Interno), EPIC 5 (Gestão de Consultas) |
 | **User Stories** | 3 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-10.md](test-cases/epic-10.md)
+> **Casos de teste:** [[test-cases/epic-10|Test Cases — Epic 10]]
 
 ---
 
@@ -50,3 +56,10 @@
   - [x] Documentos (download)
 - [x] Design limpo, mobile-first
 - [x] **Criterio:** Paciente ve tudo, nao edita nada
+
+---
+
+## Links Relacionados
+
+- [[flows/patient-portal|Portal do Paciente]]
+- [[architecture/decisions|ADRs]]

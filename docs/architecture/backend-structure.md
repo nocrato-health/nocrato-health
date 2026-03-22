@@ -1,3 +1,8 @@
+---
+tags: [architecture]
+type: architecture
+---
+
 # Backend Structure - Nocrato Health V2
 
 ## Overview

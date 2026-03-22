@@ -1,3 +1,8 @@
+---
+tags: [database]
+type: database
+---
+
 # Nocrato Health V2 - Entity Relationship Documentation
 
 ## Entity Relationship Diagram

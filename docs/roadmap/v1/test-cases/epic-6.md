@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 6: Notas Clínicas & Documentos
 
 > Epic doc: [docs/roadmap/epic-6-clinical.md](../roadmap/epic-6-clinical.md)

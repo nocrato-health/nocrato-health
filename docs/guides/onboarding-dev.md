@@ -1,3 +1,8 @@
+---
+tags: [onboarding]
+type: guide
+---
+
 # Onboarding — Desenvolvedores
 
 Referência técnica completa para devs que vão trabalhar no Nocrato Health V2. Cobre ambientes, credenciais de teste, fluxos de autenticação, endpoints, e setup local.

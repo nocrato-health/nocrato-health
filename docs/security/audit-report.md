@@ -1,3 +1,8 @@
+---
+tags: [security]
+type: reference
+---
+
 # Security Audit Report — Nocrato Health V2
 
 Data: 2026-03-10

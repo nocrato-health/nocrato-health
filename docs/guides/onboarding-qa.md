@@ -1,3 +1,8 @@
+---
+tags: [onboarding]
+type: guide
+---
+
 # Onboarding — QA
 
 Guia para a equipe de QA do Nocrato Health V2. Cobre os acessos de teste, fluxos a validar e cenários organizados por área do sistema.

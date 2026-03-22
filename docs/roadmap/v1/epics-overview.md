@@ -1,21 +1,26 @@
+---
+tags: [roadmap, v1, moc]
+type: moc
+---
+
 # Nocrato Health V2 - Roadmap: Epics Overview
 
 ## Epics Summary
 
 | Epic | Name | Description | User Stories |
 |------|------|-------------|:------------:|
-| 0 | Fundacao | Setup do projeto, banco de dados, e infraestrutura base do NestJS | 3 |
-| 1 | Autenticacao & Convites | Fluxos de login, registro, convite e esqueci minha senha | 9 |
-| 2 | Portal da Agencia | Dashboard, gestao de doutores e colaboradores | 5 |
-| 3 | Onboarding do Doutor | Wizard pos-convite para configurar o portal do doutor | 2 |
-| 4 | Gestao de Pacientes | CRUD de pacientes no portal do doutor | 5 |
-| 5 | Gestao de Consultas | CRUD de consultas com lifecycle de status | 6 |
-| 6 | Notas Clinicas & Documentos | Registros medicos vinculados a consultas e pacientes | 5 |
-| 7 | Agendamento Publico (Booking) | Pagina de agendamento para pacientes + booking in-chat via agente interno | 5 |
-| 8 | Configuracoes & Agente | Config do agente WhatsApp e settings do portal | 3 |
-| 9 | Agente WhatsApp (Modulo Interno) | Modulo NestJS com Evolution API + OpenAI SDK (gpt-4o-mini) + EventEmitter2 | 4 |
-| 10 | Portal do Paciente | Portal read-only para pacientes acessarem suas informacoes | 3 |
-| 11 | Polish & Deploy | Acabamento final e deploy em producao | 4 |
+| 0 | [[epic-0-foundation\|Fundacao]] | Setup do projeto, banco de dados, e infraestrutura base do NestJS | 3 |
+| 1 | [[epic-1-auth\|Autenticacao & Convites]] | Fluxos de login, registro, convite e esqueci minha senha | 9 |
+| 2 | [[epic-2-agency-portal\|Portal da Agencia]] | Dashboard, gestao de doutores e colaboradores | 5 |
+| 3 | [[epic-3-onboarding\|Onboarding do Doutor]] | Wizard pos-convite para configurar o portal do doutor | 2 |
+| 4 | [[epic-4-patients\|Gestao de Pacientes]] | CRUD de pacientes no portal do doutor | 5 |
+| 5 | [[epic-5-appointments\|Gestao de Consultas]] | CRUD de consultas com lifecycle de status | 6 |
+| 6 | [[epic-6-clinical\|Notas Clinicas & Documentos]] | Registros medicos vinculados a consultas e pacientes | 5 |
+| 7 | [[epic-7-booking\|Agendamento Publico (Booking)]] | Pagina de agendamento para pacientes + booking in-chat via agente interno | 5 |
+| 8 | [[epic-8-settings\|Configuracoes & Agente]] | Config do agente WhatsApp e settings do portal | 3 |
+| 9 | [[epic-9-events\|Agente WhatsApp (Modulo Interno)]] | Modulo NestJS com Evolution API + OpenAI SDK (gpt-4o-mini) + EventEmitter2 | 4 |
+| 10 | [[epic-10-patient-portal\|Portal do Paciente]] | Portal read-only para pacientes acessarem suas informacoes | 3 |
+| 11 | [[epic-11-deploy\|Polish & Deploy]] | Acabamento final e deploy em producao | 4 |
 
 **Total: 12 Epics, 54 User Stories**
 

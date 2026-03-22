@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 3: Onboarding do Doutor
 
 | Field | Value |
@@ -263,3 +269,10 @@
 
 **Resultado esperado:** redirect automático para `/doctor/login`
 **Resultado atual:** [x] ok  [ ] falhou — 2026-03-01 (Playwright automático)
+
+---
+
+## Links Relacionados
+
+- [[flows/auth-flows|Fluxo de Autenticação]]
+- [[architecture/decisions|ADRs]]

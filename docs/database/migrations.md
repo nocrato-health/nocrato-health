@@ -1,3 +1,8 @@
+---
+tags: [database]
+type: database
+---
+
 # Nocrato Health V2 - Database Migrations
 
 ## Migration Order

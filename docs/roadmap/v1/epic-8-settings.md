@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 8: Configuracoes & Agente
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 3 (Onboarding do Doutor) |
 | **User Stories** | 3 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-8.md](test-cases/epic-8.md)
+> **Casos de teste:** [[test-cases/epic-8|Test Cases — Epic 8]]
 
 ---
 
@@ -44,3 +50,10 @@
 - [x] Secao 3: Branding (cor hex com color picker + preview, logo URL com preview)
 - [x] Secao 4: Agente WhatsApp (boas-vindas, personalidade, FAQ, regras, bookingMode, enabled toggle)
 - [x] **Criterio:** Todas configs editaveis e salvas — 5/5 CTs Playwright passando
+
+---
+
+## Links Relacionados
+
+- [[flows/agent|Agente WhatsApp]]
+- [[architecture/decisions|ADRs]]

@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 4: Gestão de Pacientes
 
 > Epic doc: [docs/roadmap/epic-4-patients.md](../roadmap/epic-4-patients.md)

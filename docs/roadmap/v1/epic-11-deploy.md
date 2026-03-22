@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 11: Polish & Deploy
 
 | Field | Value |
@@ -8,7 +14,7 @@
 | **Dependencies** | EPIC 10 (Portal do Paciente) |
 | **User Stories** | 4 |
 
-> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-11.md](test-cases/epic-11.md)
+> **Casos de teste:** [[test-cases/epic-11|Test Cases — Epic 11]]
 
 ---
 
@@ -57,3 +63,10 @@
 - [x] ./uploads/ no disco local
 - [x] .env producao (DB, JWT, RESEND, WEBHOOK_API_KEY)
 - [x] **Criterio:** app.nocrato.com funcionando com SSL
+
+---
+
+## Links Relacionados
+
+- [[vps-cheatsheet|Cheatsheet do VPS]]
+- [[architecture/decisions|ADRs]]

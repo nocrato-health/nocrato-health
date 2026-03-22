@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 2: Portal da Agencia
 
 | Field | Value |
@@ -76,3 +82,10 @@
 - [x] Tech-lead: APROVADO (tsc zero erros strict mode, OBS-TL-1: hook por linha — irrelevante com limit:10)
 - [x] QA Playwright: APROVADO (4/4 testes, 5.7s)
 - [x] Health check: SAUDÁVEL (TS API ✅, TS Web ✅, 227/227 ✅, sem console.log, CLAUDE.md ok)
+
+---
+
+## Links Relacionados
+
+- [[flows/auth-flows|Fluxo de Autenticação]]
+- [[architecture/decisions|ADRs]]

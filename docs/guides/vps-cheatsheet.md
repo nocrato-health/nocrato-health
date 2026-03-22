@@ -1,3 +1,8 @@
+---
+tags: [ops, devops]
+type: reference
+---
+
 # VPS Cheatsheet — Comandos do Dia a Dia
 
 Referência rápida para operações no servidor Hostinger (produção).

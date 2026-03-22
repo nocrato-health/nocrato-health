@@ -1,3 +1,8 @@
+---
+tags: [tech-debt]
+type: reference
+---
+
 # Débitos Técnicos
 
 Registro centralizado de decisões conscientes de simplificação que devem ser revisadas antes de produção ou conforme o projeto escalar.

@@ -1,3 +1,9 @@
+---
+tags: [roadmap, v1, epic]
+type: epic
+status: completed
+---
+
 # EPIC 0: Fundacao
 
 | Field | Value |
@@ -58,3 +64,11 @@
 - [x] **Criterio:** Request sem token → 401, request com role errada → 403
 - [x] Tech-lead: ⚠️ APROVADO COM OBSERVAÇÕES (OBS-TL-1,2,3 — não bloqueantes, endereçar antes do deploy)
 - [x] QA: ✅ APROVADO — 12/12 cenários passaram (401, 403, 200, shape de erros)
+
+---
+
+## Links Relacionados
+
+- [[architecture/decisions|ADRs]]
+- [[database/migrations|Migrations]]
+

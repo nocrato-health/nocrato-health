@@ -1,3 +1,8 @@
+---
+tags: [roadmap, v1, test-cases]
+type: test-cases
+---
+
 # Casos de Teste — Epic 8: Configuracoes & Agente
 
 > Epic doc: [docs/roadmap/epic-8-settings.md](../roadmap/epic-8-settings.md)

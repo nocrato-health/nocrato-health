@@ -1,3 +1,8 @@
+---
+tags: [flow]
+type: flow
+---
+
 # Appointment Lifecycle
 
 Complete documentation of appointment status transitions, events emitted, side effects, and access control.
