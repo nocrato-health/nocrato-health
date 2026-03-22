@@ -79,16 +79,50 @@ Pergunte-se:
 
 ## PROTOCOLO DE IMPLEMENTAÇÃO — Ciclo de vida de cada entrega
 
+### Fluxo de branches obrigatório
+
+**Push direto na main é proibido.** Toda implementação acontece em uma branch dedicada.
+
+```bash
+# Iniciar uma US
+git checkout -b feat/epic-N-us-X-nome-curto
+
+# Ao concluir
+git push origin feat/epic-N-us-X-nome-curto
+# Abrir PR → /code-review → merge
+```
+
+Padrão de nome de branch: `feat/epic-N-us-X-descricao`, `fix/descricao`, `docs/descricao`, `infra/descricao`.
+
+### Worktrees — regra universal
+
+**Todo agent que escreve arquivos roda em worktree isolado** (`isolation: "worktree"` no Agent tool).
+
+Isso evita conflitos quando múltiplos agents rodam em paralelo. O tech-lead e o security rodam no contexto principal (só leem e revisam).
+
+Fluxo típico de uma US com backend + frontend:
+
+```
+1. dba agent       → worktree (migration + schema) — sequencial, base para o backend
+2. backend agent   → worktree ┐
+   frontend agent  → worktree ┤ paralelo
+   designer agent  → worktree ┘
+3. tech-lead       → contexto principal (revisa diffs dos worktrees)
+4. qa              → worktree se escreve specs | contexto principal para Playwright
+```
+
 ### Ciclo por User Story
 
 Cada User Story segue este ciclo antes de ser marcada como concluída:
 
 ```
 0. Explore agent   → pré-carrega contexto da US (retorna resumo compacto)
-1. Implementar     (backend / frontend / dba / devops — conforme domínio)
-2. Tech-lead revisa → aprova qualidade, padrões, segurança
-3. QA testa        → roda testes automatizados + Playwright quando há UI
-4. ✅ Atualizar docs afetadas → marcar no epic e avançar
+1. Branch          → git checkout -b feat/epic-N-us-X-nome
+2. Implementar     → agents em worktrees (qualquer agent que escreva arquivos)
+3. Tech-lead revisa → aprova qualidade, padrões, segurança
+4. QA testa        → roda testes automatizados + Playwright quando há UI
+5. /code-review    → revisão do diff completo da branch antes do merge
+6. ✅ Merge + docs → atualizar docs afetadas, marcar no epic, deletar branch
 ```
 
 **Nunca avançar para a próxima US ou Epic sem que o ciclo acima esteja completo.**
