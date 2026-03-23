@@ -24,12 +24,14 @@ O Claude DEVE invocar as skills abaixo (via Skill tool) automaticamente quando a
 
 | Skill | Comando | Ativar quando |
 |---|---|---|
-| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** uma US acabou de ser concluída **ou** antes de iniciar uma US nova e complexa |
-| Definition of Done | `/definition-of-done` | Ao final de qualquer User Story, antes de propor o commit |
-| Health Check | `/health-check` | Após qualquer entrega de código (US, bugfix, refactor) — antes do commit |
+| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** qualquer entrega concluída **ou** antes de iniciar trabalho novo e complexo |
+| Definition of Done | `/definition-of-done` | Ao final de **qualquer entrega de código** (US, bugfix, melhoria, refactor) — antes de propor o commit |
+| Health Check | `/health-check` | Após **qualquer entrega de código** — antes do commit |
 | Casos de Teste | `/test-cases` | **Ao iniciar um epic novo**, antes da primeira US — gera CTs para todo o epic de uma vez |
 
 **Regra:** se a condição for atendida e a skill não tiver sido invocada, o Claude está em violação do protocolo.
+
+> **"Qualquer entrega de código"** = US, bugfix, melhoria UX, refactor, ajuste de config, mudança de env. Se houve mudança em qualquer arquivo sob `apps/` ou `docker/`, as skills de DoD e Health Check são obrigatórias.
 
 ---
 
@@ -53,16 +55,34 @@ A ordem correta é:
 
 ### Antes de qualquer sessão de implementação
 
-1. **Acione um Explore agent** para pré-carregar o contexto da US sem poluir o contexto principal. O agente deve ler e resumir:
+O pré-trabalho varia por tipo de entrega. Identifique o tipo antes de qualquer ação:
+
+| Tipo | Exemplos | Pré-trabalho |
+|------|----------|--------------|
+| **User Story** | US-4.1, US-6.2 | Explore agent completo (ver abaixo) |
+| **Bugfix** | deslogamento, campo incorreto, erro 500 | Explore agent focado no módulo afetado |
+| **Melhoria UX** | formatação de telefone, datepicker | Explore agent lê componente + rotas afetadas |
+| **Refactor** | reorganizar service, extrair helper | Explore agent lê módulo completo |
+| **Config / Env** | JWT_EXPIRES_IN, variável nova | Ler arquivo afetado; sem Explore agent |
+| **Docs only** | atualizar guia, ADR | Sem Explore agent; sem agentes de implementação |
+
+**Para User Stories**, o Explore agent deve ler e resumir:
    - Epic da US em `docs/roadmap/vN/epic-N-*.md` (critérios de aceitação da US específica)
    - Flow relevante em `docs/flows/` (se existir)
    - Tabelas envolvidas em `docs/database/schema.sql`
    - Módulos existentes na pasta correspondente em `apps/api/src/modules/`
    - Retornar resumo compacto (~80 linhas) com: critérios de aceitação, colunas relevantes, código reutilizável, dependências e conflitos
-2. Verifique as dependências (quais epics devem estar completos antes)
-3. **Se for a primeira US de um epic novo:** acione `/test-cases` para gerar os CTs de todas as US do epic antes de começar a implementar. Os CTs ficam em `docs/roadmap/vN/test-cases/epic-N.md`.
-4. Consulte o agente especializado em `.claude/agents/` para o domínio em questão
-5. Consulte `.claude/prompt-engineering.md` para técnicas de PE antes de acionar subagentes de implementação
+
+**Para Bugfix / Melhoria UX**, o Explore agent deve ler e resumir:
+   - O(s) arquivo(s) diretamente afetados
+   - Módulo NestJS ou rota React envolvida
+   - Testes existentes que cobrem a área
+   - Retornar resumo compacto (~40 linhas) com: causa raiz, arquivos a tocar, edge cases
+
+**Regras adicionais (todos os tipos):**
+- **Se for a primeira US de um epic novo:** acione `/test-cases` antes de começar
+- Consulte o agente especializado em `.claude/agents/` para o domínio em questão
+- Consulte `.claude/prompt-engineering.md` antes de acionar subagentes de implementação
 
 ### Quando adicionar uma feature ou mudar o design
 
@@ -78,6 +98,8 @@ Pergunte-se:
 ---
 
 ## PROTOCOLO DE IMPLEMENTAÇÃO — Ciclo de vida de cada entrega
+
+> ⚠️ **ESCOPO UNIVERSAL**: este protocolo se aplica a **toda e qualquer mudança de código**, independentemente de ser uma User Story planejada, um bugfix encontrado na sessão, uma melhoria UX solicitada pelo usuário, ou um ajuste de configuração. **Não existe entrega "fora do protocolo".**
 
 ### Fluxo de branches obrigatório
 
@@ -111,21 +133,34 @@ Fluxo típico de uma US com backend + frontend:
 4. qa              → worktree se escreve specs | contexto principal para Playwright
 ```
 
-### Ciclo por User Story
+### Ciclo de vida de toda entrega de código
 
-Cada User Story segue este ciclo antes de ser marcada como concluída:
+**Este ciclo se aplica a qualquer mudança de código — US, bugfix, melhoria, refactor.** Não existe entrega "pequena demais" para pular etapas.
 
 ```
-0. Explore agent   → pré-carrega contexto da US (retorna resumo compacto)
-1. Branch          → git checkout -b feat/epic-N-us-X-nome
+0. Explore agent   → pré-carrega contexto (escopo define profundidade — ver tabela acima)
+1. Branch          → git checkout -b <tipo>/descricao  (feat/, fix/, refactor/, chore/)
 2. Implementar     → agents em worktrees (qualquer agent que escreva arquivos)
 3. Tech-lead revisa → aprova qualidade, padrões, segurança
 4. QA testa        → roda testes automatizados + Playwright quando há UI
-5. /code-review    → revisão do diff completo da branch antes do merge
-6. ✅ Merge + docs → atualizar docs afetadas, marcar no epic, deletar branch
+5. /definition-of-done → checklist antes de propor commit
+6. /health-check   → verificação pós-código antes do commit
+7. /code-review    → revisão do diff completo da branch antes do merge
+8. ✅ Commit + PR + docs → atualizar docs afetadas, deletar branch após merge
 ```
 
-**Nunca avançar para a próxima US ou Epic sem que o ciclo acima esteja completo.**
+**Nunca avançar para o próximo trabalho sem que o ciclo acima esteja completo.**
+
+**Escala de rigor por tipo de entrega:**
+
+| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD + HC |
+|------|---------|-----------|-----------|------------|---------------|----------|
+| User Story | ✅ completo | ✅ | ✅ | ✅ | ✅ se UI | ✅ |
+| Bugfix backend | ✅ focado | ✅ | ✅ | ✅ | se afeta UI | ✅ |
+| Bugfix frontend | ✅ focado | ✅ | ✅ | — | ✅ | ✅ |
+| Melhoria UX | ✅ focado | ✅ | ✅ | — | ✅ | ✅ |
+| Config / Env | — | — | ✅ (revisão rápida) | — | — | ✅ |
+| Refactor | ✅ completo | ✅ | ✅ | ✅ | se afeta UI | ✅ |
 
 > **DoCDD mid-implementation**: se durante a codificação você descobrir que o escopo real diverge do documentado, **pare, atualize a documentação primeiro, depois continue**. Nunca deixe a implementação divergir silenciosamente da documentação — isso invalida o princípio Docs First para todas as sessões futuras.
 
@@ -160,17 +195,23 @@ Chamar `npx jest` diretamente sem passar pelo agente qa é violação de protoco
 
 **Se você está prestes a criar ou editar qualquer arquivo sob `apps/web/`, pare imediatamente.**
 
-O fluxo obrigatório para qualquer entrega frontend é:
+O fluxo obrigatório para **qualquer** entrega frontend (US, bugfix, melhoria, refactor) é:
 
 ```
-1. frontend agent (Task tool) → implementa rotas, componentes, hooks
-2. designer agent  (Task tool) → revisa design system, Tailwind, shadcn/ui, tokens
-   ↑ os dois trabalham juntos na mesma US — não são etapas sequenciais opcionais
-3. tech-lead agent (Task tool) → aprova qualidade e padrões
-4. QA (contexto principal)     → Playwright valida no browser
+1. frontend agent (Task tool, worktree) → implementa rotas, componentes, hooks
+2. designer agent  (Task tool, worktree) → revisa design system, Tailwind, shadcn/ui, tokens
+3. tech-lead agent (Task tool)           → aprova qualidade e padrões
+4. QA (contexto principal)              → Playwright valida no browser
 ```
 
-**Não existe exceção.** Nem para "ajustes pequenos", nem para "só um className", nem para "já está quase pronto". Qualquer toque em `apps/web/` sem passar pelo `frontend` + `designer` é violação de protocolo.
+**Não existe exceção.** Nem para:
+- "é só um bugfix de 2 linhas"
+- "só um className"
+- "já está quase pronto"
+- "é uma melhoria UX pequena"
+- "o usuário pediu uma correção rápida"
+
+Qualquer toque em `apps/web/` sem passar pelo `frontend` + `designer` é violação de protocolo. O tamanho da mudança não importa — o processo importa.
 
 ### Regra de ouro: CLAUDE.md é obrigatório em todo diretório novo
 
@@ -195,7 +236,7 @@ Consulte `.claude/prompt-engineering.md` para a estratégia completa de delegaç
 
 ### Testes E2E com Playwright (frontend)
 
-Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda local (`localhost:5173`), executado no contexto principal (não em Task tool), obrigatório para toda US com UI.
+Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda local (`localhost:5173`), executado no contexto principal (não em Task tool), obrigatório para **toda entrega que toque `apps/web/`** — seja US, bugfix ou melhoria UX.
 
 ---
 
