@@ -9,6 +9,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Setup SSH
@@ -29,6 +30,8 @@ jobs:
           ssh -i ~/.ssh/id_rsa \
             -o StrictHostKeyChecking=no \
             -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
             -l "$CLEAN_USER" "$CLEAN_HOST" \
             'set -e
             APP_DIR="/opt/nocrato-health-v2"
