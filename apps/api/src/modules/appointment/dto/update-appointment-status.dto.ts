@@ -5,7 +5,10 @@ import { z } from 'zod'
 export const UpdateAppointmentStatusSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('waiting') }),
   z.object({ status: z.literal('in_progress') }),
-  z.object({ status: z.literal('completed') }),
+  z.object({
+    status: z.literal('completed'),
+    notes: z.string().min(1, 'Notas são obrigatórias ao finalizar a consulta'),
+  }),
   z.object({ status: z.literal('no_show') }),
   z.object({
     status: z.literal('cancelled'),

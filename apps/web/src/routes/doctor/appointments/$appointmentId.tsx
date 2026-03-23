@@ -178,7 +178,7 @@ function RescheduleDialog({ open, onOpenChange, onConfirm, isPending }: Reschedu
 interface CompleteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (notes?: string) => void
+  onConfirm: (notes: string) => void
   isPending: boolean
 }
 
@@ -187,13 +187,15 @@ function CompleteDialog({ open, onOpenChange, onConfirm, isPending }: CompleteDi
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onConfirm(notes.trim() || undefined)
+    onConfirm(notes.trim())
   }
 
   function handleClose() {
     setNotes('')
     onOpenChange(false)
   }
+
+  const trimmed = notes.trim()
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose() }}>
@@ -203,21 +205,23 @@ function CompleteDialog({ open, onOpenChange, onConfirm, isPending }: CompleteDi
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="complete-notes">Notas (opcional)</Label>
+            <Label htmlFor="complete-notes">Nota clínica</Label>
             <Textarea
               id="complete-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observações finais sobre a consulta..."
-              rows={3}
+              placeholder="Descreva os achados, condutas e observações da consulta..."
+              rows={4}
+              required
               className="border-[#e8dfc8] focus-visible:ring-amber-dark/30 resize-none"
             />
+            <p className="text-xs text-amber-mid">Obrigatório — será salvo nas notas clínicas do paciente.</p>
           </div>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancelar
             </Button>
-            <Button type="submit" loading={isPending}>
+            <Button type="submit" loading={isPending} disabled={!trimmed}>
               Finalizar
             </Button>
           </div>
@@ -287,9 +291,9 @@ function ActionButtons({ status, appointmentId }: ActionButtonsProps) {
     )
   }
 
-  function handleComplete(notes?: string) {
+  function handleComplete(notes: string) {
     updateStatus.mutate(
-      { status: 'completed', ...(notes ? { notes } : {}) },
+      { status: 'completed', notes },
       {
         onSuccess: () => {
           toast.success('Consulta finalizada.')

@@ -31,7 +31,7 @@ async function tryRefresh(): Promise<RefreshResponse | null> {
       return data
     })
     .catch(() => {
-      clearAuth()
+      // Erro de rede (não rejeição do token) — não deslogar o usuário
       return null
     })
     .finally(() => {

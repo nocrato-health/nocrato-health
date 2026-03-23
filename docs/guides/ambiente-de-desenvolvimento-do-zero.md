@@ -96,6 +96,14 @@ Sobe um PostgreSQL 16 local com:
 | User | `nocrato` |
 | Password | `nocrato_secret` |
 
+### Conectar no banco local via DBeaver (opcional)
+
+1. Abra o DBeaver → **Nova Conexão** → PostgreSQL
+2. Preencha os campos acima (`localhost`, porta `5432`, database `nocrato_health`, user `nocrato`, password `nocrato_secret`)
+3. Clique em **Testar Conexão** → **OK**
+
+> A senha é literalmente a string `nocrato_secret`.
+
 Verificar se está saudável:
 
 ```bash
