@@ -111,7 +111,7 @@ apps/web/
 
 ### Tipografia
 - **Headings**: Montserrat (Google Fonts)
-- **Body**: Inter (fallback — Xilosa quando disponível)
+- **Body**: Montserrat (Google Fonts — fonte Xilosa removida, arquivo woff2 não existe)
 
 ### Componentes UI (`src/components/ui/`)
 - `Button`: variantes `default` (amber), `outline`, `ghost`, `link`, `destructive` + prop `loading`
