@@ -62,8 +62,8 @@ export function AgencySidebar({ onClose }: AgencySidebarProps) {
 
       <nav className="flex-1 space-y-1 px-3 py-2">
         <NavLink to="/agency" onClick={onClose} exact>Dashboard</NavLink>
-        <NavLink to="/agency/doctors" onClick={onClose}>Doutores</NavLink>
-        <NavLink to="/agency/members" onClick={onClose}>Colaboradores</NavLink>
+        <NavLink to="/agency/doctors" onClick={onClose} exact>Doutores</NavLink>
+        <NavLink to="/agency/members" onClick={onClose} exact>Colaboradores</NavLink>
       </nav>
 
       <div className="px-3 py-4 border-t border-white/20">
