@@ -53,9 +53,10 @@ interface EvolutionWebhookPayload {
 |----------|-----|
 | `EVOLUTION_API_URL` | Base URL da Evolution API |
 | `EVOLUTION_API_KEY` | Chave para autenticar requisições à Evolution API |
-| `EVOLUTION_INSTANCE` | Nome da instância WhatsApp |
 | `EVOLUTION_WEBHOOK_TOKEN` | Token validado no header `apikey` do webhook recebido |
 | `OPENAI_API_KEY` | Chave para o SDK OpenAI (US-9.3) |
+
+> **Nota:** `EVOLUTION_INSTANCE` foi removida (TD-20). A instância é resolvida por doutor via `agent_settings.evolution_instance_name`.
 
 ## Dependências de outros módulos
 

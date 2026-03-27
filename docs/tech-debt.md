@@ -312,10 +312,10 @@ Risco residual adicional: o email vai na URL (`GET resolve-email/:email`) e apar
 
 ---
 
-### TD-20 — resolveTenantFromInstance não suportava múltiplos tenants ativos
+### TD-20 — WhatsAppService usava instância Evolution global (env var) em vez de por doutor
 **Módulo:** `agent`
 **Identificado em:** US-9.3 (OBS-TL-4 tech-lead)
-**Resolvido em:** TD-20 fix — migration `016`, coluna `evolution_instance_name VARCHAR(100) NULL` em `agent_settings`. `resolveTenantFromInstance(instanceName: string)` filtra `WHERE enabled=true AND evolution_instance_name=instanceName`. Controller valida `payload.instance` antes de chamar `handleMessage`. Interface `EvolutionWebhookPayload` atualizada com campo `instance: string`.
+**Resolvido em:** TD-20 fix (completo) — `WhatsAppService.sendText(phone, text, instanceName)` agora recebe instância como parâmetro (antes usava env global `EVOLUTION_INSTANCE`). `AgentContext` inclui `instanceName` via `loadAgentContext()`. Handlers @OnEvent usam helper `getInstanceName(tenantId)`. Regex `^[a-zA-Z0-9_-]{1,100}$` valida instanceName (SEC-TD20-01). Telefone mascarado em logs (SEC-TD20-03/LGPD). Erro 23505 tratado em `agent-settings.service.ts` (SEC-TD20-02). `EVOLUTION_INSTANCE` removida de `env.ts`.
 
 ---
 

@@ -38,6 +38,7 @@ interface AgentContext {
   faq: string | null
   bookingMode: 'link' | 'chat' | 'both'
   welcomeMessage: string | null
+  instanceName: string
 }
 
 // ---------------------------------------------------------------------------
@@ -194,12 +195,25 @@ export class AgentService {
     await this.conversationService.appendMessages(conversation.id, newMessages)
 
     // 12. Enviar resposta via WhatsApp
-    await this.whatsappService.sendText(phone, responseText)
+    await this.whatsappService.sendText(phone, responseText, agentCtx.instanceName)
   }
 
   // ---------------------------------------------------------------------------
   // Métodos auxiliares privados
   // ---------------------------------------------------------------------------
+
+  /**
+   * Retorna o evolution_instance_name configurado para o tenant.
+   * Usado pelos handlers @OnEvent para enviar notificações via WhatsApp.
+   * Retorna null se o agente não estiver habilitado ou se o instanceName não estiver configurado.
+   */
+  private async getInstanceName(tenantId: string): Promise<string | null> {
+    const row = await this.knex('agent_settings')
+      .where({ tenant_id: tenantId, enabled: true })
+      .select('evolution_instance_name')
+      .first()
+    return (row?.evolution_instance_name as string | undefined) ?? null
+  }
 
   /**
    * Resolve o tenant_id a partir do nome da instância Evolution que recebeu a mensagem.
@@ -239,6 +253,7 @@ export class AgentService {
           'booking_mode',
           'welcome_message',
           'enabled',
+          'evolution_instance_name',
         )
         .first(),
       this.knex('doctors')
@@ -259,6 +274,7 @@ export class AgentService {
       faq: (agentSettings.faq as string | null | undefined) ?? null,
       bookingMode: (agentSettings.booking_mode as 'link' | 'chat' | 'both') ?? 'both',
       welcomeMessage: (agentSettings.welcome_message as string | null | undefined) ?? null,
+      instanceName: (agentSettings.evolution_instance_name as string | null | undefined) ?? '',
     }
   }
 
@@ -439,13 +455,19 @@ export class AgentService {
     patientName: string
   }): Promise<void> {
     try {
+      const instanceName = await this.getInstanceName(payload.tenantId)
+      if (!instanceName) {
+        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+        return
+      }
+
       const formatted = new Date(payload.dateTime).toLocaleString('pt-BR', {
         timeZone: 'America/Sao_Paulo',
         dateStyle: 'short',
         timeStyle: 'short',
       })
       const message = `Olá ${payload.patientName}! Sua consulta foi agendada para ${formatted}. Aguardamos você!`
-      await this.whatsappService.sendText(payload.phone, message)
+      await this.whatsappService.sendText(payload.phone, message, instanceName)
     } catch (err) {
       this.logger.error(
         'Erro ao enviar confirmação de agendamento via WhatsApp',
@@ -463,6 +485,12 @@ export class AgentService {
     reason?: string
   }): Promise<void> {
     try {
+      const instanceName = await this.getInstanceName(payload.tenantId)
+      if (!instanceName) {
+        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+        return
+      }
+
       const row = await this.knex('patients')
         .select('phone', 'name')
         .where({ id: payload.patientId, tenant_id: payload.tenantId })
@@ -483,7 +511,7 @@ export class AgentService {
       })
       const motivo = payload.reason ? ` Motivo: ${payload.reason}` : ''
       const message = `Olá! Sua consulta marcada para ${formatted} foi cancelada.${motivo} Em caso de dúvidas, entre em contato.`
-      await this.whatsappService.sendText(row.phone as string, message)
+      await this.whatsappService.sendText(row.phone as string, message, instanceName)
     } catch (err) {
       this.logger.error(
         'Erro ao enviar aviso de cancelamento via WhatsApp',
@@ -506,6 +534,12 @@ export class AgentService {
     }
 
     try {
+      const instanceName = await this.getInstanceName(payload.tenantId)
+      if (!instanceName) {
+        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+        return
+      }
+
       const row = await this.knex('patients')
         .select('phone', 'name')
         .where({ id: payload.patientId, tenant_id: payload.tenantId })
@@ -520,7 +554,7 @@ export class AgentService {
       }
 
       const message = `Olá! O consultório está pronto para te receber. Por favor, dirija-se à recepção.`
-      await this.whatsappService.sendText(row.phone as string, message)
+      await this.whatsappService.sendText(row.phone as string, message, instanceName)
     } catch (err) {
       this.logger.error(
         'Erro ao enviar notificação de status via WhatsApp',
@@ -537,6 +571,12 @@ export class AgentService {
     portalAccessCode: string
   }): Promise<void> {
     try {
+      const instanceName = await this.getInstanceName(payload.tenantId)
+      if (!instanceName) {
+        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+        return
+      }
+
       if (!payload.phone) {
         this.logger.warn(
           `Paciente sem telefone — não foi possível enviar código do portal via WhatsApp. patientId=${payload.patientId}`,
@@ -544,7 +584,7 @@ export class AgentService {
         return
       }
       const message = `Seu portal de saúde está pronto! Acesse ${env.FRONTEND_URL}/patient e use o código: ${payload.portalAccessCode}`
-      await this.whatsappService.sendText(payload.phone, message)
+      await this.whatsappService.sendText(payload.phone, message, instanceName)
     } catch (err) {
       this.logger.error(
         'Erro ao enviar código de acesso ao portal via WhatsApp',

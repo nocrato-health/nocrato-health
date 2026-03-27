@@ -152,6 +152,7 @@ const makeAgentSettings = () => ({
   booking_mode: 'both',
   welcome_message: 'Bem-vindo ao consultório!',
   enabled: true,
+  evolution_instance_name: INSTANCE_NAME,
 })
 
 const makeDoctorRow = () => ({
@@ -257,7 +258,7 @@ describe('AgentService', () => {
     await service.handleMessage(makePayload())
 
     expect(mockOpenAICreate).toHaveBeenCalledTimes(1)
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta, INSTANCE_NAME)
     expect(mockConversationService.appendMessages).toHaveBeenCalledWith(
       CONVERSATION_ID,
       expect.arrayContaining([
@@ -284,7 +285,7 @@ describe('AgentService', () => {
 
     expect(mockOpenAICreate).toHaveBeenCalledTimes(2)
     expect(mockBookingService.getSlotsInternal).toHaveBeenCalledWith(TENANT_ID, '2025-03-15')
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal, INSTANCE_NAME)
   })
 
   // CT-93-03: LLM retorna tool_call generate_booking_link
@@ -300,7 +301,7 @@ describe('AgentService', () => {
     await service.handleMessage(makePayload())
 
     expect(mockBookingService.generateToken).toHaveBeenCalledWith(TENANT_ID, PHONE)
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal, INSTANCE_NAME)
   })
 
   // CT-93-04: LLM retorna tool_call cancel_appointment
@@ -323,7 +324,7 @@ describe('AgentService', () => {
       appointmentId,
       'Paciente não pode comparecer',
     )
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal, INSTANCE_NAME)
   })
 
   // CT-93-05: Paciente não encontrado → fluxo continua e system prompt menciona "novo paciente"
@@ -345,7 +346,7 @@ describe('AgentService', () => {
     const systemMessage = openaiCall.messages.find((m) => m.role === 'system')
     expect(systemMessage?.content).toMatch(/não cadastrado|novo paciente/i)
 
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta, INSTANCE_NAME)
   })
 
   // CT-93-06: appendMessages chamado com trim (19 msgs + 2 novas = apenas 20 persistidas)
@@ -437,7 +438,7 @@ describe('AgentService', () => {
     expect(toolResultMsg?.content).toContain('error')
 
     // Resposta final deve ser enviada mesmo assim
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, respostaFinal, INSTANCE_NAME)
   })
 
   // CT-TD21-01: falha na chamada inicial à OpenAI → retorna silenciosamente (sem enviar mensagem)
@@ -498,7 +499,7 @@ describe('AgentService', () => {
     expect(mockAgentSettingsQB.where).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true, evolution_instance_name: INSTANCE_NAME }),
     )
-    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta)
+    expect(mockWhatsAppService.sendText).toHaveBeenCalledWith(PHONE, resposta, INSTANCE_NAME)
   })
 
   // CT-TD20-02: instância desconhecida → resolveTenantFromInstance retorna null → early return
@@ -522,6 +523,42 @@ describe('AgentService', () => {
 
     expect(mockOpenAICreate).not.toHaveBeenCalled()
     expect(mockWhatsAppService.sendText).not.toHaveBeenCalled()
+  })
+
+  // TD-20 testes adicionais: getInstanceName
+  describe('getInstanceName', () => {
+    it('getInstanceName resolve corretamente quando agente está habilitado e instanceName configurado', async () => {
+      mockAgentSettingsQB.first.mockReset().mockResolvedValue({
+        evolution_instance_name: 'dr-silva-instance',
+      })
+
+      // Usar método privado via any cast (apenas para teste)
+      const instanceName = await (service as any).getInstanceName('tenant-abc')
+
+      expect(instanceName).toBe('dr-silva-instance')
+      expect(mockAgentSettingsQB.where).toHaveBeenCalledWith({
+        tenant_id: 'tenant-abc',
+        enabled: true,
+      })
+    })
+
+    it('getInstanceName retorna null se evolution_instance_name não estiver configurado', async () => {
+      mockAgentSettingsQB.first.mockReset().mockResolvedValue({
+        evolution_instance_name: null,
+      })
+
+      const instanceName = await (service as any).getInstanceName('tenant-xyz')
+
+      expect(instanceName).toBeNull()
+    })
+
+    it('getInstanceName retorna null se registro não for encontrado', async () => {
+      mockAgentSettingsQB.first.mockReset().mockResolvedValue(undefined)
+
+      const instanceName = await (service as any).getInstanceName('tenant-inexistente')
+
+      expect(instanceName).toBeNull()
+    })
   })
 })
 
@@ -553,11 +590,10 @@ describe('AgentService — @OnEvent handlers', () => {
 
     mockPatientsQB.first.mockResolvedValue({ phone: '+5511999999999', name: 'João' })
 
-    // Defaults para resolveTenantFromInstance e loadAgentContext (caso handleMessage seja chamado)
-    mockAgentSettingsQB.first
-      .mockResolvedValueOnce({ tenant_id: TENANT_ID })
-      .mockResolvedValueOnce(makeAgentSettings())
-    mockDoctorQB.first.mockResolvedValue(makeDoctorRow())
+    // Mock padrão para getInstanceName: retornar INSTANCE_NAME
+    mockAgentSettingsQB.first.mockResolvedValue({
+      evolution_instance_name: INSTANCE_NAME,
+    })
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -585,11 +621,12 @@ describe('AgentService — @OnEvent handlers', () => {
     })
 
     expect(mockWhatsappSendText).toHaveBeenCalledTimes(1)
-    const [phone, message] = mockWhatsappSendText.mock.calls[0] as [string, string]
+    const [phone, message, instanceName] = mockWhatsappSendText.mock.calls[0] as [string, string, string]
     expect(phone).toBe('+5511888880001')
     expect(message).toContain('Maria Silva')
     expect(message).toContain('Sua consulta foi agendada para')
     expect(message).toContain('Aguardamos você!')
+    expect(instanceName).toBe(INSTANCE_NAME)
   })
 
   // CT-94-02: onPortalActivated envia código de acesso
@@ -602,10 +639,11 @@ describe('AgentService — @OnEvent handlers', () => {
     })
 
     expect(mockWhatsappSendText).toHaveBeenCalledTimes(1)
-    const [phone, message] = mockWhatsappSendText.mock.calls[0] as [string, string]
+    const [phone, message, instanceName] = mockWhatsappSendText.mock.calls[0] as [string, string, string]
     expect(phone).toBe('+5511777770001')
     expect(message).toContain('http://localhost:5173/patient')
     expect(message).toContain('ABC123')
+    expect(instanceName).toBe(INSTANCE_NAME)
   })
 
   // CT-94-03: onAppointmentStatusChanged com waiting envia notificação
@@ -621,9 +659,10 @@ describe('AgentService — @OnEvent handlers', () => {
     expect(mockPatientsQB.select).toHaveBeenCalledWith('phone', 'name')
     expect(mockPatientsQB.where).toHaveBeenCalledWith({ id: 'patient-uuid-1', tenant_id: TENANT_ID })
     expect(mockWhatsappSendText).toHaveBeenCalledTimes(1)
-    const [phone, message] = mockWhatsappSendText.mock.calls[0] as [string, string]
+    const [phone, message, instanceName] = mockWhatsappSendText.mock.calls[0] as [string, string, string]
     expect(phone).toBe('+5511999999999')
     expect(message).toContain('consultório está pronto para te receber')
+    expect(instanceName).toBe(INSTANCE_NAME)
   })
 
   // CT-94-04: onAppointmentStatusChanged com outro status não envia mensagem
@@ -651,11 +690,12 @@ describe('AgentService — @OnEvent handlers', () => {
     })
 
     expect(mockWhatsappSendText).toHaveBeenCalledTimes(1)
-    const [phone, message] = mockWhatsappSendText.mock.calls[0] as [string, string]
+    const [phone, message, instanceName] = mockWhatsappSendText.mock.calls[0] as [string, string, string]
     expect(phone).toBe('+5511999999999')
     expect(message).toContain('foi cancelada')
     expect(message).toContain('Motivo: Agenda lotada')
     expect(message).toContain('Em caso de dúvidas')
+    expect(instanceName).toBe(INSTANCE_NAME)
   })
 
   // CT-94-06: falha no WhatsApp não propaga exceção
@@ -671,5 +711,22 @@ describe('AgentService — @OnEvent handlers', () => {
         patientName: 'Maria Silva',
       }),
     ).resolves.toBeUndefined()
+  })
+
+  // TD-20: Handler não envia quando instanceName é null
+  it('Handler @OnEvent não envia mensagem quando getInstanceName retorna null', async () => {
+    // Sobrescrever mock para retornar null (agente desabilitado ou sem instanceName)
+    mockAgentSettingsQB.first.mockReset().mockResolvedValue(undefined)
+
+    await service.onAppointmentCreated({
+      tenantId: TENANT_ID,
+      patientId: 'patient-uuid-1',
+      phone: '+5511888880001',
+      dateTime: '2025-06-15T13:00:00.000Z',
+      patientName: 'Maria Silva',
+    })
+
+    // Não deve chamar sendText
+    expect(mockWhatsappSendText).not.toHaveBeenCalled()
   })
 })
