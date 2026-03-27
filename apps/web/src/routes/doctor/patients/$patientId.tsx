@@ -433,7 +433,7 @@ export function DoctorPatientProfilePage() {
   const { patient, appointments, clinicalNotes, documents } = data
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-5xl">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-amber-mid">
         <Link

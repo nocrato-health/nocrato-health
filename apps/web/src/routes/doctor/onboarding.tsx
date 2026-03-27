@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatPhone } from '@/lib/utils'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -216,25 +217,16 @@ function Step1Profile({ onNext, isLoading, serverError }: Step1Props) {
           <Label htmlFor="crmState">
             Estado do CRM <span className="text-red-600">*</span>
           </Label>
-          <select
-            id="crmState"
-            className={[
-              'flex h-10 w-full rounded-md border bg-white px-3 py-2 text-sm',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              errors.crmState
-                ? 'border-red-500 focus-visible:ring-red-500'
-                : 'border-blue-steel/40 focus-visible:ring-amber-bright',
-            ].join(' ')}
-            {...register('crmState')}
-          >
-            <option value="">Selecione o estado</option>
-            {UF_OPTIONS.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf}
-              </option>
-            ))}
-          </select>
+          <Select value={watch('crmState') || ''} onValueChange={(val) => setValue('crmState', val)}>
+            <SelectTrigger className={errors.crmState ? 'border-red-500' : ''}>
+              <SelectValue placeholder="Selecione o estado" />
+            </SelectTrigger>
+            <SelectContent>
+              {UF_OPTIONS.map((uf) => (
+                <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {errors.crmState && (
             <p className="text-xs text-red-600">{errors.crmState.message}</p>
           )}
@@ -297,8 +289,9 @@ function Step2Schedule({ onNext, onBack, isLoading, serverError }: Step2Props) {
     : 'America/Sao_Paulo'
 
   const {
-    register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
@@ -354,13 +347,6 @@ function Step2Schedule({ onNext, onBack, isLoading, serverError }: Step2Props) {
       appointmentDuration: Number(formData.appointmentDuration),
     })
   }
-
-  const selectClass = [
-    'flex h-10 w-full rounded-md border bg-white px-3 py-2 text-sm',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
-    'border-blue-steel/40 focus-visible:ring-amber-bright',
-    'disabled:cursor-not-allowed disabled:opacity-50',
-  ].join(' ')
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -420,20 +406,16 @@ function Step2Schedule({ onNext, onBack, isLoading, serverError }: Step2Props) {
           <Label htmlFor="timezone">
             Fuso horário <span className="text-red-600">*</span>
           </Label>
-          <select
-            id="timezone"
-            className={[
-              selectClass,
-              errors.timezone ? 'border-red-500 focus-visible:ring-red-500' : '',
-            ].join(' ')}
-            {...register('timezone')}
-          >
-            {TIMEZONE_OPTIONS.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </select>
+          <Select value={watch('timezone') || ''} onValueChange={(val) => setValue('timezone', val)}>
+            <SelectTrigger className={errors.timezone ? 'border-red-500' : ''}>
+              <SelectValue placeholder="Selecione o fuso" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {errors.timezone && (
             <p className="text-xs text-red-600">{errors.timezone.message}</p>
           )}
@@ -443,20 +425,19 @@ function Step2Schedule({ onNext, onBack, isLoading, serverError }: Step2Props) {
           <Label htmlFor="appointmentDuration">
             Duração padrão da consulta <span className="text-red-600">*</span>
           </Label>
-          <select
-            id="appointmentDuration"
-            className={[
-              selectClass,
-              errors.appointmentDuration ? 'border-red-500 focus-visible:ring-red-500' : '',
-            ].join(' ')}
-            {...register('appointmentDuration')}
+          <Select
+            value={watch('appointmentDuration')?.toString() || '30'}
+            onValueChange={(val) => setValue('appointmentDuration', parseInt(val))}
           >
-            {APPOINTMENT_DURATION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className={errors.appointmentDuration ? 'border-red-500' : ''}>
+              <SelectValue placeholder="Duração" />
+            </SelectTrigger>
+            <SelectContent>
+              {APPOINTMENT_DURATION_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value.toString()}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {errors.appointmentDuration && (
             <p className="text-xs text-red-600">{errors.appointmentDuration.message}</p>
           )}
