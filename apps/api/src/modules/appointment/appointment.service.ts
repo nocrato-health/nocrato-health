@@ -362,11 +362,23 @@ export class AppointmentService {
 
       // 5. Inserir clinical_note quando completar consulta
       if (dto.status === 'completed') {
-        await trx('clinical_notes').insert({
+        const [note] = await trx('clinical_notes').insert({
           tenant_id: tenantId,
           patient_id: appointment.patient_id,
           appointment_id: appointmentId,
           content: dto.notes,
+        }).returning('id')
+
+        await trx('event_log').insert({
+          tenant_id: tenantId,
+          event_type: 'note.created',
+          actor_type: 'doctor',
+          actor_id: actorId,
+          payload: {
+            noteId: note.id,
+            appointmentId,
+            patientId: appointment.patient_id,
+          },
         })
       }
 

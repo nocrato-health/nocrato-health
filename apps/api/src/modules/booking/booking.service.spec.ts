@@ -1195,6 +1195,27 @@ describe('BookingService — getSlotsInternal + bookInChat (US-7.4)', () => {
   })
 
   // -------------------------------------------------------------------------
+  // TD-13: getSlotsInternal lança NotFoundException quando doctor não encontrado
+  // -------------------------------------------------------------------------
+
+  it('TD-13: should throw NotFoundException when no active doctor is found for tenant', async () => {
+    const doctorsBuilder = makeSelectBuilder74(undefined)
+    const mockRaw = jest.fn().mockImplementation((sql: string) => sql)
+
+    const mockKnex = jest.fn().mockImplementation((table: string) => {
+      if (table === 'doctors') return doctorsBuilder
+      throw new Error(`Tabela inesperada no mockKnex TD-13: ${table}`)
+    }) as jest.Mock & { raw: jest.Mock }
+
+    mockKnex.raw = mockRaw
+
+    service = await buildService(mockKnex)
+
+    await expect(service.getSlotsInternal(TENANT_ID, '2025-01-06')).rejects.toThrow(NotFoundException)
+    await expect(service.getSlotsInternal(TENANT_ID, '2025-01-06')).rejects.toThrow('Médico não encontrado ou inativo')
+  })
+
+  // -------------------------------------------------------------------------
   // CT-74-02: bookInChat happy path — novo paciente, sem booking_tokens
   // -------------------------------------------------------------------------
 

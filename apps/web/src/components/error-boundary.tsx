@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { queryClient } from '@/lib/query-client'
 
 interface Props {
   children: ReactNode
@@ -36,7 +37,10 @@ export class ErrorBoundary extends Component<Props, State> {
           <Button
             variant="link"
             className="mt-4"
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() => {
+              queryClient.resetQueries()
+              this.setState({ hasError: false })
+            }}
           >
             Tentar novamente
           </Button>

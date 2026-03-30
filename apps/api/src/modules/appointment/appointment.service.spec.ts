@@ -880,8 +880,13 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       update: jest.fn().mockReturnThis(),
       returning: jest.fn().mockResolvedValue([updated]),
     }
+    const mockClinicalNoteReturning = jest.fn().mockResolvedValue([{ id: 'note-uuid-1' }])
     const clinicalNoteInsertBuilder = {
-      insert: jest.fn().mockResolvedValue([1]),
+      insert: jest.fn().mockReturnThis(),
+      returning: mockClinicalNoteReturning,
+    }
+    const eventLogInsertBuilder = {
+      insert: jest.fn().mockResolvedValue([]),
     }
     const patientSelectBuilder = {
       where: jest.fn().mockReturnThis(),
@@ -892,8 +897,6 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       where: jest.fn().mockReturnThis(),
       update: jest.fn().mockResolvedValue(1),
     }
-    // Nota: event_log NÃO é roteado no trx — o service delega ao EventLogService.append()
-
     let apptCalls = 0
     let patientCalls = 0
     const trx = jest.fn().mockImplementation((table: string) => {
@@ -904,6 +907,9 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       if (table === 'clinical_notes') {
         return clinicalNoteInsertBuilder
       }
+      if (table === 'event_log') {
+        return eventLogInsertBuilder
+      }
       if (table === 'patients') {
         patientCalls++
         return patientCalls === 1 ? patientSelectBuilder : patientUpdateBuilder
@@ -911,7 +917,7 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       throw new Error(`Tabela inesperada no mock: ${table}`)
     })
 
-    return { trx, apptSelectBuilder, apptUpdateBuilder, clinicalNoteInsertBuilder, patientSelectBuilder, patientUpdateBuilder }
+    return { trx, apptSelectBuilder, apptUpdateBuilder, clinicalNoteInsertBuilder, eventLogInsertBuilder, patientSelectBuilder, patientUpdateBuilder }
   }
 
   /**
@@ -1517,6 +1523,43 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     await expect(
       service.updateAppointmentStatus(TENANT_ID, APPOINTMENT_ID, { status: 'waiting' }, ACTOR_ID),
     ).rejects.toThrow('Consulta não encontrada')
+  })
+
+  // -------------------------------------------------------------------------
+  // TD-26: event_log inserido com note.created ao completar consulta
+  // -------------------------------------------------------------------------
+
+  it('TD-26: should insert note.created event_log entry when completing appointment', async () => {
+    const existing = makeAppt('in_progress')
+    const updated = makeAppt('completed', { status: 'completed', completed_at: new Date() })
+    const { trx, eventLogInsertBuilder } = createMockTrxNormal({
+      existing,
+      updated,
+      patient: { portal_access_code: 'ABC-1234-XYZ' },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockKnex.transaction.mockImplementation((cb: (t: any) => unknown) => cb(trx))
+
+    await service.updateAppointmentStatus(
+      TENANT_ID,
+      APPOINTMENT_ID,
+      { status: 'completed', notes: 'Consulta encerrada.' },
+      ACTOR_ID,
+    )
+
+    expect(eventLogInsertBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT_ID,
+        event_type: 'note.created',
+        actor_type: 'doctor',
+        actor_id: ACTOR_ID,
+        payload: expect.objectContaining({
+          noteId: 'note-uuid-1',
+          appointmentId: APPOINTMENT_ID,
+          patientId: PATIENT_ID,
+        }),
+      }),
+    )
   })
 })
 
