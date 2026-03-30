@@ -64,41 +64,23 @@ Este arquivo documenta **quando implementar** cada técnica de prompt engineerin
 
 ---
 
-## Técnicas a implementar — com condição de trigger
+## Técnicas avaliadas e descartadas para este momento
 
 ### Chain of Thought (CoT)
-**Status**: Não implementado.
+**Status**: Avaliado pós-MVP — **não implementar agora**.
 
-**Onde aplicar**: `tech-lead` (revisão) e `architect` (avaliação de trade-offs).
+**Avaliação**: O tech-lead fez revisões corretas ao longo de 11 epics sem CoT explícito. O checklist ordenado na seção "Decisão de Revisão" já força raciocínio sequencial implícito. Não houve caso observado de veredito superficial ou incorreto durante o MVP.
 
-**Quando implementar**: Quando revisões/avaliações começarem a retornar vereditos superficiais ou incorretos — ou seja, quando o agente aprova algo que deveria reprovar sem justificar o raciocínio.
-
-**Como implementar**: Adicionar instrução antes do checklist:
-```
-Antes de emitir o veredito, percorra cada item do checklist em ordem e escreva uma linha de análise para cada um. Só então emita a decisão final.
-```
-
-**Por que não agora**: O checklist ordenado já força raciocínio sequencial implícito. CoT explícito adiciona verbosidade sem ganho claro neste momento.
+**Trigger para reconsiderar**: Se revisões começarem a aprovar algo que deveria ser reprovado (vazamento de tenant, bypass de auth) sem justificar o raciocínio. Nesse momento, adicionar instrução CoT antes do checklist.
 
 ---
 
-### ReActing (Reason → Act → Observe → Repeat)
-**Status**: Não implementado.
+### ReAct (Reason → Act → Observe → Repeat)
+**Status**: Avaliado pós-MVP — **não implementar agora**.
 
-**Onde aplicar**: `qa` — especificamente para o protocolo Playwright via MCP.
+**Avaliação**: O Playwright MCP já funciona com o protocolo atual do QA (seção "Playwright via MCP"). Os testes E2E dos 11 epics rodaram sem necessidade de loop iterativo explícito — quando um seletor falhava, o QA já ajustava naturalmente. O overhead de formalizar o loop ReAct no prompt não se justifica.
 
-**Quando implementar**: Quando o frontend existir e o QA começar a rodar testes Playwright reais. O loop iterativo (navegar → observar → ajustar → retestar) precisa ser explícito para o agente não desistir após a primeira falha.
-
-**Como implementar**: Adicionar ao protocolo Playwright:
-```
-Ao encontrar uma falha:
-1. REASON: qual elemento ou comportamento falhou e por quê pode ter acontecido
-2. ACT: tente uma correção (ajustar seletor, aguardar elemento, recarregar)
-3. OBSERVE: o problema foi resolvido?
-4. Se não: repita até 3 tentativas antes de reportar como bug confirmado
-```
-
-**Trigger de implementação**: Início do Epic 1 (auth frontend) ou Epic 2 (agency portal) — qualquer US com UI interativa.
+**Trigger para reconsiderar**: Se o QA começar a desistir após primeira falha de seletor em UIs mais complexas (ex: formulários multi-step com estados dinâmicos no V2). Nesse momento, adicionar o protocolo ReAct ao `qa.md`.
 
 ---
 

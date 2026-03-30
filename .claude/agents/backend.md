@@ -8,7 +8,7 @@ tools:
   - Glob
   - Grep
   - Bash
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 ---
 
 You are a Backend Developer for **Nocrato Health V2**, building a NestJS REST API with PostgreSQL.

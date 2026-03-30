@@ -1,458 +1,256 @@
 # CLAUDE.md — Nocrato Health V2
 
-Este arquivo é lido automaticamente pelo Claude Code no início de cada sessão. Ele define o contexto do projeto, o protocolo de trabalho, e as restrições que devem ser respeitadas em todas as interações.
+Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições.
 
 ---
 
 ## O que é este projeto
 
-**Nocrato Health V2** é uma plataforma SaaS multi-tenant para gestão de consultórios médicos. É um rebuild completo do V1 (que era um protótipo de "vibe coding"), com modelagem de domínio correta e foco em MVP para dev solo.
+**Nocrato Health V2** — SaaS multi-tenant para gestão de consultórios médicos. Rebuild do V1 com modelagem correta, MVP para dev solo.
 
-**Contexto de negócio:**
-
-- **Nocrato** (a agência) gerencia doutores via um portal interno
-- Cada **doutor** tem um portal isolado (tenant) identificado por slug (ex: `dr-silva`)
-- **Pacientes** são criados pelo agente WhatsApp e têm um portal read-only com código de acesso
-- Um **agente WhatsApp interno** (módulo NestJS + Evolution API + gpt-4o-mini) orquestra agendamento e notificações
-- Página pública de **booking** protegida por token temporário (24h)
+- **Nocrato** (agência) gerencia doutores via portal interno
+- Cada **doutor** tem portal isolado (tenant) por slug (ex: `dr-silva`)
+- **Pacientes** criados pelo agente WhatsApp, portal read-only com código de acesso
+- **Agente WhatsApp** interno (NestJS + Evolution API + gpt-4o-mini) orquestra agendamento e notificações
+- **Booking** público protegido por token temporário (24h)
 
 ---
 
 ## Skills autônomas — Gatilhos obrigatórios
 
-O Claude DEVE invocar as skills abaixo (via Skill tool) automaticamente quando as condições forem atendidas — sem esperar instrução explícita do usuário.
-
 | Skill | Comando | Ativar quando |
 |---|---|---|
-| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** qualquer entrega concluída **ou** antes de iniciar trabalho novo e complexo |
-| Definition of Done | `/definition-of-done` | Ao final de **qualquer entrega de código** (US, bugfix, melhoria, refactor) — antes de propor o commit |
+| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** entrega concluída **ou** antes de trabalho novo complexo |
+| Definition of Done | `/definition-of-done` | Ao final de **qualquer entrega de código** — antes do commit |
 | Health Check | `/health-check` | Após **qualquer entrega de código** — antes do commit |
-| Code Review | `/code-review` | **Ao criar ou atualizar qualquer PR** — revisão obrigatória do diff antes do merge, independente do tipo de entrega |
-| Casos de Teste | `/test-cases` | **Ao iniciar um epic novo**, antes da primeira US — gera CTs para todo o epic de uma vez |
+| Code Review | `/code-review` | **Ao criar ou atualizar qualquer PR** — obrigatório antes do merge |
+| Casos de Teste | `/test-cases` | **Ao iniciar epic novo**, antes da primeira US |
 
-**Regra:** se a condição for atendida e a skill não tiver sido invocada, o Claude está em violação do protocolo.
-
-> **"Qualquer entrega de código"** = US, bugfix, melhoria UX, refactor, ajuste de config, mudança de env. Se houve mudança em qualquer arquivo sob `apps/` ou `docker/`, as skills de DoD e Health Check são obrigatórias.
+> **"Qualquer entrega de código"** = US, bugfix, TD, melhoria, refactor, hotfix, config. Se mudou arquivo sob `apps/` ou `docker/`, DoD + Health Check são obrigatórios.
 
 ---
 
-## PROTOCOLO OBRIGATÓRIO — Leia antes de qualquer ação
+## Docs First
 
-### Regra principal: Docs First
-
-**Toda decisão técnica que altere o design do sistema DEVE atualizar a documentação ANTES (ou junto) do código.**
-
-A ordem correta é:
+**Toda decisão que altere o design DEVE atualizar a documentação ANTES (ou junto) do código.**
 
 ```
-1. CLAUDE.md         ← atualizar se o protocolo ou contexto mudar
-2. README.md         ← documentação geral do projeto
-2. docs/             ← atualizar o doc relevante (schema, flow, roadmap, ADR)
-3. .claude/agents/   ← atualizar o agente responsável pelo domínio, se necessário
-4. Código            ← implementar
+1. CLAUDE.md / docs/  → atualizar o doc relevante
+2. .claude/agents/    → atualizar agente do domínio, se necessário
+3. Código             → implementar
 ```
 
-**Nunca implemente algo que contradiz a documentação sem atualizar a documentação primeiro.**
-
-### Antes de qualquer sessão de implementação
-
-O pré-trabalho varia por tipo de entrega. Identifique o tipo antes de qualquer ação:
-
-| Tipo | Exemplos | Pré-trabalho |
-|------|----------|--------------|
-| **User Story** | US-4.1, US-6.2 | Explore agent completo (ver abaixo) |
-| **Bugfix** | deslogamento, campo incorreto, erro 500 | Explore agent focado no módulo afetado |
-| **Melhoria UX** | formatação de telefone, datepicker | Explore agent lê componente + rotas afetadas |
-| **Refactor** | reorganizar service, extrair helper | Explore agent lê módulo completo |
-| **Config / Env** | JWT_EXPIRES_IN, variável nova | Ler arquivo afetado; sem Explore agent |
-| **Docs only** | atualizar guia, ADR | Sem Explore agent; sem agentes de implementação |
-
-**Para User Stories**, o Explore agent deve ler e resumir:
-   - Epic da US em `docs/roadmap/vN/epic-N-*.md` (critérios de aceitação da US específica)
-   - Flow relevante em `docs/flows/` (se existir)
-   - Tabelas envolvidas em `docs/database/schema.sql`
-   - Módulos existentes na pasta correspondente em `apps/api/src/modules/`
-   - Retornar resumo compacto (~80 linhas) com: critérios de aceitação, colunas relevantes, código reutilizável, dependências e conflitos
-
-**Para Bugfix / Melhoria UX**, o Explore agent deve ler e resumir:
-   - O(s) arquivo(s) diretamente afetados
-   - Módulo NestJS ou rota React envolvida
-   - Testes existentes que cobrem a área
-   - Retornar resumo compacto (~40 linhas) com: causa raiz, arquivos a tocar, edge cases
-
-**Regras adicionais (todos os tipos):**
-- **Se for a primeira US de um epic novo:** acione `/test-cases` antes de começar
-- Consulte o agente especializado em `.claude/agents/` para o domínio em questão
-- Consulte `.claude/prompt-engineering.md` antes de acionar subagentes de implementação
-
-### Quando adicionar uma feature ou mudar o design
-
-Pergunte-se:
-
-- Isso afeta o schema? → atualizar `docs/database/schema.sql` + `entity-relationship.md` + `migrations.md`
-- Isso afeta um fluxo? → atualizar o arquivo em `docs/flows/`
-- Isso é uma decisão arquitetural nova? → adicionar ADR em `docs/architecture/decisions.md`
-- Isso afeta o roadmap? → atualizar o epic correspondente
-- Isso é uma simplificação consciente (débito técnico)? → registrar em `docs/tech-debt.md` com prioridade
-- Isso muda como um agente deve agir? → consultar `.claude/prompt-engineering.md` para verificar se alguma técnica deve ser adicionada/ajustada, depois atualizar `.claude/agents/{agente}.md`
+Checklist rápido — isso afeta:
+- Schema? → `docs/database/schema.sql` + `entity-relationship.md` + `migrations.md`
+- Fluxo? → `docs/flows/`
+- Arquitetura? → ADR em `docs/architecture/decisions.md`
+- Roadmap? → epic correspondente
+- Débito técnico? → `docs/tech-debt.md`
+- Agente? → `.claude/agents/{agente}.md`
 
 ---
 
-## PROTOCOLO DE IMPLEMENTAÇÃO — Ciclo de vida de cada entrega
+## Protocolo de implementação
 
-> ⚠️ **ESCOPO UNIVERSAL**: este protocolo se aplica a **toda e qualquer mudança de código**, independentemente de ser uma User Story planejada, um bugfix encontrado na sessão, uma melhoria UX solicitada pelo usuário, ou um ajuste de configuração. **Não existe entrega "fora do protocolo".**
+### Pré-trabalho (Explore agent)
 
-### Fluxo de branches obrigatório
+| Tipo | Escopo do Explore |
+|------|-------------------|
+| **User Story** | Epic doc + flow + schema + módulos envolvidos → resumo ~80 linhas |
+| **Tech Debt** | TD no `tech-debt.md` + arquivos afetados + testes existentes → resumo ~40 linhas |
+| **Bugfix / Hotfix** | Módulo afetado + testes que cobrem a área → resumo ~40 linhas |
+| **Melhoria UX** | Componente + rotas afetadas → resumo ~40 linhas |
+| **Refactor** | Módulo completo → resumo ~60 linhas |
+| **Migration / Schema** | `schema.sql` + tabelas envolvidas → resumo ~30 linhas |
+| **Config / Env / Lib update** | Arquivo afetado; sem Explore |
+| **Docs only** | Sem Explore; sem agentes de implementação |
 
-**Push direto na main é proibido.** Toda implementação acontece em uma branch dedicada.
+Regras adicionais:
+- **Primeira US de epic novo:** acionar `/test-cases` antes de começar
+- Consultar agente em `.claude/agents/` para o domínio
+- Consultar `.claude/prompt-engineering.md` antes de acionar subagentes
 
-```bash
-# Iniciar uma US
-git checkout -b feat/epic-N-us-X-nome-curto
+### Branches
 
-# Ao concluir
-git push origin feat/epic-N-us-X-nome-curto
-# Abrir PR → /code-review → merge
-```
+Push direto na main é proibido. Padrões:
 
-Padrão de nome de branch: `feat/epic-N-us-X-descricao`, `fix/descricao`, `docs/descricao`, `infra/descricao`.
+| Tipo | Branch |
+|------|--------|
+| User Story | `feat/epic-N-us-X-descricao` |
+| Tech Debt | `fix/td-NN-descricao` |
+| Bugfix | `fix/descricao` |
+| Hotfix (prod) | `hotfix/descricao` |
+| Refactor | `refactor/descricao` |
+| Migration | `feat/migration-descricao` |
+| Docs | `docs/descricao` |
+| Infra | `infra/descricao` |
+| Lib update | `chore/update-lib-name` |
 
-### Worktrees — regra universal
-
-**Todo agent que escreve arquivos roda em worktree isolado** (`isolation: "worktree"` no Agent tool).
-
-Isso evita conflitos quando múltiplos agents rodam em paralelo. O tech-lead e o security rodam no contexto principal (só leem e revisam).
-
-Fluxo típico de uma US com backend + frontend:
-
-```
-1. dba agent       → worktree (migration + schema) — sequencial, base para o backend
-2. backend agent   → worktree ┐
-   frontend agent  → worktree ┤ paralelo
-   designer agent  → worktree ┘
-3. tech-lead       → contexto principal (revisa diffs dos worktrees)
-4. qa              → worktree se escreve specs | contexto principal para Playwright
-```
-
-### Ciclo de vida de toda entrega de código
-
-**Este ciclo se aplica a qualquer mudança de código — US, bugfix, melhoria, refactor.** Não existe entrega "pequena demais" para pular etapas.
+### Ciclo de vida
 
 ```
-0. Explore agent   → pré-carrega contexto (escopo define profundidade — ver tabela acima)
-1. Branch          → git checkout -b <tipo>/descricao  (feat/, fix/, refactor/, chore/)
-2. Implementar     → agents em worktrees (qualquer agent que escreva arquivos)
-3. Tech-lead revisa → aprova qualidade, padrões, segurança
-4. QA testa        → roda testes automatizados + Playwright quando há UI
-5. /definition-of-done → checklist antes de propor commit
-6. /health-check   → verificação pós-código antes do commit
-7. Commit + PR     → commitar, push, abrir PR
-8. /code-review    → revisão do diff completo do PR (obrigatório em TODO PR, não só US)
-9. ✅ Merge + docs  → atualizar docs afetadas, deletar branch após merge
+0. Explore agent     → pré-carrega contexto
+1. Branch            → git checkout -b <tipo>/descricao
+2. Implementar       → agents em worktrees (quem escreve código)
+3. Tech-lead revisa  → aprova qualidade, padrões, segurança
+4. QA testa          → agent (backend) ou Playwright (frontend)
+5. /definition-of-done + /health-check
+6. Commit + Push + PR
+7. /code-review      → obrigatório em todo PR
+8. Merge + atualizar docs afetadas
 ```
 
-**Nunca avançar para o próximo trabalho sem que o ciclo acima esteja completo.**
+### Escala de rigor por tipo
 
-**Escala de rigor por tipo de entrega:**
+| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review |
+|------|---------|-----------|-----------|------------|---------------|--------|--------------|
+| User Story | completo | sim | sim | sim | se UI | sim | sim |
+| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim |
+| Bugfix backend | focado | sim | sim | sim | se afeta UI | sim | sim |
+| Bugfix frontend | focado | sim | sim | — | sim | sim | sim |
+| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim |
+| Melhoria UX | focado | sim | sim | — | sim | sim | sim |
+| Refactor | completo | sim | sim | sim | se UI | sim | sim |
+| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim |
+| Config / Env | — | — | revisão rápida | — | — | sim | sim |
+| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim |
+| Docs only | — | — | — | — | — | — | — |
 
-| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD + HC | /code-review |
-|------|---------|-----------|-----------|------------|---------------|----------|--------------|
-| User Story | ✅ completo | ✅ | ✅ | ✅ | ✅ se UI | ✅ | ✅ |
-| Bugfix backend | ✅ focado | ✅ | ✅ | ✅ | se afeta UI | ✅ | ✅ |
-| Bugfix frontend | ✅ focado | ✅ | ✅ | — | ✅ | ✅ | ✅ |
-| Melhoria UX | ✅ focado | ✅ | ✅ | — | ✅ | ✅ | ✅ |
-| Config / Env | — | — | ✅ (revisão rápida) | — | — | ✅ | ✅ |
-| Refactor | ✅ completo | ✅ | ✅ | ✅ | se afeta UI | ✅ | ✅ |
+### Worktrees
 
-> **DoCDD mid-implementation**: se durante a codificação você descobrir que o escopo real diverge do documentado, **pare, atualize a documentação primeiro, depois continue**. Nunca deixe a implementação divergir silenciosamente da documentação — isso invalida o princípio Docs First para todas as sessões futuras.
+Agents que escrevem código rodam em worktree isolado (`isolation: "worktree"`).
+**Exceção:** mudanças em ≤3 arquivos sem risco de conflito paralelo podem rodar inline.
+Tech-lead e security sempre rodam no contexto principal (só leem).
 
-### Aprovação multi-agente por tipo de entrega
+### Aprovação multi-agente
 
-| Tipo de entrega            | Agentes que devem revisar e aprovar           |
-| -------------------------- | --------------------------------------------- |
-| Módulo backend (NestJS)    | `backend` → `tech-lead` → `qa`                |
-| Migration / Schema         | `dba` → `tech-lead`                           |
-| Rota / componente frontend | `frontend` → `designer` → `qa` (Playwright)   |
-| Fluxo end-to-end           | `backend` + `frontend` → `tech-lead` → `qa`   |
-| Docker / infra             | `devops` → `tech-lead`                        |
-| Decisão arquitetural       | `architect` → registrar ADR em `decisions.md` |
+| Entrega | Pipeline de agentes |
+|---------|---------------------|
+| Backend (NestJS) | `backend` → `tech-lead` → `qa` |
+| Migration / Schema | `dba` → `tech-lead` |
+| Frontend (React) | `frontend` → `designer` → `qa` (Playwright) |
+| End-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
+| Docker / infra | `devops` → `tech-lead` |
+| Decisão arquitetural | `architect` → ADR em `decisions.md` |
 
-A implementação só avança quando **todos** os agentes responsáveis por aquela entrega aprovarem. Se qualquer agente levantar um problema, o problema é resolvido antes de prosseguir.
+### Tech Debt workflow
 
-### Regra de ouro: QA é sempre um agente — NUNCA um comando de terminal
+TDs seguem o mesmo ciclo de vida, com ajustes:
 
-**O QA (`qa` na tabela acima) é um agente (Task tool, subagent_type=general-purpose), não um alias para `npx jest`.**
+1. **Ler o TD** em `docs/tech-debt.md` — entender causa, impacto e fix proposto
+2. **Branch**: `fix/td-NN-descricao`
+3. **Implementar** o fix (worktree se >3 arquivos)
+4. **Atualizar `docs/tech-debt.md`**: mover para seção "Resolvidos" com commit ref
+5. **Testes**: garantir que testes existentes passam + adicionar testes se o TD tinha gap
+6. DoD + HC + commit + PR + /code-review
 
-| Tipo | Como executar |
-|------|---------------|
-| Backend (unit tests) | Task tool → qa agent lê `qa.md`, roda jest, verifica cobertura e edge cases |
-| Frontend (E2E) | Contexto principal → `npx playwright test` via Bash (Playwright não roda em Task tool) |
+TDs podem ser agrupados em batch quando são relacionados (ex: cluster de timezone TD-01/12/14/27).
 
-**Errado:** rodar `pnpm test` diretamente no contexto principal e declarar "QA aprovado".
-**Correto:** invocar o qa agent via Task tool para backend; usar Bash + Playwright para frontend.
+### Regras de ouro
 
-Chamar `npx jest` diretamente sem passar pelo agente qa é violação de protocolo — o agente qa verifica cobertura, edge cases e isolamento de tenant, não apenas se os testes passam.
-
-### Regra de ouro: NUNCA escreva código frontend diretamente
-
-**Se você está prestes a criar ou editar qualquer arquivo sob `apps/web/`, pare imediatamente.**
-
-O fluxo obrigatório para **qualquer** entrega frontend (US, bugfix, melhoria, refactor) é:
-
-```
-1. frontend agent (Task tool, worktree) → implementa rotas, componentes, hooks
-2. designer agent  (Task tool, worktree) → revisa design system, Tailwind, shadcn/ui, tokens
-3. tech-lead agent (Task tool)           → aprova qualidade e padrões
-4. QA (contexto principal)              → Playwright valida no browser
-```
-
-**Não existe exceção.** Nem para:
-- "é só um bugfix de 2 linhas"
-- "só um className"
-- "já está quase pronto"
-- "é uma melhoria UX pequena"
-- "o usuário pediu uma correção rápida"
-
-Qualquer toque em `apps/web/` sem passar pelo `frontend` + `designer` é violação de protocolo. O tamanho da mudança não importa — o processo importa.
-
-### Regra de ouro: CLAUDE.md é obrigatório em todo diretório novo
-
-**Se você está prestes a criar qualquer módulo, pasta ou domínio novo, crie o `CLAUDE.md` antes do primeiro arquivo de código.**
-
-Gatilho objetivo: qualquer diretório sob `apps/api/src/modules/`, `apps/api/src/common/`, `apps/api/src/database/`, `apps/web/src/routes/`, `apps/web/src/components/`, `apps/web/src/hooks/` sem `CLAUDE.md` existente.
-
-O `CLAUDE.md` de módulo deve conter:
-
-- O que este módulo faz (responsabilidade única e escopo)
-- Principais arquivos e o que cada um faz
-- Regras de negócio específicas deste módulo
-- Padrões e convenções adotados aqui
-- O que **não** pertence a este módulo
-- Como rodar / testar isoladamente
-
-**O `CLAUDE.md` de módulo é a primeira coisa que qualquer agente deve ler antes de tocar naquele módulo. Não existe exceção.**
-
-### Subagentes (Task tool)
-
-Consulte `.claude/prompt-engineering.md` para a estratégia completa de delegação e técnicas de PE.
-
-### Testes E2E com Playwright (frontend)
-
-Consulte `.claude/agents/qa.md` — seção "Playwright via MCP". Resumo: roda local (`localhost:5173`), executado no contexto principal (não em Task tool), obrigatório para **toda entrega que toque `apps/web/`** — seja US, bugfix ou melhoria UX.
+1. **QA é agente, não terminal** — invocar via Agent tool, não `npx jest` direto
+2. **Frontend só via agents** — `frontend` → `designer` → `tech-lead` → Playwright. Sem exceção por tamanho
+3. **CLAUDE.md em diretório novo** — criar antes do primeiro arquivo de código
+4. **DoCDD mid-implementation** — se escopo diverge do doc, parar e atualizar doc primeiro
 
 ---
 
-## Mapa da Documentação
-
-### `docs/guides/`
-
-| Arquivo                                  | Conteúdo                                                  |
-| ---------------------------------------- | --------------------------------------------------------- |
-| `ambiente-de-desenvolvimento-do-zero.md` | Setup completo em máquina nova (clone → servidor rodando) |
-| `onboarding-dev.md`                      | Referência técnica: endpoints, credenciais, fluxos        |
-| `onboarding-agency.md`                   | Guia não-técnico para o time da agência                   |
-| `onboarding-qa.md`                       | Setup de testes E2E com Playwright                        |
-| `vps-cheatsheet.md`                      | Comandos do dia a dia no servidor de produção             |
-
-### `docs/architecture/`
-
-| Arquivo                 | Conteúdo                                                       |
-| ----------------------- | -------------------------------------------------------------- |
-| `tech-stack.md`         | Stack tecnológica e justificativas (NestJS, Knex, React, etc.) |
-| `backend-structure.md`  | Estrutura de módulos NestJS, guards, decorators, interceptors  |
-| `frontend-structure.md` | Estrutura de rotas React, componentes, hooks, contexts         |
-| `decisions.md`          | 15 ADRs documentando decisões arquiteturais e trade-offs       |
-
-### `docs/database/`
-
-| Arquivo                  | Conteúdo                                                      |
-| ------------------------ | ------------------------------------------------------------- |
-| `schema.sql`             | DDL completo das 12 tabelas — fonte de verdade do schema      |
-| `entity-relationship.md` | Diagrama ER, relacionamentos, modelo de isolamento por tenant |
-| `migrations.md`          | Ordem das 16 migrations, DAG de dependências, índices         |
-
-### `docs/flows/`
-
-| Arquivo                    | Conteúdo                                                             |
-| -------------------------- | -------------------------------------------------------------------- |
-| `auth-flows.md`            | Login agency, login doctor, refresh token, forgot password, convites |
-| `booking-flow.md`          | Fluxo completo: agente gera token → paciente abre página → agenda    |
-| `appointment-lifecycle.md` | Máquina de estados: scheduled → waiting → in_progress → completed    |
-| `patient-portal.md`        | Geração de código de acesso, portal read-only, dados expostos        |
-| `agent.md`                 | Módulo WhatsApp interno: webhook, LLM tools (OpenAI), EventEmitter2  |
-
-### `docs/roadmap/`
-
-Organizado por entrega (versão). Cada pasta `vN/` agrupa os epics e test cases de uma entrega completa.
-
-#### `docs/roadmap/v1/` — Entrega inicial (MVP)
-
-| Arquivo                     | Conteúdo                                                         |
-| --------------------------- | ---------------------------------------------------------------- |
-| `epics-overview.md`         | Visão geral dos 12 epics, grafo de dependências, checklist final |
-| `epic-0-foundation.md`      | Setup monorepo, banco, guards, NestJS bootstrap                  |
-| `epic-1-auth.md`            | Autenticação e convites                                          |
-| `epic-2-agency-portal.md`   | Portal da agência                                                |
-| `epic-3-onboarding.md`      | Wizard pós-convite do doutor                                     |
-| `epic-4-patients.md`        | CRUD de pacientes                                                |
-| `epic-5-appointments.md`    | Gestão de consultas e lifecycle                                  |
-| `epic-6-clinical.md`        | Notas clínicas e documentos                                      |
-| `epic-7-booking.md`         | Agendamento público (token + in-chat)                            |
-| `epic-8-settings.md`        | Configurações do agente e do portal                              |
-| `epic-9-events.md`          | Módulo NestJS do agente WhatsApp                                 |
-| `epic-10-patient-portal.md` | Portal do paciente                                               |
-| `epic-11-deploy.md`         | Polish, Swagger, seed, deploy Hostinger                          |
-| `test-cases/epic-N.md`      | Casos de teste manuais (BDD) por epic — gerados pelo `/test-cases` |
-
-Os epic docs referenciam os test cases via `> **Casos de teste:** [docs/roadmap/v1/test-cases/epic-N.md](...)`.
-Novas entregas criam `docs/roadmap/v2/`, `docs/roadmap/v3/`, etc.
-
-### `docs/security/`
-
-| Arquivo           | Conteúdo                                                      |
-| ----------------- | ------------------------------------------------------------- |
-| `audit-report.md` | Relatório de auditoria OWASP: findings SEC-NN por severidade  |
-
-### `docs/tech-debt.md`
-
-Registro centralizado de débitos técnicos com ID sequencial (`TD-NN`), módulo, US de origem e prioridade (P1/P2/P3). Atualizar ao identificar qualquer simplificação consciente. Resolver todos os P1 antes do Epic 11 (deploy).
-
-### `.claude/`
-
-| Arquivo                 | Conteúdo                                                                                        |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `prompt-engineering.md` | Guia de quando aplicar cada técnica de PE nos agentes — **ler antes de editar qualquer agente** |
-
-### `.claude/agents/`
-
-| Agente         | Quando usar                                                  |
-| -------------- | ------------------------------------------------------------ |
-| `pm.md`        | Validar escopo, priorização MVP, user stories                |
-| `architect.md` | Decisões de design de sistema, ADRs, trade-offs              |
-| `tech-lead.md` | Revisão de código, padrões NestJS, TypeScript                |
-| `backend.md`   | Implementação NestJS: módulos, services, controllers, guards |
-| `dba.md`       | Schema SQL, migrations, índices, Knex queries                |
-| `frontend.md`  | React, TanStack Router, TanStack Query, componentes          |
-| `designer.md`  | Design system, Tailwind, shadcn/ui, design tokens            |
-| `devops.md`    | Docker, Nginx, CI/CD, Hostinger, variáveis de ambiente       |
-| `qa.md`        | Testes, critérios de aceitação, edge cases                   |
-| `security.md`  | Auditoria de segurança: OWASP Top 10, tenant isolation, JWT  |
-
----
-
-## Restrições não-negociáveis (MVP)
+## Restrições não-negociáveis
 
 ### Isolamento de tenant
+- Toda query tenant-scoped DEVE ter `WHERE tenant_id = ?`
+- `tenant_id` extraído do JWT via `@TenantId()` — nunca do body
+- Tabelas: `doctors`, `agent_settings`, `patients`, `appointments`, `clinical_notes`, `documents`, `event_log`, `booking_tokens`, `conversations`
 
-- **Toda query em tabela tenant-scoped DEVE ter `WHERE tenant_id = ?`**
-- O `tenant_id` é extraído do JWT via `@TenantId()` decorator — nunca aceitar tenant_id do body do request
-- Tabelas tenant-scoped: `doctors`, `agent_settings`, `patients`, `appointments`, `clinical_notes`, `documents`, `event_log`, `booking_tokens`, `conversations`
+### Auth separada
+- Agency (`agency_members`) e Doctor (`doctors`) são domínios distintos
+- JWTs com claims diferentes, endpoints separados
 
-### Autenticação separada
+### Schema imutável sem migration
+- Mudança de schema → nova migration em `apps/api/src/database/migrations/`
+- Atualizar `schema.sql` + `migrations.md` + `entity-relationship.md`
 
-- Agency (`agency_members`) e Doctor (`doctors`) são domínios de auth separados
-- JWTs com claims diferentes, endpoints de login separados
-- Nunca misturar guards de agency com rotas de doctor
+### Agente usa OpenAI
+- Módulo `agent/` usa **OpenAI SDK com `gpt-4o-mini`** — nunca Anthropic SDK
 
-### Schema é imutável sem migration
-
-- Qualquer mudança de schema EXIGE uma nova migration SQL em `docs/database/migrations/`
-- Seguir o padrão: `{NNN}_{action}_{table}.sql`
-- Atualizar `docs/database/schema.sql`, `migrations.md`, e `entity-relationship.md` junto
-
-### Agente usa OpenAI (não Anthropic)
-
-- O módulo `agent/` usa **OpenAI SDK com `gpt-4o-mini`** — barato, rápido para chatbot
-- Tool calling no formato OpenAI: `{ type: 'function', function: { name, description, parameters } }`
-- **Nunca usar Anthropic SDK no módulo agent/**
-
-### clinicalNotes não são expostas ao paciente
-
-- O portal do paciente retorna `{ patient, appointments, documents }` — **sem clinical_notes**
-- Clinical notes são registros internos do médico
+### clinicalNotes não expostas ao paciente
+- Portal paciente: `{ patient, appointments, documents }` — sem `clinical_notes`
 
 ---
 
-## Stack resumida
+## Stack
 
-| Camada      | Tecnologia                                         |
-| ----------- | -------------------------------------------------- |
-| Monorepo    | pnpm workspaces + Turborepo                        |
-| Backend     | NestJS + TypeScript + Knex + PostgreSQL 16         |
-| Validação   | Zod + nestjs-zod                                   |
-| Auth        | @nestjs/jwt + @nestjs/passport (JWT stateless)     |
-| Email       | Resend                                             |
-| Frontend    | Vite + React 19 + TanStack Router + TanStack Query |
-| UI          | shadcn/ui + Tailwind CSS v4                        |
-| WhatsApp    | Evolution API + módulo NestJS interno              |
-| LLM (agent) | OpenAI SDK — gpt-4o-mini                           |
-| Eventos     | @nestjs/event-emitter (EventEmitter2)              |
-| Deploy      | Hostinger VPS + Docker + Nginx                     |
+| Camada | Tecnologia |
+|--------|------------|
+| Monorepo | pnpm workspaces + Turborepo |
+| Backend | NestJS + TypeScript + Knex + PostgreSQL 16 |
+| Validação | Zod + nestjs-zod |
+| Auth | @nestjs/jwt + @nestjs/passport (JWT stateless) |
+| Email | Resend |
+| Frontend | Vite + React 19 + TanStack Router + TanStack Query |
+| UI | shadcn/ui + Tailwind CSS v4 |
+| WhatsApp | Evolution API + módulo NestJS interno |
+| LLM (agent) | OpenAI SDK — gpt-4o-mini |
+| Eventos | @nestjs/event-emitter (EventEmitter2) |
+| Deploy | Hostinger VPS + Docker + Nginx |
 
 ---
 
-## Estrutura do monorepo (quando o código existir)
+## Estrutura do monorepo
 
 ```
 nocrato-health-v2/
-├── CLAUDE.md                  ← você está aqui
-├── README.md                  ← visão geral para humanos
-├── package.json               ← workspace root (pnpm)
-├── turbo.json                 ← Turborepo config
-├── docker/
-│   ├── docker-compose.dev.yml ← PostgreSQL + Evolution API local
-│   └── docker-compose.prod.yml
+├── CLAUDE.md
 ├── apps/
 │   ├── api/                   ← NestJS backend
 │   │   └── src/
-│   │       ├── app.module.ts
 │   │       ├── common/        ← guards, decorators, filters, pipes
-│   │       ├── database/      ← Knex provider + migrations
-│   │       └── modules/       ← auth, invite, tenant, doctor, patient, appointment...
+│   │       ├── database/      ← Knex provider + 17 migrations
+│   │       └── modules/       ← 13 módulos de feature
 │   └── web/                   ← React frontend
 │       └── src/
 │           ├── routes/        ← agency/, doctor/, patient/, book/
-│           ├── components/    ← shadcn/ui + componentes customizados
-│           └── hooks/         ← TanStack Query hooks
-├── docs/                      ← documentação completa do projeto
+│           ├── components/    ← shadcn/ui + customizados
+│           └── lib/           ← queries, auth store, utils
+├── docker/                    ← compose dev + prod, Dockerfiles, nginx
+├── docs/                      ← documentação completa
 └── .claude/
-    └── agents/                ← agentes especializados do Claude Code
+    ├── agents/                ← 10 agentes especializados
+    └── skills/                ← compact, definition-of-done, health-check, code-review, test-cases
 ```
 
----
+## Pontos de entrada
 
-## Pontos de entrada por domínio
-
-| Domínio          | Backend entry                          | Frontend entry              |
-| ---------------- | -------------------------------------- | --------------------------- |
-| Agency auth      | `POST /api/v1/agency/auth/login`       | `routes/agency/login.tsx`   |
-| Doctor auth      | `POST /api/v1/doctor/auth/login`       | `routes/doctor/login.tsx`   |
-| Booking público  | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx`     |
-| Patient portal   | `POST /api/v1/patient/portal/access`   | `routes/patient/access.tsx` |
-| WhatsApp webhook | `POST /api/v1/agent/webhook`           | — (interno)                 |
+| Domínio | Backend | Frontend |
+|---------|---------|----------|
+| Agency auth | `POST /api/v1/agency/auth/login` | `routes/agency/login.tsx` |
+| Doctor auth | `POST /api/v1/doctor/auth/login` | `routes/doctor/login.tsx` |
+| Booking | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx` |
+| Patient portal | `POST /api/v1/patient/portal/access` | `routes/patient/access.tsx` |
+| WhatsApp webhook | `POST /api/v1/agent/webhook` | — |
 
 ---
 
-## O que está no MVP e o que não está
+## Mapa da documentação
 
-### MVP inclui
+| Diretório | Conteúdo |
+|-----------|----------|
+| `docs/guides/` | Setup dev, onboarding, VPS cheatsheet |
+| `docs/architecture/` | Stack, estrutura backend/frontend, 15 ADRs |
+| `docs/database/` | Schema DDL, ER diagram, 17 migrations |
+| `docs/flows/` | Auth, booking, appointment lifecycle, patient portal, agent |
+| `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
+| `docs/security/` | Auditoria OWASP |
+| `docs/tech-debt.md` | Registro de TDs com prioridade P1/P2/P3 |
+| `.claude/agents/` | 10 agentes especializados |
+| `.claude/prompt-engineering.md` | Guia de PE — ler antes de editar agentes |
 
-- Portal agência: login, dashboard, gestão de doutores, convites
-- Portal doutor: onboarding, pacientes, consultas, notas, documentos, config agente
-- Portal paciente: acesso via código, read-only
-- Agendamento público: link com token + in-chat via agente
-- Agente WhatsApp interno (Evolution API + gpt-4o-mini + EventEmitter2)
-- Event log como audit trail
-- Deploy em Hostinger VPS com Docker + Nginx
+---
 
-### Deixado para V2 (não implementar no MVP)
+## MVP vs V2
 
-- Agency acessar portal do doutor ("login as doctor")
-- RBAC granular além de `agency_admin` / `agency_member` / `doctor`
-- Pagamentos (gateway)
-- Object storage S3/R2 (MVP usa disco local)
-- WebSocket real-time (MVP usa polling 30s no frontend)
-- CAPTCHA no booking
-- Self-service doctor signup
-- Row-Level Security (RLS) no PostgreSQL
-- Redis para token blacklist ou event bus
+### No MVP (concluído)
+Portal agência, portal doutor (onboarding→consultas→notas→docs→config), portal paciente, booking público, agente WhatsApp, event log, deploy Docker+Nginx
+
+### V2 (não implementar agora)
+Login as doctor, RBAC granular, pagamentos, S3/R2, WebSocket, CAPTCHA, self-service signup, RLS, Redis

@@ -24,7 +24,7 @@ apps/api/src/
 │   ├── database.module.ts          # KnexModule provider
 │   ├── knex.provider.ts            # Knex instance factory
 │   ├── knexfile.ts                 # Connection config
-│   └── migrations/                 # 001_ to 016_
+│   └── migrations/                 # 001_ to 017_
 ├── common/
 │   ├── decorators/
 │   │   ├── roles.decorator.ts      # @Roles('agency_admin', 'doctor')
@@ -65,13 +65,6 @@ apps/api/src/
 │   │   ├── agency.controller.ts    # CRUD members + dashboard stats
 │   │   └── dto/
 │   │       └── create-member.dto.ts
-│   ├── tenant/
-│   │   ├── tenant.module.ts
-│   │   ├── tenant.service.ts
-│   │   ├── tenant.repository.ts
-│   │   ├── tenant.controller.ts    # CRUD tenants (agency side)
-│   │   └── dto/
-│   │       └── create-tenant.dto.ts
 │   ├── doctor/
 │   │   ├── doctor.module.ts
 │   │   ├── doctor.service.ts       # onboarding, profile, CRUD
@@ -111,13 +104,6 @@ apps/api/src/
 │   │   ├── document.controller.ts
 │   │   └── dto/
 │   │       └── create-document.dto.ts
-│   ├── agent-settings/
-│   │   ├── agent-settings.module.ts
-│   │   ├── agent-settings.service.ts
-│   │   ├── agent-settings.repository.ts
-│   │   ├── agent-settings.controller.ts
-│   │   └── dto/
-│   │       └── update-settings.dto.ts
 │   ├── event-log/
 │   │   ├── event-log.module.ts
 │   │   ├── event-log.service.ts    # append + query by tenant (audit trail)
@@ -157,7 +143,7 @@ apps/api/src/
 
 | Module | Purpose |
 |--------|---------|
-| `config/` | Environment variable validation using Zod schemas. Validates DB_*, JWT_SECRET, RESEND_API_KEY, EVOLUTION_WEBHOOK_TOKEN at startup. |
+| `config/` | Environment variable validation using Zod schemas. Validates DB_*, JWT_SECRET, RESEND_API_KEY, EVOLUTION_API_URL, OPENAI_API_KEY at startup. |
 | `database/` | Knex provider with connection pooling. Exposes a global `KnexModule` that all feature modules can inject. Migrations are raw SQL for full control. |
 | `common/` | Shared decorators, guards, filters, interceptors, and pipes used across all modules. |
 | `email/` | Resend email client with HTML templates for invite and password reset flows. |
@@ -169,7 +155,6 @@ apps/api/src/
 | `auth` | Public | Login (agency + doctor), refresh tokens, email resolution, password reset. |
 | `invite` | Agency (admin) | Polymorphic invite system for both agency members and doctors. |
 | `agency` | Agency | Member management, dashboard stats, doctor oversight. |
-| `tenant` | Agency | Tenant (doctor portal) CRUD from the agency side. |
 | `doctor` | Doctor | Profile management, onboarding wizard, settings. |
 | `patient` | Doctor + Public | Patient CRUD (doctor-side) and read-only portal (public with access code). |
 | `appointment` | Doctor | Appointment lifecycle (scheduled, waiting, in_progress, completed, cancelled, no_show, rescheduled). |
