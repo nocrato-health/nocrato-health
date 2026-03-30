@@ -76,14 +76,11 @@ Não há `--coverageThreshold` no Jest config. A cobertura pode cair silenciosam
 
 ---
 
-### TD-07 — Specs de controller ausentes
-**Módulo:** `auth`, `agency`, `booking`, `clinical-note`, `document`, `invite`
+### ~~TD-07 — Specs de controller ausentes~~ ✅ RESOLVIDO (parcial)
+**Módulo:** `health`
 **Identificado em:** Auditoria pós-Epic 7
-**Prioridade:** P2
 
-Nenhum controller tem `*.controller.spec.ts`. Os testes cobrem os services, mas validações de rota, query params inválidos, respostas HTTP e guards ficam sem teste isolado. O `booking.controller.ts` é o mais crítico por ser público (sem guards).
-
-**Fix:** Adicionar `*.controller.spec.ts` usando `Test.createTestingModule()` + `supertest`. Priorizar `booking.controller.spec.ts` por ser público.
+**Resolvido em:** TD Phase 1 fix — `health.controller.spec.ts` criado com 3 testes (happy path, validação ISO timestamp, propagação de erro DB). Os demais controllers já tinham specs adicionadas em Epics anteriores. 15/15 controllers agora têm spec.
 
 ---
 
@@ -123,16 +120,11 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### TD-13 — getSlotsInternal silencia doutor inativo (retorna slots vazios sem NotFoundException)
+### ~~TD-13 — getSlotsInternal silencia doutor inativo (retorna slots vazios sem NotFoundException)~~ ✅ RESOLVIDO
 **Módulo:** `booking`
 **Identificado em:** US-7.4 (OBS-TL-2)
-**Prioridade:** P2
 
-Quando `getSlotsInternal(tenantId, date)` é chamado para um tenant sem doutor ativo (onboarding incompleto ou doutor inativado), o método retorna `{ slots: [], timezone: 'America/Sao_Paulo', durationMinutes: 30 }` silenciosamente — fallbacks padrão em vez de NotFoundException.
-
-**Impacto atual:** O AgentModule (Epic 9) receberá resposta vazia sem saber o motivo, podendo confundir "agenda vazia" com "doutor inativo".
-
-**Fix:** Lançar `NotFoundException('Médico não encontrado ou inativo')` quando `doctor === null`, ou o AgentModule deve verificar status do doutor antes de chamar. Resolver ao implementar AgentModule no Epic 9.
+**Resolvido em:** TD Phase 1 fix — `getSlotsInternal` agora lança `NotFoundException('Médico não encontrado ou inativo')` quando doctor é null. Optional chaining removido (doctor garantido non-null após o guard). Teste adicionado em `booking.service.spec.ts`.
 
 ---
 
@@ -268,14 +260,11 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-26 — Evento `note.created` não emitido ao criar nota via finalização de consulta
+### ~~TD-26 — Evento `note.created` não emitido ao criar nota via finalização de consulta~~ ✅ RESOLVIDO
 **Módulo:** `appointment`
 **Identificado em:** fix/session-and-clinical-notes (OBS-TL-1)
-**Prioridade:** P2
 
-Quando uma consulta é finalizada com notas, `appointment.service.ts` insere diretamente em `clinical_notes` sem emitir evento `note.created` no `event_log`. O endpoint dedicado `POST /api/v1/doctor/clinical-notes` (em `clinical-note.service.ts`) registra o evento — esta criação indireta não. Resulta em inconsistência no audit trail: notas criadas via finalização não aparecem nos logs de `note.created`.
-
-**Fix:** No bloco de inserção de `clinical_notes` em `appointment.service.ts`, adicionar `event_log` entry com `event_type: 'note.created'`, `actor_type: 'doctor'`, `actor_id`, `payload: { noteId, appointmentId, patientId }`.
+**Resolvido em:** TD Phase 1 fix — `appointment.service.ts` agora captura `note.id` via `.returning('id')` e insere `event_log` entry com `event_type: 'note.created'`, `actor_type: 'doctor'`, `actor_id: actorId`, `payload: { noteId, appointmentId, patientId }` dentro da mesma transação. Teste adicionado em `appointment.service.spec.ts`.
 
 ---
 
@@ -290,18 +279,11 @@ As funções `toDatetimeLocal` e `fromDatetimeLocal` em `apps/web/src/lib/utils.
 
 ---
 
-### TD-25 — SEC-08: resolveEmail expõe enumeração de usuários sem normalização de resposta
+### ~~TD-25 — SEC-08: resolveEmail expõe PII nos logs e enumeração de usuários~~ ✅ RESOLVIDO (parcial)
 **Módulo:** `auth`
 **Identificado em:** Hardening pós-Epic 10 (SEC-08)
-**Prioridade:** P2
 
-`POST /doctor/auth/resolve-email` retorna estados distintos (`not_found`, `pending_invite`, `active`) que permitem confirmar se um email está cadastrado na plataforma. Mitigação atual: rate limiting (10 req/min por IP via ThrottlerGuard). A normalização completa das respostas foi rejeitada no MVP porque o frontend depende dos três estados para renderizar UX diferente — não é preferência, é requisito funcional do fluxo de login de dois passos.
-
-Risco residual adicional: o email vai na URL (`GET resolve-email/:email`) e aparece nos logs do Nginx e do NestJS — PII em log sem anonimização.
-
-**Impacto atual:** Rate limiting reduz throughput de enumeração a ~600/hora por IP. Risco baixo no contexto de médicos como usuários primários.
-
-**Fix pós-MVP:** (1) Mover email para body (`POST` com `{ email }`) para remover PII dos logs. (2) Normalizar resposta para `{ status: 'check_your_email' }` — requer redesenho do fluxo de login de dois passos (frontend + backend) para distinguir estados via tentativa de login, não via resolução prévia.
+**Resolvido em:** TD Phase 1 fix — endpoint migrado de `GET resolve-email/:email` para `POST resolve-email` com body `{ email }` (Zod validation). PII removida dos logs de URL. Frontend atualizado para `api.post`. Resposta discriminated union mantida (requisito funcional do fluxo 2-step). Risco residual: enumeração via resposta diferenciada, mitigado por ThrottlerGuard (5 req/15min por IP).
 
 ---
 
@@ -326,11 +308,11 @@ Risco residual adicional: o email vai na URL (`GET resolve-email/:email`) e apar
 
 ---
 
-### TD-23 — ErrorBoundary não invalida cache do TanStack Query ao tentar novamente
+### ~~TD-23/web — ErrorBoundary não invalida cache do TanStack Query ao tentar novamente~~ ✅ RESOLVIDO
 **Módulo:** `apps/web/src/components/error-boundary.tsx`
 **Identificado em:** US-11.1 (OBS-TL-1 tech-lead)
-**Prioridade:** P2
-**Descrição:** O botão "Tentar novamente" reseta o estado do boundary (`setState({ hasError: false })`) mas não invalida o cache do TanStack Query. Se o erro foi causado por dados corrompidos em cache, o componente filho vai re-lançar o erro imediatamente e o usuário fica em loop visual. Fix: chamar `queryClient.resetQueries()` no handler antes de resetar o state — requer acesso ao queryClient via contexto ou instância singleton.
+
+**Resolvido em:** TD Phase 1 fix — `queryClient.resetQueries()` chamado antes de `setState({ hasError: false })` no handler do botão "Tentar novamente". Importa singleton `queryClient` de `@/lib/query-client`. Cache limpo garante refetch de dados frescos ao re-renderizar.
 
 ---
 

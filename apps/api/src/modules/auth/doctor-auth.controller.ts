@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ResolveEmailSchema, type ResolveEmailDto } from './dto/resolve-email.dto'
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
 import { DoctorAuthService } from './doctor-auth.service'
 import { AcceptDoctorInviteSchema, type AcceptDoctorInviteDto } from './dto/accept-doctor-invite.dto'
@@ -49,16 +50,16 @@ export class DoctorAuthController {
     return this.doctorAuthService.acceptDoctorInvite(dto.token, dto.name, dto.password, dto.slug)
   }
 
-  // US-1.6: Resolver email antes do login (retorna slug ou hasPendingInvite) — SEC-08
-  @Get('resolve-email/:email')
+  // US-1.6: Resolver email antes do login (retorna slug ou hasPendingInvite) — SEC-08 / TD-25
+  @Post('resolve-email')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Resolver email antes do login — retorna slug do portal ou flag de convite pendente' })
-  @ApiParam({ name: 'email', description: 'Email do doutor', example: 'dr@clinica.com' })
+  @ApiBody({ schema: { type: 'object', properties: { email: { type: 'string', format: 'email' } }, required: ['email'] } })
   @ApiResponse({ status: 200, description: 'Retorna { slug } ou { hasPendingInvite: true }' })
   @ApiResponse({ status: 404, description: 'Email não encontrado na plataforma' })
-  resolveEmail(@Param('email') email: string) {
-    return this.doctorAuthService.resolveEmail(email)
+  resolveEmail(@Body(new ZodValidationPipe(ResolveEmailSchema)) dto: ResolveEmailDto) {
+    return this.doctorAuthService.resolveEmail(dto.email)
   }
 
   // US-1.6: Login do doutor — SEC-09

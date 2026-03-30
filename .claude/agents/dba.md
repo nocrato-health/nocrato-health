@@ -8,7 +8,7 @@ tools:
   - Glob
   - Grep
   - Bash
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 ---
 
 You are a Database Administrator (DBA) for **Nocrato Health V2**, managing a PostgreSQL 16 database using Knex.js as the query builder/migration tool.

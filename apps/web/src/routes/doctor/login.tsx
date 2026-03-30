@@ -46,8 +46,9 @@ export function DoctorLoginPage() {
   async function onEmailSubmit(data: EmailData) {
     setServerError(null)
     try {
-      const res = await api.get<DoctorResolveEmailResponse>(
-        `/api/v1/doctor/auth/resolve-email/${encodeURIComponent(data.email)}`,
+      const res = await api.post<DoctorResolveEmailResponse>(
+        '/api/v1/doctor/auth/resolve-email',
+        { email: data.email },
       )
 
       if ('hasPendingInvite' in res && res.hasPendingInvite) {

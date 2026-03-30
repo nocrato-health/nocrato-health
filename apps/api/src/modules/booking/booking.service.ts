@@ -323,10 +323,14 @@ export class BookingService {
       )
       .first()
 
+    if (!doctor) {
+      throw new NotFoundException('Médico não encontrado ou inativo')
+    }
+
     const workingHours: Record<string, Array<{ start: string; end: string }>> =
-      (doctor?.workingHours as Record<string, Array<{ start: string; end: string }>>) ?? {}
-    const appointmentDuration: number = (doctor?.appointmentDuration as number) ?? 30
-    const timezone: string = (doctor?.timezone as string) ?? 'America/Sao_Paulo'
+      (doctor.workingHours as Record<string, Array<{ start: string; end: string }>>) ?? {}
+    const appointmentDuration: number = (doctor.appointmentDuration as number) ?? 30
+    const timezone: string = (doctor.timezone as string) ?? 'America/Sao_Paulo'
 
     // 2. Calcular dia da semana da date (sem timezone — data local)
     const [year, month, day] = date.split('-').map(Number)

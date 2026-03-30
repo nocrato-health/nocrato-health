@@ -11,7 +11,7 @@ Autenticação e emissão de JWT para os dois domínios separados da plataforma:
 | `agency-auth.service.ts` | Login, forgot/reset password, refresh token de agency_member |
 | `agency-auth.controller.ts` | `POST /api/v1/agency/auth/{login,forgot-password,reset-password,refresh}` |
 | `doctor-auth.service.ts` | Resolve email, login, invite acceptance, forgot/reset password, refresh token de doctor |
-| `doctor-auth.controller.ts` | `GET /api/v1/doctor/auth/{invite/:token,resolve-email/:email}` e `POST /api/v1/doctor/auth/{login,accept-invite,forgot-password,reset-password,refresh}` |
+| `doctor-auth.controller.ts` | `GET /api/v1/doctor/auth/invite/:token` e `POST /api/v1/doctor/auth/{resolve-email,login,accept-invite,forgot-password,reset-password,refresh}` |
 | `strategies/jwt.strategy.ts` | Passport JWT strategy (valida Bearer token, extrai payload) |
 | `dto/` | Zod schemas: `agency-login`, `doctor-login`, `accept-doctor-invite`, `forgot-password`, `reset-password`, `refresh-token` |
 | `auth.module.ts` | Registra PassportModule, JwtModule, EmailModule, providers e controllers |
