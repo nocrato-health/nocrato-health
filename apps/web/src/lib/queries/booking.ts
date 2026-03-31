@@ -9,6 +9,7 @@ export interface ValidateTokenResponse {
   doctor?: {
     name: string
     specialty?: string
+    timezone: string
   }
   tenant?: {
     name: string

@@ -13,16 +13,11 @@ Formato de prioridade: **P1** (antes do deploy) · **P2** (antes de escalar) · 
 
 ## Em aberto
 
-### TD-01 — getSlots: filtro de appointments usa range UTC fixo
+### ~~TD-01 — getSlots: filtro de appointments usa range UTC fixo~~ ✅ RESOLVIDO
 **Módulo:** `booking`
 **Identificado em:** US-7.2
-**Prioridade:** P2
 
-`getSlots` filtra appointments do dia com `date_time >= T00:00:00.000Z AND date_time < T23:59:59.999Z`, tratando a data como se fosse UTC. O correto seria converter os limites do dia para UTC usando o timezone do doutor (`doctors.timezone`).
-
-**Impacto atual:** Nenhum no MVP. Todos os doutores estão em `America/Sao_Paulo` (UTC-3) com horários entre 08:00–18:00. Um appointment das 08:00 local é armazenado como T11:00Z — dentro do range. Só se manifestaria com horários após 21:00 local (T00:00Z do dia seguinte).
-
-**Fix:** Calcular `dayStart` e `dayEnd` convertendo `date + 00:00` e `date + 23:59` para UTC usando `Intl.DateTimeFormat` ou `Date` aritmético com o offset do timezone.
+**Resolvido em:** TD Phase 3 fix — helper `localDayToUtcRange(date, timezone)` converte dia local para range UTC via Intl.DateTimeFormat. Extraído para `_computeSlots()` privado que centraliza a lógica (TD-12). Para `America/Sao_Paulo` (UTC-3), range agora é `T03:00:00.000Z` / `T02:59:59.999Z` do dia seguinte. CTs CT-TZ-01 e CT-TZ-02 validam.
 
 ---
 
@@ -107,16 +102,11 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### TD-12 — Duplicação da lógica de geração de slots entre getSlots e getSlotsInternal
+### ~~TD-12 — Duplicação da lógica de geração de slots entre getSlots e getSlotsInternal~~ ✅ RESOLVIDO
 **Módulo:** `booking`
 **Identificado em:** US-7.4 (OBS-TL-1)
-**Prioridade:** P3
 
-`getSlots(slug, token, date)` e `getSlotsInternal(tenantId, date)` duplicam verbatim a lógica de: parse do dia da semana, geração de slots por período, busca de appointments ocupados, conversão UTC→local e filtragem de overlap e horários passados.
-
-**Impacto atual:** Nenhum — são dois pontos de entrada distintos (público e interno). Risco de drift se regras de slot mudarem (ex: buffer entre consultas).
-
-**Fix:** Extrair `_computeSlots(tenantId: string, date: string): Promise<GetSlotsResult>` como método privado compartilhado. `getSlots` e `getSlotsInternal` delegam para ele após suas respectivas etapas de validação.
+**Resolvido em:** TD Phase 3 fix — método privado `_computeSlots(tenantId, date)` extraído. `getSlots` mantém apenas validação de slug+token e delega. `getSlotsInternal` é one-liner que delega. ~80 linhas de duplicação eliminadas.
 
 ---
 
@@ -139,16 +129,11 @@ A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.s
 
 ---
 
-### TD-14 — formatTime/formatDateTime com timezone fixo; todayDate usa fuso local do browser
+### ~~TD-14 — formatTime/formatDateTime com timezone fixo; todayDate usa fuso local do browser~~ ✅ RESOLVIDO
 **Módulo:** `apps/web` (routes/book/$slug.tsx)
 **Identificado em:** US-7.5 (OBS-TL-2 tech-lead)
-**Prioridade:** P2
 
-`formatTime` e `formatDateTime` usam `timeZone: 'America/Sao_Paulo'` fixo, ignorando `SlotsResponse.timezone` retornado pelo backend. `todayDate()` calcula a data mínima do input usando o fuso local do browser, criando janela de até 3h de inconsistência para médicos em UTC vs browser UTC-3.
-
-**Impacto atual:** Nenhum — todos os médicos estão em `America/Sao_Paulo`. Manifesta-se com médicos em outros fusos ou servidor em fuso diferente.
-
-**Fix:** Passar `timezone` da `SlotsResponse` para `formatTime`; calcular `todayDate()` convertendo `new Date()` para o fuso do médico via `Intl.DateTimeFormat`. Resolver antes do Epic 11 se escopo incluir médicos fora de SP.
+**Resolvido em:** TD Phase 3 fix — `formatDateTime`, `todayDate` e construção do `dateTime` agora recebem timezone explícito. `validateToken` retorna `doctor.timezone` desde Step 1. Helper `localToIso(date, time, timezone)` substitui offset `-03:00` hardcoded. Sem dependência de `America/Sao_Paulo` ou fuso do browser.
 
 ---
 
@@ -166,16 +151,11 @@ A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.s
 
 ---
 
-### TD-12 — Timezone hardcoded `America/Sao_Paulo` no frontend de booking (OBS-TL-01/02)
-**Módulo:** `apps/web/routes/book/`, `booking`
+### ~~TD-12/web — Timezone hardcoded `America/Sao_Paulo` no frontend de booking~~ ✅ RESOLVIDO
+**Módulo:** `apps/web/routes/book/`
 **Identificado em:** US-7.5 / Revisão tech-lead
-**Prioridade:** P2
 
-Em `$slug.tsx`, `formatDateTime` e a formatação de data no Step2 usam `timeZone: 'America/Sao_Paulo'` fixo. Além disso, o `dateTime` enviado ao POST `/book` é construído com offset fixo `-03:00` (`${date}T${slot.start}:00-03:00`). Doutores com timezone diferente (ex: `America/Manaus`) veriam horários incorretos.
-
-**Mitigação atual:** Todos os doutores do MVP estão em BRT — comportamento correto para o caso de uso atual.
-
-**Fix:** Expor `timezone` no `ValidateTokenResponse`; consumir no frontend para formatar datas e construir o offset correto. Relacionado ao TD-07 (backend) — resolver juntos.
+**Resolvido em:** TD Phase 3 fix — coberto pelo fix de TD-14. `validateToken` agora retorna `doctor.timezone`. Frontend usa timezone explícito em `formatDateTime`, `todayDate` e `localToIso`. Offset `-03:00` removido.
 
 ---
 
@@ -263,14 +243,11 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-27 — `toDatetimeLocal`/`fromDatetimeLocal` assume timezone do browser = timezone do médico
+### ~~TD-27 — `toDatetimeLocal`/`fromDatetimeLocal` assume timezone do browser = timezone do médico~~ ✅ RESOLVIDO
 **Módulo:** `web` (utils)
 **Identificado em:** fix/doctor-portal-ux (tech-lead review)
-**Prioridade:** P2
 
-As funções `toDatetimeLocal` e `fromDatetimeLocal` em `apps/web/src/lib/utils.ts` usam `new Date()` com métodos `getHours()`/`getDate()` que operam no fuso horário do browser. Funcionam corretamente apenas quando o browser do médico está no mesmo fuso cadastrado em `doctors.timezone`. Se o médico cadastrar `America/Manaus` mas acessar pelo browser em GMT-3 (Brasília), os horários das consultas serão exibidos e salvos com 1h de diferença.
-
-**Fix:** Receber `timezone: string` como parâmetro explícito e usar `Intl.DateTimeFormat` com `timeZone` para converter corretamente independente do fuso do browser. Atualizar call sites em `appointments/index.tsx` e `appointments/$appointmentId.tsx` para passar `doctor.timezone`.
+**Resolvido em:** TD Phase 3 fix — ambas funções agora aceitam parametro opcional `timezone?: string`. Quando presente, usam `Intl.DateTimeFormat` com `timeZone` para conversão correta. Call sites em `appointments/index.tsx` e `$appointmentId.tsx` passam `profile?.timezone` via `useQuery(profileSettingsQueryOptions())`. Fallback browser-local mantido para backward compatibility.
 
 ---
 

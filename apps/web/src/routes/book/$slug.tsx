@@ -23,20 +23,48 @@ type Step = 1 | 2 | 3 | 4
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDateTime(isoString: string): string {
+function formatDateTime(isoString: string, timezone: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'full',
     timeStyle: 'short',
-    timeZone: 'America/Sao_Paulo',
+    timeZone: timezone,
   }).format(new Date(isoString))
 }
 
-function todayDate(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+function todayDate(timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+  }).format(new Date())
+}
+
+/**
+ * Converte data local (YYYY-MM-DD) + horário local (HH:mm) para ISO UTC,
+ * usando o timezone do doutor para calcular o offset correto.
+ *
+ * Estratégia: usa uma referência ao meio-dia UTC da data escolhida para
+ * determinar o offset do timezone naquele dia (lida com DST automaticamente),
+ * depois aplica esse offset ao horário desejado.
+ */
+function localToIso(date: string, time: string, timezone: string): string {
+  const ref = new Date(`${date}T12:00:00Z`)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  })
+  const parts = formatter.formatToParts(ref)
+  const get = (type: string) => (parts.find((p) => p.type === type) ?? { value: '00' }).value
+  const localAtRef = new Date(
+    `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`,
+  )
+  const offsetMs = ref.getTime() - localAtRef.getTime()
+  const naive = new Date(`${date}T${time}:00Z`)
+  return new Date(naive.getTime() + offsetMs).toISOString()
 }
 
 // ─── Schema do formulário de confirmação ──────────────────────────────────────
@@ -111,13 +139,14 @@ function ClinicHeader({ validateData }: ClinicHeaderProps) {
 // ─── Step 1 — Seleção de data ─────────────────────────────────────────────────
 
 interface Step1Props {
-  selectedDate: string
-  onDateChange: (date: string) => void
-  onNext: () => void
-  validateData: ValidateTokenResponse
+  readonly selectedDate: string
+  readonly onDateChange: (date: string) => void
+  readonly onNext: () => void
+  readonly validateData: ValidateTokenResponse
+  readonly timezone: string
 }
 
-function Step1DatePicker({ selectedDate, onDateChange, onNext, validateData }: Step1Props) {
+function Step1DatePicker({ selectedDate, onDateChange, onNext, validateData, timezone }: Step1Props) {
   return (
     <div className="space-y-6">
       <ClinicHeader validateData={validateData} />
@@ -139,7 +168,7 @@ function Step1DatePicker({ selectedDate, onDateChange, onNext, validateData }: S
         <Input
           id="date-input"
           type="date"
-          min={todayDate()}
+          min={todayDate(timezone)}
           value={selectedDate}
           onChange={(e) => onDateChange(e.target.value)}
           className="border-[#e8dfc8] focus:border-amber-bright"
@@ -160,25 +189,28 @@ function Step1DatePicker({ selectedDate, onDateChange, onNext, validateData }: S
 // ─── Step 2 — Seleção de horário ──────────────────────────────────────────────
 
 interface Step2Props {
-  slug: string
-  token: string
-  selectedDate: string
-  onSlotSelect: (slot: Slot) => void
-  onBack: () => void
-  validateData: ValidateTokenResponse
+  readonly slug: string
+  readonly token: string
+  readonly selectedDate: string
+  readonly onSlotSelect: (slot: Slot) => void
+  readonly onBack: () => void
+  readonly validateData: ValidateTokenResponse
+  readonly timezone: string
 }
 
-function Step2SlotPicker({ slug, token, selectedDate, onSlotSelect, onBack, validateData }: Step2Props) {
+function Step2SlotPicker({ slug, token, selectedDate, onSlotSelect, onBack, validateData, timezone }: Step2Props) {
   const { data: slotsData, isLoading, isError } = useQuery(
     availableSlotsQueryOptions(slug, token, selectedDate),
   )
+
+  const effectiveTimezone = slotsData?.timezone ?? timezone
 
   const formattedDate = new Intl.DateTimeFormat('pt-BR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-    timeZone: 'America/Sao_Paulo',
-  }).format(new Date(`${selectedDate}T12:00:00`))
+    timeZone: effectiveTimezone,
+  }).format(new Date(`${selectedDate}T12:00:00Z`))
 
   return (
     <div className="space-y-6">
@@ -261,6 +293,7 @@ interface Step3Props {
   onSuccess: (data: BookResponse) => void
   onConflict: () => void
   validateData: ValidateTokenResponse
+  timezone: string
 }
 
 function Step3ConfirmForm({
@@ -273,6 +306,7 @@ function Step3ConfirmForm({
   onSuccess,
   onConflict,
   validateData,
+  timezone,
 }: Step3Props) {
   const bookAppointment = useBookAppointment()
   const [mutationError, setMutationError] = React.useState<string | null>(null)
@@ -298,7 +332,7 @@ function Step3ConfirmForm({
         token,
         name: data.name,
         phone: data.phone,
-        dateTime: `${selectedDate}T${selectedSlot.start}:00-03:00`,
+        dateTime: localToIso(selectedDate, selectedSlot.start, timezone),
       },
       {
         onSuccess: (result) => {
@@ -400,10 +434,11 @@ function Step3ConfirmForm({
 // ─── Step 4 — Tela de sucesso ─────────────────────────────────────────────────
 
 interface Step4Props {
-  bookResult: BookResponse
+  readonly bookResult: BookResponse
+  readonly timezone: string
 }
 
-function Step4Success({ bookResult }: Step4Props) {
+function Step4Success({ bookResult, timezone }: Step4Props) {
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
@@ -429,7 +464,7 @@ function Step4Success({ bookResult }: Step4Props) {
               Data e hora
             </p>
             <p className="text-sm font-semibold text-amber-dark">
-              {formatDateTime(bookResult.appointment.dateTime)}
+              {formatDateTime(bookResult.appointment.dateTime, timezone)}
             </p>
           </div>
         </div>
@@ -532,6 +567,9 @@ export function BookingPage() {
     return <TokenErrorScreen reason={validateData?.reason} />
   }
 
+  // Timezone do doutor — fallback para UTC se o campo ainda não vier do backend
+  const doctorTimezone = validateData.doctor?.timezone ?? 'UTC'
+
   function handleDateSelected(date: string) {
     setSelectedDate(date)
   }
@@ -566,6 +604,7 @@ export function BookingPage() {
               onDateChange={handleDateSelected}
               onNext={handleGoToSlots}
               validateData={validateData}
+              timezone={doctorTimezone}
             />
           )}
 
@@ -577,6 +616,7 @@ export function BookingPage() {
               onSlotSelect={handleSlotSelected}
               onBack={() => setStep(1)}
               validateData={validateData}
+              timezone={doctorTimezone}
             />
           )}
 
@@ -591,11 +631,12 @@ export function BookingPage() {
               onSuccess={handleBookSuccess}
               onConflict={handleConflict}
               validateData={validateData}
+              timezone={doctorTimezone}
             />
           )}
 
           {step === 4 && bookResult && (
-            <Step4Success bookResult={bookResult} />
+            <Step4Success bookResult={bookResult} timezone={doctorTimezone} />
           )}
         </div>
       </div>

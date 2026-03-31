@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ChevronRight, Calendar, User, FileText, Clock, Plus } from 'lucide-react'
 
 import { appointmentDetailQueryOptions, useUpdateAppointmentStatus } from '@/lib/queries/appointments'
+import { profileSettingsQueryOptions } from '@/lib/queries/doctor'
 import { formatDate, formatDateTime, toDatetimeLocal, fromDatetimeLocal } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
@@ -107,18 +108,19 @@ interface RescheduleDialogProps {
   onConfirm: (newDateTime: string, newDurationMinutes: number) => void
   isPending: boolean
   currentDateTime?: string
+  timezone?: string
 }
 
-function RescheduleDialog({ open, onOpenChange, onConfirm, isPending, currentDateTime }: RescheduleDialogProps) {
+function RescheduleDialog({ open, onOpenChange, onConfirm, isPending, currentDateTime, timezone }: RescheduleDialogProps) {
   const [newDateTime, setNewDateTime] = React.useState('')
   const [durationMinutes, setDurationMinutes] = React.useState('30')
   const [error, setError] = React.useState('')
 
   React.useEffect(() => {
     if (open && currentDateTime) {
-      setNewDateTime(toDatetimeLocal(currentDateTime))
+      setNewDateTime(toDatetimeLocal(currentDateTime, timezone))
     }
-  }, [open, currentDateTime])
+  }, [open, currentDateTime, timezone])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -126,7 +128,7 @@ function RescheduleDialog({ open, onOpenChange, onConfirm, isPending, currentDat
       setError('Informe a nova data e hora.')
       return
     }
-    onConfirm(fromDatetimeLocal(newDateTime), Number(durationMinutes))
+    onConfirm(fromDatetimeLocal(newDateTime, timezone), Number(durationMinutes))
   }
 
   function handleClose() {
@@ -244,9 +246,10 @@ interface ActionButtonsProps {
   status: AppointmentStatus
   appointmentId: string
   currentDateTime: string
+  timezone?: string
 }
 
-function ActionButtons({ status, appointmentId, currentDateTime }: ActionButtonsProps) {
+function ActionButtons({ status, appointmentId, currentDateTime, timezone }: ActionButtonsProps) {
   const updateStatus = useUpdateAppointmentStatus(appointmentId)
 
   const [cancelOpen, setCancelOpen] = React.useState(false)
@@ -418,6 +421,7 @@ function ActionButtons({ status, appointmentId, currentDateTime }: ActionButtons
         onConfirm={handleReschedule}
         isPending={isPending}
         currentDateTime={currentDateTime}
+        timezone={timezone}
       />
       <CompleteDialog
         open={completeOpen}
@@ -457,6 +461,7 @@ export function DoctorAppointmentDetailPage() {
   const [addNoteOpen, setAddNoteOpen] = React.useState(false)
 
   const { data, isLoading, isError } = useQuery(appointmentDetailQueryOptions(appointmentId))
+  const { data: profile } = useQuery(profileSettingsQueryOptions())
 
   if (isLoading) {
     return (
@@ -497,7 +502,7 @@ export function DoctorAppointmentDetailPage() {
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <span className="text-amber-dark font-medium">
-          {formatDateTime(appointment.date_time)}
+          {formatDateTime(appointment.date_time, profile?.timezone)}
         </span>
       </nav>
 
@@ -509,7 +514,7 @@ export function DoctorAppointmentDetailPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-amber-dark font-heading">
-              Consulta — {formatDateTime(appointment.date_time)}
+              Consulta — {formatDateTime(appointment.date_time, profile?.timezone)}
             </h1>
             <p className="text-sm text-amber-mid">{appointment.duration_minutes} minutos</p>
           </div>
@@ -564,7 +569,7 @@ export function DoctorAppointmentDetailPage() {
           <div className="space-y-2 text-sm">
             <div>
               <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Data / Hora</p>
-              <p className="text-amber-dark font-medium">{formatDateTime(appointment.date_time)}</p>
+              <p className="text-amber-dark font-medium">{formatDateTime(appointment.date_time, profile?.timezone)}</p>
             </div>
             <div>
               <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Duração</p>
@@ -581,13 +586,13 @@ export function DoctorAppointmentDetailPage() {
             {appointment.started_at && (
               <div>
                 <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Iniciado em</p>
-                <p className="text-amber-dark">{formatDateTime(appointment.started_at)}</p>
+                <p className="text-amber-dark">{formatDateTime(appointment.started_at, profile?.timezone)}</p>
               </div>
             )}
             {appointment.completed_at && (
               <div>
                 <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Concluído em</p>
-                <p className="text-amber-dark">{formatDateTime(appointment.completed_at)}</p>
+                <p className="text-amber-dark">{formatDateTime(appointment.completed_at, profile?.timezone)}</p>
               </div>
             )}
             {appointment.cancellation_reason && (
@@ -602,7 +607,7 @@ export function DoctorAppointmentDetailPage() {
 
       {/* Ações */}
       <div className="rounded-xl border border-[#e8dfc8] bg-white p-5 shadow-sm">
-        <ActionButtons status={appointment.status} appointmentId={appointment.id} currentDateTime={appointment.date_time} />
+        <ActionButtons status={appointment.status} appointmentId={appointment.id} currentDateTime={appointment.date_time} timezone={profile?.timezone} />
       </div>
 
       {/* Notas clínicas */}
@@ -632,7 +637,7 @@ export function DoctorAppointmentDetailPage() {
           <div className="space-y-3">
             {clinicalNotes.map((note) => (
               <div key={note.id} className="rounded-lg border border-[#e8dfc8] bg-[#f5f0e8] p-4 space-y-1">
-                <p className="text-xs text-amber-mid">{formatDateTime(note.created_at)}</p>
+                <p className="text-xs text-amber-mid">{formatDateTime(note.created_at, profile?.timezone)}</p>
                 <p className="text-sm text-amber-dark whitespace-pre-wrap">{note.content}</p>
               </div>
             ))}

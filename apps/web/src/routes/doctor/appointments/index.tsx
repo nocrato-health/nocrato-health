@@ -9,6 +9,7 @@ import {
   useCreateAppointment,
   type AppointmentsQueryParams,
 } from '@/lib/queries/appointments'
+import { profileSettingsQueryOptions } from '@/lib/queries/doctor'
 import { formatDateTime, formatPhone, fromDatetimeLocal } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ interface NewAppointmentDialogProps {
 
 function NewAppointmentDialog({ open, onOpenChange }: NewAppointmentDialogProps) {
   const createAppointment = useCreateAppointment()
+  const { data: profile } = useQuery(profileSettingsQueryOptions())
 
   const [patientSearch, setPatientSearch] = React.useState('')
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
@@ -105,7 +107,7 @@ function NewAppointmentDialog({ open, onOpenChange }: NewAppointmentDialogProps)
     createAppointment.mutate(
       {
         patientId: selectedPatientId,
-        dateTime: fromDatetimeLocal(dateTime),
+        dateTime: fromDatetimeLocal(dateTime, profile?.timezone),
         durationMinutes: Number(durationMinutes),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       },
@@ -283,6 +285,7 @@ export function DoctorAppointmentsPage() {
   }
 
   const { data, isLoading, isError } = useQuery(appointmentsQueryOptions(queryParams))
+  const { data: profileData } = useQuery(profileSettingsQueryOptions())
 
   function handleStatusChange(value: string) {
     setStatusFilter(value as AppointmentStatus | '')
@@ -405,7 +408,7 @@ export function DoctorAppointmentsPage() {
                 className="border-b border-[#e8dfc8] last:border-0 hover:bg-[#f5f0e8] transition-colors"
               >
                 <td className="py-3 px-4 text-amber-dark font-medium">
-                  {formatDateTime(appt.date_time)}
+                  {formatDateTime(appt.date_time, profileData?.timezone)}
                 </td>
                 <td className="py-3 px-4 text-[#6c85a0] font-mono text-xs">
                   #{appt.patient_id.slice(0, 8)}
