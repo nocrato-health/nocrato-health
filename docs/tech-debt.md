@@ -168,6 +168,19 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
+### TD-28 — bookAppointment: race condition no findOrCreate de paciente por phone
+**Módulo:** `booking`
+**Identificado em:** TD Phase 4 — Playwright paralelo (QA)
+**Prioridade:** P2
+
+`bookAppointment` em `booking.service.ts` faz SELECT → INSERT sequencial para criar paciente pelo phone. Se duas transações concorrentes não encontram o paciente e ambas tentam INSERT, a segunda falha com erro `23505` (unique violation em `(tenant_id, phone)`) e retorna 500 ao paciente.
+
+**Impacto atual:** Baixo — booking é sequencial na prática (um tab por vez). Manifestou-se em testes E2E paralelos.
+
+**Fix:** Usar `INSERT ... ON CONFLICT (tenant_id, phone) DO UPDATE SET name = EXCLUDED.name RETURNING *` (upsert atômico), mesmo padrão de `ConversationService.getOrCreate`.
+
+---
+
 ### ~~TD-18 — Type guard do webhook controller não valida `data.key` antes do cast~~ ✅ RESOLVIDO em US-9.3
 **Módulo:** `agent`
 **Identificado em:** US-9.2 (OBS-TL-2 tech-lead)
