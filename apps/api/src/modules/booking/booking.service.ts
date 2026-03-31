@@ -20,7 +20,7 @@ import type { BookAppointmentDto, BookInChatDto } from './booking.dto'
 
 export interface ValidateTokenResult {
   valid: true
-  doctor: { name: string; specialty: string | null }
+  doctor: { name: string; specialty: string | null; timezone: string }
   tenant: { name: string; primaryColor: string | null; logoUrl: string | null }
   phone: string | null
 }
@@ -82,6 +82,40 @@ function todayInTimezone(timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
   }).format(new Date()) // en-CA produz formato YYYY-MM-DD
+}
+
+/**
+ * Converte data local (YYYY-MM-DD) no timezone do doutor para range UTC.
+ * Ex: date="2026-03-15", timezone="America/Sao_Paulo" (UTC-3)
+ *   → start: "2026-03-15T03:00:00.000Z", end: "2026-03-16T02:59:59.999Z"
+ */
+function localDayToUtcRange(date: string, timezone: string): { start: string; end: string } {
+  // Use noon UTC as reference point (avoids DST edge cases at midnight)
+  const ref = new Date(`${date}T12:00:00Z`)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const parts = formatter.formatToParts(ref)
+  const get = (type: string) => parts.find((p) => p.type === type)!.value
+  const localAtRef = new Date(
+    `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`,
+  )
+  // Offset = UTC instant - local "equivalent" instant
+  const offsetMs = ref.getTime() - localAtRef.getTime()
+
+  // Midnight local as UTC = date T00:00:00 treated as UTC + offset
+  const midnightLocalAsUtc = new Date(`${date}T00:00:00Z`)
+  const startUtc = new Date(midnightLocalAsUtc.getTime() + offsetMs)
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000 - 1)
+
+  return { start: startUtc.toISOString(), end: endUtc.toISOString() }
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +214,7 @@ export class BookingService {
     // 5. Buscar doctor ativo do tenant
     const doctor = await this.knex('doctors')
       .where({ tenant_id: tenant.id, status: 'active' })
-      .select('name', 'specialty')
+      .select('name', 'specialty', 'timezone')
       .first()
 
     // 6. Retornar resultado
@@ -189,6 +223,7 @@ export class BookingService {
       doctor: {
         name: doctor?.name ?? '',
         specialty: doctor?.specialty ?? null,
+        timezone: (doctor?.timezone as string | undefined) ?? 'America/Sao_Paulo',
       },
       tenant: {
         name: tenant.name as string,
@@ -232,80 +267,7 @@ export class BookingService {
       throw new ForbiddenException({ valid: false, reason: 'expired' })
     }
 
-    // 3. Buscar dados do doctor (working_hours, appointment_duration, timezone)
-    const doctor = await this.knex('doctors')
-      .where({ tenant_id: tenant.id, status: 'active' })
-      .select(
-        this.knex.raw('working_hours as "workingHours"'),
-        this.knex.raw('appointment_duration as "appointmentDuration"'),
-        'timezone',
-      )
-      .first()
-
-    const workingHours: Record<string, Array<{ start: string; end: string }>> =
-      (doctor?.workingHours as Record<string, Array<{ start: string; end: string }>>) ?? {}
-    const appointmentDuration: number = (doctor?.appointmentDuration as number) ?? 30
-    const timezone: string = (doctor?.timezone as string) ?? 'America/Sao_Paulo'
-
-    // 4. Calcular dia da semana da date (sem timezone — data local)
-    const [year, month, day] = date.split('-').map(Number)
-    const d = new Date(year, month - 1, day)
-    const dayName = DAY_NAMES[d.getDay()]
-    const periods = workingHours[dayName] ?? []
-
-    // 5. Dia sem expediente
-    if (periods.length === 0) {
-      return { date, slots: [], timezone, durationMinutes: appointmentDuration }
-    }
-
-    // 6. Gerar todos os slots possíveis para os períodos do dia
-    const allSlots: SlotItem[] = []
-    for (const period of periods) {
-      let current = period.start
-      while (compareTime(addMinutes(current, appointmentDuration), period.end) <= 0) {
-        allSlots.push({ start: current, end: addMinutes(current, appointmentDuration) })
-        current = addMinutes(current, appointmentDuration)
-      }
-    }
-
-    // 7. Buscar appointments do dia para filtrar slots ocupados
-    const dayStart = `${date}T00:00:00.000Z`
-    const dayEnd = `${date}T23:59:59.999Z`
-
-    const appointments = await this.knex('appointments')
-      .where({ tenant_id: tenant.id })
-      .whereNotIn('status', ['cancelled', 'no_show', 'rescheduled'])
-      .andWhereBetween('date_time', [dayStart, dayEnd])
-      .select(
-        this.knex.raw('date_time as "dateTime"'),
-        this.knex.raw('duration_minutes as "durationMinutes"'),
-      )
-
-    // Converter appointments UTC → hora local do doutor para comparação
-    type ApptRow = { dateTime: string; durationMinutes: number }
-    const occupiedRanges = (appointments as ApptRow[]).map((appt) => {
-      const startLocal = utcToLocalTime(appt.dateTime, timezone)
-      const endLocal = addMinutes(startLocal, appt.durationMinutes)
-      return { start: startLocal, end: endLocal }
-    })
-
-    // Filtrar slots que se sobrepõem a algum appointment (overlap)
-    const freeSlots = allSlots.filter((slot) => {
-      return !occupiedRanges.some(
-        (occ) =>
-          compareTime(occ.start, slot.end) < 0 && compareTime(occ.end, slot.start) > 0,
-      )
-    })
-
-    // 8. Se data=hoje no timezone do doutor, remover slots passados
-    const todayStr = todayInTimezone(timezone)
-    let finalSlots = freeSlots
-    if (date === todayStr) {
-      const now = nowLocalTime(timezone)
-      finalSlots = freeSlots.filter((slot) => compareTime(slot.end, now) > 0)
-    }
-
-    return { date, slots: finalSlots, timezone, durationMinutes: appointmentDuration }
+    return this._computeSlots(tenant.id as string, date)
   }
 
   // -------------------------------------------------------------------------
@@ -313,7 +275,15 @@ export class BookingService {
   // -------------------------------------------------------------------------
 
   async getSlotsInternal(tenantId: string, date: string): Promise<GetSlotsResult> {
-    // 1. Buscar dados do doctor (working_hours, appointment_duration, timezone) diretamente por tenant_id
+    return this._computeSlots(tenantId, date)
+  }
+
+  // -------------------------------------------------------------------------
+  // _computeSlots (TD-12) — lógica centralizada de cálculo de slots
+  // -------------------------------------------------------------------------
+
+  private async _computeSlots(tenantId: string, date: string): Promise<GetSlotsResult> {
+    // 1. Buscar dados do doctor (working_hours, appointment_duration, timezone)
     const doctor = await this.knex('doctors')
       .where({ tenant_id: tenantId, status: 'active' })
       .select(
@@ -353,9 +323,8 @@ export class BookingService {
       }
     }
 
-    // 5. Buscar appointments do dia para filtrar slots ocupados
-    const dayStart = `${date}T00:00:00.000Z`
-    const dayEnd = `${date}T23:59:59.999Z`
+    // 5. Buscar appointments do dia — TD-01: usar range UTC correto para o timezone do doutor
+    const { start: dayStart, end: dayEnd } = localDayToUtcRange(date, timezone)
 
     const appointments = await this.knex('appointments')
       .where({ tenant_id: tenantId })

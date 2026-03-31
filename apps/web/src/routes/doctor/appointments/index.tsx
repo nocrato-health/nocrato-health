@@ -9,6 +9,7 @@ import {
   useCreateAppointment,
   type AppointmentsQueryParams,
 } from '@/lib/queries/appointments'
+import { profileSettingsQueryOptions } from '@/lib/queries/doctor'
 import { formatDateTime, formatPhone, fromDatetimeLocal } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ interface NewAppointmentDialogProps {
 
 function NewAppointmentDialog({ open, onOpenChange }: NewAppointmentDialogProps) {
   const createAppointment = useCreateAppointment()
+  const { data: profile } = useQuery(profileSettingsQueryOptions())
 
   const [patientSearch, setPatientSearch] = React.useState('')
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
@@ -105,7 +107,7 @@ function NewAppointmentDialog({ open, onOpenChange }: NewAppointmentDialogProps)
     createAppointment.mutate(
       {
         patientId: selectedPatientId,
-        dateTime: fromDatetimeLocal(dateTime),
+        dateTime: fromDatetimeLocal(dateTime, profile?.timezone),
         durationMinutes: Number(durationMinutes),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       },

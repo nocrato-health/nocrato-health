@@ -370,13 +370,15 @@ describe('BookingService — validateToken', () => {
   // -------------------------------------------------------------------------
 
   it('CT-72-01: should return valid=true with doctor, tenant and phone', async () => {
-    const { mockKnex } = buildValidateKnex({})
+    const { mockKnex } = buildValidateKnex({
+      doctor: { name: 'Dr. Silva', specialty: 'Cardiologia', timezone: 'America/Sao_Paulo' },
+    })
     service = await buildService(mockKnex)
 
     const result = await service.validateToken(TENANT_SLUG, 'abc123')
 
     expect(result.valid).toBe(true)
-    expect(result.doctor).toEqual({ name: 'Dr. Silva', specialty: 'Cardiologia' })
+    expect(result.doctor).toEqual({ name: 'Dr. Silva', specialty: 'Cardiologia', timezone: 'America/Sao_Paulo' })
     expect(result.tenant).toEqual({
       name: 'Clínica Silva',
       primaryColor: '#123456',
@@ -1343,5 +1345,120 @@ describe('BookingService — getSlotsInternal + bookInChat (US-7.4)', () => {
     const error = await service.bookInChat(TENANT_ID, BASE_DTO_74).catch((e) => e)
     expect(error).toBeInstanceOf(ConflictException)
     expect((error as ConflictException).getResponse()).toMatchObject({ code: 'SLOT_CONFLICT' })
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-TZ-01: localDayToUtcRange com America/Sao_Paulo (UTC-3)
+  //   getSlotsInternal com timezone=America/Sao_Paulo deve usar range UTC deslocado 3h.
+  //   date="2025-06-10" → start: "2025-06-10T03:00:00.000Z", end: "2025-06-11T02:59:59.999Z"
+  // -------------------------------------------------------------------------
+
+  it('CT-TZ-01: should use timezone-correct UTC range for appointments query (America/Sao_Paulo)', async () => {
+    const date = '2025-06-10' // terça-feira
+
+    const doctorRow = {
+      workingHours: {
+        tuesday: [{ start: '09:00', end: '10:00' }],
+      },
+      appointmentDuration: 60,
+      timezone: 'America/Sao_Paulo',
+    }
+
+    let capturedRange: [string, string] | undefined
+
+    const appointmentsBuilder: Record<string, jest.Mock | unknown> = {
+      where: jest.fn().mockReturnThis(),
+      whereNotIn: jest.fn().mockReturnThis(),
+      andWhereBetween: jest.fn().mockImplementation((_col: string, range: [string, string]) => {
+        capturedRange = range
+        return appointmentsBuilder
+      }),
+      select: jest.fn().mockReturnThis(),
+    }
+    // Thenable — retorna array vazio de appointments
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['then'] = jest.fn().mockImplementation(
+      (resolve: (v: unknown) => unknown) => Promise.resolve([]).then(resolve),
+    )
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['catch'] = jest.fn().mockReturnThis()
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['finally'] = jest.fn().mockReturnThis()
+
+    const doctorsBuilder = makeSelectBuilder74(doctorRow)
+    const mockRaw = jest.fn().mockImplementation((sql: string) => sql)
+
+    const mockKnex = jest.fn().mockImplementation((table: string) => {
+      if (table === 'doctors') return doctorsBuilder
+      if (table === 'appointments') return appointmentsBuilder
+      throw new Error(`Tabela inesperada CT-TZ-01: ${table}`)
+    }) as jest.Mock & { raw: jest.Mock }
+
+    mockKnex.raw = mockRaw
+
+    service = await buildService(mockKnex)
+
+    await service.getSlotsInternal(TENANT_ID, date)
+
+    // Verificar que o range UTC está deslocado pelo offset de Sao Paulo (UTC-3 em junho = sem DST)
+    expect(capturedRange).toBeDefined()
+    const [start, end] = capturedRange!
+    // América/São Paulo em junho é UTC-3 → meia-noite local = 03:00 UTC
+    expect(start).toBe('2025-06-10T03:00:00.000Z')
+    // Fim do dia local = 2025-06-11T02:59:59.999Z
+    expect(end).toBe('2025-06-11T02:59:59.999Z')
+  })
+
+  // -------------------------------------------------------------------------
+  // CT-TZ-02: localDayToUtcRange com UTC
+  //   getSlotsInternal com timezone=UTC deve usar range UTC padrão (sem deslocamento).
+  //   date="2025-01-06" → start: "2025-01-06T00:00:00.000Z", end: "2025-01-06T23:59:59.999Z"
+  // -------------------------------------------------------------------------
+
+  it('CT-TZ-02: should use standard UTC range when doctor timezone is UTC', async () => {
+    const date = '2025-01-06' // segunda-feira
+
+    const doctorRow = {
+      workingHours: {
+        monday: [{ start: '09:00', end: '10:00' }],
+      },
+      appointmentDuration: 60,
+      timezone: 'UTC',
+    }
+
+    let capturedRange: [string, string] | undefined
+
+    const appointmentsBuilder: Record<string, jest.Mock | unknown> = {
+      where: jest.fn().mockReturnThis(),
+      whereNotIn: jest.fn().mockReturnThis(),
+      andWhereBetween: jest.fn().mockImplementation((_col: string, range: [string, string]) => {
+        capturedRange = range
+        return appointmentsBuilder
+      }),
+      select: jest.fn().mockReturnThis(),
+    }
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['then'] = jest.fn().mockImplementation(
+      (resolve: (v: unknown) => unknown) => Promise.resolve([]).then(resolve),
+    )
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['catch'] = jest.fn().mockReturnThis()
+    ;(appointmentsBuilder as Record<string, jest.Mock>)['finally'] = jest.fn().mockReturnThis()
+
+    const doctorsBuilder = makeSelectBuilder74(doctorRow)
+    const mockRaw = jest.fn().mockImplementation((sql: string) => sql)
+
+    const mockKnex = jest.fn().mockImplementation((table: string) => {
+      if (table === 'doctors') return doctorsBuilder
+      if (table === 'appointments') return appointmentsBuilder
+      throw new Error(`Tabela inesperada CT-TZ-02: ${table}`)
+    }) as jest.Mock & { raw: jest.Mock }
+
+    mockKnex.raw = mockRaw
+
+    service = await buildService(mockKnex)
+
+    await service.getSlotsInternal(TENANT_ID, date)
+
+    expect(capturedRange).toBeDefined()
+    const [start, end] = capturedRange!
+    // UTC sem deslocamento → meia-noite e fim do dia exatos
+    expect(start).toBe('2025-01-06T00:00:00.000Z')
+    expect(end).toBe('2025-01-06T23:59:59.999Z')
   })
 })
