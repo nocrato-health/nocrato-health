@@ -2,8 +2,10 @@ import { Controller, Get, Inject } from '@nestjs/common'
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Knex } from 'knex'
 import { KNEX } from '../../database/knex.provider'
+import { Public } from '@/common/decorators/public.decorator'
 
 @ApiTags('Health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(KNEX) private readonly knex: Knex) {}

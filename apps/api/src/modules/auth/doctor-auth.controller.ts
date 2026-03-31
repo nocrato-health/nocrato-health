@@ -9,6 +9,7 @@ import { ForgotPasswordSchema, type ForgotPasswordDto } from './dto/forgot-passw
 import { ResetPasswordSchema, type ResetPasswordDto } from './dto/reset-password.dto'
 import { RefreshTokenSchema, type RefreshTokenDto } from './dto/refresh-token.dto'
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
+import { Public } from '@/common/decorators/public.decorator'
 
 @ApiTags('Doctor Auth')
 @Controller('doctor/auth')
@@ -17,6 +18,7 @@ export class DoctorAuthController {
 
   // US-1.5: Validar token de convite de doutor (público)
   @Get('invite/:token')
+  @Public()
   @ApiOperation({ summary: 'Validar token de convite de doutor (retorna email pré-preenchido)' })
   @ApiParam({ name: 'token', description: 'Token de convite de 64 chars hex' })
   @ApiResponse({ status: 200, description: 'Token válido. Retorna email associado ao convite' })
@@ -28,6 +30,7 @@ export class DoctorAuthController {
 
   // US-1.5: Aceitar convite e criar portal (público)
   @Post('accept-invite')
+  @Public()
   @ApiOperation({ summary: 'Aceitar convite de doutor e criar portal (tenant + doctor + agent_settings)' })
   @ApiBody({
     schema: {
@@ -52,6 +55,7 @@ export class DoctorAuthController {
 
   // US-1.6: Resolver email antes do login (retorna slug ou hasPendingInvite) — SEC-08 / TD-25
   @Post('resolve-email')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Resolver email antes do login — retorna slug do portal ou flag de convite pendente' })
@@ -64,6 +68,7 @@ export class DoctorAuthController {
 
   // US-1.6: Login do doutor — SEC-09
   @Post('login')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Login do doutor' })
@@ -86,6 +91,7 @@ export class DoctorAuthController {
 
   // US-1.7: Solicitar redefinição de senha — SEC-09
   @Post('forgot-password')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Solicitar redefinição de senha do doutor por email' })
@@ -106,6 +112,7 @@ export class DoctorAuthController {
 
   // US-1.7: Redefinir senha com token — SEC-09
   @Post('reset-password')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Redefinir senha do doutor com token recebido por email' })
@@ -127,6 +134,7 @@ export class DoctorAuthController {
 
   // US-1.8: Renovar par de tokens — SEC-18
   @Post('refresh')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Renovar par de tokens do doutor usando refreshToken' })

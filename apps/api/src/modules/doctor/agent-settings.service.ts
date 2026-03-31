@@ -3,19 +3,7 @@ import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import type { AgentSettingsResponseDto } from './dto/agent-settings-response.dto'
 import type { UpdateAgentSettingsV2Dto } from './dto/update-agent-settings-v2.dto'
-
-interface AgentSettingsRow {
-  id: string
-  tenant_id: string
-  enabled: boolean
-  booking_mode: string
-  welcome_message: string | null
-  personality: string | null
-  faq: string | null
-  appointment_rules: string | null
-  created_at: string | Date
-  updated_at: string | Date
-}
+import type { AgentSettingsRow } from './doctor.types'
 
 const AGENT_SETTINGS_FIELDS = [
   'id',
@@ -26,6 +14,7 @@ const AGENT_SETTINGS_FIELDS = [
   'personality',
   'faq',
   'appointment_rules',
+  'evolution_instance_name',
   'created_at',
   'updated_at',
 ] as const
