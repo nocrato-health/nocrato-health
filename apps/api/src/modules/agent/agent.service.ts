@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { OnEvent } from '@nestjs/event-emitter'
+import { RetryOnError } from '@/common/decorators/retry-on-error.decorator'
 import type { Knex } from 'knex'
 import OpenAI from 'openai'
 import { KNEX } from '@/database/knex.provider'
@@ -443,10 +444,11 @@ export class AgentService {
 
   // ---------------------------------------------------------------------------
   // @OnEvent handlers — notificações proativas ao paciente via WhatsApp
-  // Todos são fire-and-forget seguro: exceções capturadas e logadas, nunca propagadas
+  // @RetryOnError() garante retry com backoff exponencial; após esgotar tentativas, loga e descarta
   // ---------------------------------------------------------------------------
 
   @OnEvent('appointment.created')
+  @RetryOnError()
   async onAppointmentCreated(payload: {
     tenantId: string
     patientId: string
@@ -454,29 +456,23 @@ export class AgentService {
     dateTime: string
     patientName: string
   }): Promise<void> {
-    try {
-      const instanceName = await this.getInstanceName(payload.tenantId)
-      if (!instanceName) {
-        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
-        return
-      }
-
-      const formatted = new Date(payload.dateTime).toLocaleString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        dateStyle: 'short',
-        timeStyle: 'short',
-      })
-      const message = `Olá ${payload.patientName}! Sua consulta foi agendada para ${formatted}. Aguardamos você!`
-      await this.whatsappService.sendText(payload.phone, message, instanceName)
-    } catch (err) {
-      this.logger.error(
-        'Erro ao enviar confirmação de agendamento via WhatsApp',
-        err instanceof Error ? err.message : String(err),
-      )
+    const instanceName = await this.getInstanceName(payload.tenantId)
+    if (!instanceName) {
+      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+      return
     }
+
+    const formatted = new Date(payload.dateTime).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    })
+    const message = `Olá ${payload.patientName}! Sua consulta foi agendada para ${formatted}. Aguardamos você!`
+    await this.whatsappService.sendText(payload.phone, message, instanceName)
   }
 
   @OnEvent('appointment.cancelled')
+  @RetryOnError()
   async onAppointmentCancelled(payload: {
     tenantId: string
     appointmentId: string
@@ -484,43 +480,37 @@ export class AgentService {
     dateTime: string
     reason?: string
   }): Promise<void> {
-    try {
-      const instanceName = await this.getInstanceName(payload.tenantId)
-      if (!instanceName) {
-        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
-        return
-      }
-
-      const row = await this.knex('patients')
-        .select('phone', 'name')
-        .where({ id: payload.patientId, tenant_id: payload.tenantId })
-        .first()
-
-      if (!row) {
-        this.logger.error(
-          'Paciente não encontrado para envio de cancelamento',
-          `patientId=${payload.patientId}`,
-        )
-        return
-      }
-
-      const formatted = new Date(payload.dateTime).toLocaleString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        dateStyle: 'short',
-        timeStyle: 'short',
-      })
-      const motivo = payload.reason ? ` Motivo: ${payload.reason}` : ''
-      const message = `Olá! Sua consulta marcada para ${formatted} foi cancelada.${motivo} Em caso de dúvidas, entre em contato.`
-      await this.whatsappService.sendText(row.phone as string, message, instanceName)
-    } catch (err) {
-      this.logger.error(
-        'Erro ao enviar aviso de cancelamento via WhatsApp',
-        err instanceof Error ? err.message : String(err),
-      )
+    const instanceName = await this.getInstanceName(payload.tenantId)
+    if (!instanceName) {
+      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+      return
     }
+
+    const row = await this.knex('patients')
+      .select('phone', 'name')
+      .where({ id: payload.patientId, tenant_id: payload.tenantId })
+      .first()
+
+    if (!row) {
+      this.logger.error(
+        'Paciente não encontrado para envio de cancelamento',
+        `patientId=${payload.patientId}`,
+      )
+      return
+    }
+
+    const formatted = new Date(payload.dateTime).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    })
+    const motivo = payload.reason ? ` Motivo: ${payload.reason}` : ''
+    const message = `Olá! Sua consulta marcada para ${formatted} foi cancelada.${motivo} Em caso de dúvidas, entre em contato.`
+    await this.whatsappService.sendText(row.phone as string, message, instanceName)
   }
 
   @OnEvent('appointment.status_changed')
+  @RetryOnError()
   async onAppointmentStatusChanged(payload: {
     tenantId: string
     appointmentId: string
@@ -533,64 +523,51 @@ export class AgentService {
       return
     }
 
-    try {
-      const instanceName = await this.getInstanceName(payload.tenantId)
-      if (!instanceName) {
-        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
-        return
-      }
-
-      const row = await this.knex('patients')
-        .select('phone', 'name')
-        .where({ id: payload.patientId, tenant_id: payload.tenantId })
-        .first()
-
-      if (!row) {
-        this.logger.error(
-          'Paciente não encontrado para envio de notificação de status',
-          `patientId=${payload.patientId}`,
-        )
-        return
-      }
-
-      const message = `Olá! O consultório está pronto para te receber. Por favor, dirija-se à recepção.`
-      await this.whatsappService.sendText(row.phone as string, message, instanceName)
-    } catch (err) {
-      this.logger.error(
-        'Erro ao enviar notificação de status via WhatsApp',
-        err instanceof Error ? err.message : String(err),
-      )
+    const instanceName = await this.getInstanceName(payload.tenantId)
+    if (!instanceName) {
+      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+      return
     }
+
+    const row = await this.knex('patients')
+      .select('phone', 'name')
+      .where({ id: payload.patientId, tenant_id: payload.tenantId })
+      .first()
+
+    if (!row) {
+      this.logger.error(
+        'Paciente não encontrado para envio de notificação de status',
+        `patientId=${payload.patientId}`,
+      )
+      return
+    }
+
+    const message = `Olá! O consultório está pronto para te receber. Por favor, dirija-se à recepção.`
+    await this.whatsappService.sendText(row.phone as string, message, instanceName)
   }
 
   @OnEvent('patient.portal_activated')
+  @RetryOnError()
   async onPortalActivated(payload: {
     tenantId: string
     patientId: string
     phone: string | undefined
     portalAccessCode: string
   }): Promise<void> {
-    try {
-      const instanceName = await this.getInstanceName(payload.tenantId)
-      if (!instanceName) {
-        this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
-        return
-      }
-
-      if (!payload.phone) {
-        this.logger.warn(
-          `Paciente sem telefone — não foi possível enviar código do portal via WhatsApp. patientId=${payload.patientId}`,
-        )
-        return
-      }
-      const message = `Seu portal de saúde está pronto! Acesse ${env.FRONTEND_URL}/patient e use o código: ${payload.portalAccessCode}`
-      await this.whatsappService.sendText(payload.phone, message, instanceName)
-    } catch (err) {
-      this.logger.error(
-        'Erro ao enviar código de acesso ao portal via WhatsApp',
-        err instanceof Error ? err.message : String(err),
-      )
+    const instanceName = await this.getInstanceName(payload.tenantId)
+    if (!instanceName) {
+      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+      return
     }
+
+    if (!payload.phone) {
+      this.logger.warn(
+        `Paciente sem telefone — não foi possível enviar código do portal via WhatsApp. patientId=${payload.patientId}`,
+      )
+      return
+    }
+    const message = `Seu portal de saúde está pronto! Acesse ${env.FRONTEND_URL}/patient e use o código: ${payload.portalAccessCode}`
+    await this.whatsappService.sendText(payload.phone, message, instanceName)
   }
 
   // ---------------------------------------------------------------------------
