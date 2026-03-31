@@ -6,18 +6,23 @@
  *   - Dados seed criados pelo globalSetup (setup-test-data.ts)
  *
  * Tokens usados (inseridos pelo seed, 64 chars hex cada):
- *   - VALID_TOKEN    → CT-75-01 happy path (consumido após o teste)
- *   - EXPIRED_TOKEN  → CT-75-03 expirado
- *   - PHONE_TOKEN    → CT-75-04 phone='+5511987654321' (não consumido)
- *   - CONFLICT_TOKEN → CT-75-05 race condition (POST mockado, não consumido)
+ *   - VALID_TOKEN        → CT-75-01 happy path projeto chromium (consumido após o teste)
+ *   - VALID_MOBILE_TOKEN → CT-75-01 happy path projeto mobile   (consumido após o teste)
+ *   - EXPIRED_TOKEN      → CT-75-03 expirado
+ *   - PHONE_TOKEN        → CT-75-04 phone='+5511987654321' (não consumido)
+ *   - CONFLICT_TOKEN     → CT-75-05 race condition (POST mockado, não consumido)
+ *
+ * Dois tokens válidos separados garantem que chromium e mobile possam executar
+ * CT-75-01 em paralelo sem race condition (token single-use).
  */
 import { test, expect } from '@playwright/test'
 
 const SLUG = 'test-done-doctor'
-const VALID_TOKEN    = 'abcdef01'.repeat(8)
-const EXPIRED_TOKEN  = 'dead0000'.repeat(8)
-const PHONE_TOKEN    = 'cafe1234'.repeat(8)
-const CONFLICT_TOKEN = 'beef5678'.repeat(8)
+const VALID_TOKEN        = 'abcdef01'.repeat(8)
+const VALID_MOBILE_TOKEN = 'abcdef02'.repeat(8)
+const EXPIRED_TOKEN      = 'dead0000'.repeat(8)
+const PHONE_TOKEN        = 'cafe1234'.repeat(8)
+const CONFLICT_TOKEN     = 'beef5678'.repeat(8)
 
 /** Retorna a próxima segunda-feira como "YYYY-MM-DD" (nunca hoje). */
 function getNextMonday(): string {
@@ -36,8 +41,16 @@ test.describe('CT-75 — Página pública de agendamento', () => {
   // ---------------------------------------------------------------------------
   // CT-75-01 — Happy path
   // ---------------------------------------------------------------------------
-  test('CT-75-01 — Happy path: booking completo no browser', async ({ page }) => {
-    await page.goto(`/book/${SLUG}?token=${VALID_TOKEN}`)
+  test('CT-75-01 — Happy path: booking completo no browser', async ({ page }, testInfo) => {
+    const isMobile = testInfo.project.name === 'mobile'
+    // Cada projeto usa recursos exclusivos para evitar race conditions em paralelo:
+    //   - token single-use próprio (token já consumido → 403)
+    //   - slot diferente (mesmo slot → SLOT_CONFLICT 409)
+    //   - telefone diferente (mesmo phone + INSERT simultâneo → 500 unique violation no findOrCreate)
+    const token    = isMobile ? VALID_MOBILE_TOKEN : VALID_TOKEN
+    const slotTime = isMobile ? '08:30' : '08:00'
+    const phone    = isMobile ? '(11) 91111-1111' : '(11) 91234-5678'
+    await page.goto(`/book/${SLUG}?token=${token}`)
 
     // Aguarda clinic header (validação OK)
     await expect(page.getByText('Dra. Teste Concluída')).toBeVisible({ timeout: 10000 })
@@ -47,14 +60,14 @@ test.describe('CT-75 — Página pública de agendamento', () => {
     await page.locator('#date-input').fill(getNextMonday())
     await page.getByRole('button', { name: 'Ver horários disponíveis' }).click()
 
-    // Step 2: aguardar grid de slots e selecionar 08:00
+    // Step 2: aguardar grid de slots e selecionar horário
     await expect(page.getByText('Selecione um horário')).toBeVisible({ timeout: 10000 })
-    await page.getByRole('button', { name: '08:00' }).first().click()
+    await page.getByRole('button', { name: slotTime }).first().click()
 
     // Step 3: preencher formulário
     await expect(page.getByRole('heading', { name: 'Confirmar agendamento' })).toBeVisible()
     await page.locator('#confirm-name').fill('Carlos Pereira')
-    await page.locator('#confirm-phone').fill('(11) 91234-5678')
+    await page.locator('#confirm-phone').fill(phone)
     await page.getByRole('button', { name: 'Confirmar agendamento' }).click()
 
     // Step 4: tela de sucesso
@@ -102,7 +115,7 @@ test.describe('CT-75 — Página pública de agendamento', () => {
     await page.getByRole('button', { name: 'Ver horários disponíveis' }).click()
 
     await expect(page.getByText('Selecione um horário')).toBeVisible({ timeout: 10000 })
-    await page.getByRole('button', { name: '08:30' }).first().click()
+    await page.getByRole('button', { name: '09:00' }).first().click()
 
     // Step 3: verificar campo telefone pré-preenchido e readonly
     const phoneInput = page.locator('#confirm-phone')
@@ -125,7 +138,7 @@ test.describe('CT-75 — Página pública de agendamento', () => {
     await page.getByRole('button', { name: 'Ver horários disponíveis' }).click()
 
     await expect(page.getByText('Selecione um horário')).toBeVisible({ timeout: 10000 })
-    await page.getByRole('button', { name: '08:30' }).first().click()
+    await page.getByRole('button', { name: '09:00' }).first().click()
 
     // Registrar mock ANTES de clicar confirmar
     await page.route(

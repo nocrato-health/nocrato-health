@@ -47,10 +47,11 @@ export const PORTAL_ACCESS_CODE = 'MRS-5678-PAC'
 // Tokens de booking para a suíte Playwright (CT-75-xx)
 // Cada token tem 64 chars hexadecimais (padrão do generateToken)
 export const BOOKING_TOKENS = {
-  valid:    'abcdef01'.repeat(8), // CT-75-01 happy path (será consumido)
-  expired:  'dead0000'.repeat(8), // CT-75-03 expirado
-  withPhone:'cafe1234'.repeat(8), // CT-75-04 phone='+5511987654321'
-  conflict: 'beef5678'.repeat(8), // CT-75-05 race condition
+  valid:       'abcdef01'.repeat(8), // CT-75-01 happy path — projeto chromium (será consumido)
+  validMobile: 'abcdef02'.repeat(8), // CT-75-01 happy path — projeto mobile (será consumido)
+  expired:     'dead0000'.repeat(8), // CT-75-03 expirado
+  withPhone:   'cafe1234'.repeat(8), // CT-75-04 phone='+5511987654321'
+  conflict:    'beef5678'.repeat(8), // CT-75-05 race condition
 }
 
 async function setupTestData() {
@@ -294,6 +295,13 @@ async function setupBookingTokens(db: ReturnType<typeof knex>, tenantId: string)
     {
       tenant_id: tenantId,
       token: BOOKING_TOKENS.valid,
+      phone: null,
+      expires_at: validAt,
+      used: false,
+    },
+    {
+      tenant_id: tenantId,
+      token: BOOKING_TOKENS.validMobile,
       phone: null,
       expires_at: validAt,
       used: false,
