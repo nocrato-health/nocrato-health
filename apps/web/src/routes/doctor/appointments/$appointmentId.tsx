@@ -502,7 +502,7 @@ export function DoctorAppointmentDetailPage() {
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <span className="text-amber-dark font-medium">
-          {formatDateTime(appointment.date_time)}
+          {formatDateTime(appointment.date_time, profile?.timezone)}
         </span>
       </nav>
 
@@ -514,7 +514,7 @@ export function DoctorAppointmentDetailPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-amber-dark font-heading">
-              Consulta — {formatDateTime(appointment.date_time)}
+              Consulta — {formatDateTime(appointment.date_time, profile?.timezone)}
             </h1>
             <p className="text-sm text-amber-mid">{appointment.duration_minutes} minutos</p>
           </div>
@@ -569,7 +569,7 @@ export function DoctorAppointmentDetailPage() {
           <div className="space-y-2 text-sm">
             <div>
               <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Data / Hora</p>
-              <p className="text-amber-dark font-medium">{formatDateTime(appointment.date_time)}</p>
+              <p className="text-amber-dark font-medium">{formatDateTime(appointment.date_time, profile?.timezone)}</p>
             </div>
             <div>
               <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Duração</p>
@@ -586,13 +586,13 @@ export function DoctorAppointmentDetailPage() {
             {appointment.started_at && (
               <div>
                 <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Iniciado em</p>
-                <p className="text-amber-dark">{formatDateTime(appointment.started_at)}</p>
+                <p className="text-amber-dark">{formatDateTime(appointment.started_at, profile?.timezone)}</p>
               </div>
             )}
             {appointment.completed_at && (
               <div>
                 <p className="text-xs text-amber-mid uppercase tracking-wide mb-0.5">Concluído em</p>
-                <p className="text-amber-dark">{formatDateTime(appointment.completed_at)}</p>
+                <p className="text-amber-dark">{formatDateTime(appointment.completed_at, profile?.timezone)}</p>
               </div>
             )}
             {appointment.cancellation_reason && (
@@ -637,7 +637,7 @@ export function DoctorAppointmentDetailPage() {
           <div className="space-y-3">
             {clinicalNotes.map((note) => (
               <div key={note.id} className="rounded-lg border border-[#e8dfc8] bg-[#f5f0e8] p-4 space-y-1">
-                <p className="text-xs text-amber-mid">{formatDateTime(note.created_at)}</p>
+                <p className="text-xs text-amber-mid">{formatDateTime(note.created_at, profile?.timezone)}</p>
                 <p className="text-sm text-amber-dark whitespace-pre-wrap">{note.content}</p>
               </div>
             ))}

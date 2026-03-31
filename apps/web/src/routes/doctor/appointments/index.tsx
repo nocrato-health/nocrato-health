@@ -285,6 +285,7 @@ export function DoctorAppointmentsPage() {
   }
 
   const { data, isLoading, isError } = useQuery(appointmentsQueryOptions(queryParams))
+  const { data: profileData } = useQuery(profileSettingsQueryOptions())
 
   function handleStatusChange(value: string) {
     setStatusFilter(value as AppointmentStatus | '')
@@ -407,7 +408,7 @@ export function DoctorAppointmentsPage() {
                 className="border-b border-[#e8dfc8] last:border-0 hover:bg-[#f5f0e8] transition-colors"
               >
                 <td className="py-3 px-4 text-amber-dark font-medium">
-                  {formatDateTime(appt.date_time)}
+                  {formatDateTime(appt.date_time, profileData?.timezone)}
                 </td>
                 <td className="py-3 px-4 text-[#6c85a0] font-mono text-xs">
                   #{appt.patient_id.slice(0, 8)}

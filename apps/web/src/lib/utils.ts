@@ -13,13 +13,14 @@ export function formatDate(isoString: string): string {
   }).format(new Date(isoString))
 }
 
-export function formatDateTime(isoString: string): string {
+export function formatDateTime(isoString: string, timezone?: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    ...(timezone ? { timeZone: timezone } : {}),
   }).format(new Date(isoString))
 }
 
@@ -47,7 +48,7 @@ export function toDatetimeLocal(isoUtc: string, timezone?: string): string {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false,
+      hourCycle: 'h23',
     })
     const parts = formatter.formatToParts(d)
     const get = (type: string) => parts.find((p) => p.type === type)!.value
@@ -78,7 +79,7 @@ export function fromDatetimeLocal(localStr: string, timezone?: string): string {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: false,
+      hourCycle: 'h23',
     })
     const parts = formatter.formatToParts(ref)
     const get = (type: string) => parts.find((p) => p.type === type)!.value

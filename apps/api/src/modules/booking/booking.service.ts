@@ -63,7 +63,7 @@ function utcToLocalTime(dateTime: string, timezone: string): string {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).format(new Date(dateTime))
 }
 
@@ -73,7 +73,7 @@ function nowLocalTime(timezone: string): string {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).format(new Date())
 }
 
@@ -100,7 +100,7 @@ function localDayToUtcRange(date: string, timezone: string): { start: string; en
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   })
   const parts = formatter.formatToParts(ref)
   const get = (type: string) => parts.find((p) => p.type === type)!.value
