@@ -608,6 +608,13 @@ describe('AgentService — @OnEvent handlers', () => {
     }).compile()
 
     service = module.get<AgentService>(AgentService)
+
+    // Fake timers APÓS compile() — necessário para @RetryOnError decorator delays
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
   })
 
   // CT-94-01: onAppointmentCreated envia confirmação para o paciente
@@ -698,19 +705,42 @@ describe('AgentService — @OnEvent handlers', () => {
     expect(instanceName).toBe(INSTANCE_NAME)
   })
 
-  // CT-94-06: falha no WhatsApp não propaga exceção
-  it('CT-94-06: sendText rejeita → handler não propaga exceção', async () => {
-    mockWhatsappSendText.mockRejectedValueOnce(new Error('timeout'))
+  // CT-94-06: falha no WhatsApp não propaga exceção (decorator retries e loga)
+  it('CT-94-06: sendText rejeita → decorator retries e não propaga exceção', async () => {
+    mockWhatsappSendText.mockRejectedValue(new Error('timeout'))
 
-    await expect(
-      service.onAppointmentCreated({
-        tenantId: TENANT_ID,
-        patientId: 'patient-uuid-1',
-        phone: '+5511888880001',
-        dateTime: '2025-06-15T13:00:00.000Z',
-        patientName: 'Maria Silva',
-      }),
-    ).resolves.toBeUndefined()
+    const promise = service.onAppointmentCreated({
+      tenantId: TENANT_ID,
+      patientId: 'patient-uuid-1',
+      phone: '+5511888880001',
+      dateTime: '2025-06-15T13:00:00.000Z',
+      patientName: 'Maria Silva',
+    })
+    await jest.runAllTimersAsync()
+    await expect(promise).resolves.toBeUndefined()
+
+    // 4 tentativas: 1 original + 3 retries (default maxRetries=3)
+    expect(mockWhatsappSendText).toHaveBeenCalledTimes(4)
+  })
+
+  // CT-TD11-10: sendText falha 2x, sucesso na 3a — handler completa com sucesso
+  it('CT-TD11-10: sendText falha 2x e sucesso na 3a → mensagem enviada via retry', async () => {
+    mockWhatsappSendText
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(undefined)
+
+    const promise = service.onAppointmentCreated({
+      tenantId: TENANT_ID,
+      patientId: 'patient-uuid-1',
+      phone: '+5511888880001',
+      dateTime: '2025-06-15T13:00:00.000Z',
+      patientName: 'Maria Silva',
+    })
+    await jest.runAllTimersAsync()
+    await promise
+
+    expect(mockWhatsappSendText).toHaveBeenCalledTimes(3)
   })
 
   // TD-20: Handler não envia quando instanceName é null

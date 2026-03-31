@@ -158,16 +158,11 @@ A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.s
 
 ---
 
-### TD-11 — EventEmitter2 sem retry (eventos de negócio podem ser perdidos)
+### ~~TD-11 — EventEmitter2 sem retry (eventos de negócio podem ser perdidos)~~ ✅ RESOLVIDO (parcial)
 **Módulo:** `agent`
 **Identificado em:** ADR-014 / Auditoria pós-Epic 7
-**Prioridade:** P2
 
-`EventEmitter2` é síncrono e in-process. Se o processo NestJS cair durante a execução de um handler (ex: envio de notificação WhatsApp), o evento é descartado sem retry. O `event_log` garante rastreabilidade mas não reprocessamento automático.
-
-**Mitigação atual:** Gravar no `event_log` ANTES de emitir o evento (já implementado) — permite reprocessamento manual.
-
-**Fix pós-escala:** Migrar eventos críticos para BullMQ (Redis-backed) com retry automático e dead-letter queue.
+**Resolvido em:** TD Phase 2 fix — decorator `@RetryOnError` criado em `common/decorators/` com retry configurável (maxRetries, baseDelayMs, backoff exponencial/linear). Aplicado nos 4 handlers `@OnEvent` do `agent.service.ts`. Try/catch removidos dos handlers (decorator gerencia retry + log final). 8 CTs para o decorator + 2 CTs para handlers com retry. Migração para BullMQ permanece como melhoria futura pós-escala.
 
 ---
 

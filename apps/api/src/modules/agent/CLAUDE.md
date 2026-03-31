@@ -23,7 +23,7 @@ Também reage a eventos internos do sistema (EventEmitter2) para notificar pacie
 - **Sem JWT guard no webhook**: rota pública, autenticada via header `apikey` comparado com `EVOLUTION_WEBHOOK_TOKEN`
 - **Anti-loop obrigatório**: mensagens com `fromMe=true` são ignoradas silenciosamente (HTTP 200, sem processamento)
 - **Apenas `messages.upsert`**: outros eventos da Evolution API (`connection.update`, etc.) retornam 200 sem processamento
-- **Fire-and-forget seguro**: handlers @OnEvent nunca propagam exceções — erros são logados com NestJS Logger
+- **Fire-and-forget com retry**: handlers @OnEvent usam `@RetryOnError()` (3 retries, backoff exponencial) — após esgotar tentativas, loga erro e descarta
 - **OpenAI exclusivamente**: nunca usar Anthropic SDK neste módulo — modelo obrigatório: `gpt-4o-mini`
 - **Tenant resolution via instância**: o tenant é resolvido pela instância Evolution configurada por doutor (US-9.3)
 - **Histórico truncado**: máximo 20 mensagens no JSONB `conversations.messages` (US-9.3)
