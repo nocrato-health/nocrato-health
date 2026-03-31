@@ -2,8 +2,10 @@ import { Controller, Post, Headers, Body, HttpCode, UnauthorizedException, Logge
 import { ApiBody, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { AgentService, EvolutionWebhookPayload } from './agent.service'
 import { env } from '@/config/env'
+import { Public } from '@/common/decorators/public.decorator'
 
 @ApiTags('WhatsApp Agent')
+@Public()
 @Controller('agent')
 export class AgentController {
   private readonly logger = new Logger(AgentController.name)

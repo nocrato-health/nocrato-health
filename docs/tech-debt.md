@@ -29,14 +29,11 @@ Formato de prioridade: **P1** (antes do deploy) · **P2** (antes de escalar) · 
 
 ---
 
-### TD-03 — Coverage threshold não configurado no Jest
+### ~~TD-03 — Coverage threshold não configurado no Jest~~ ✅ RESOLVIDO
 **Módulo:** `apps/api`
 **Identificado em:** Revisão pós-Epic 5
-**Prioridade:** P3
 
-Não há `--coverageThreshold` no Jest config. A cobertura pode cair silenciosamente em futuras US sem alertar.
-
-**Fix:** Adicionar threshold mínimo (sugestão: `{ statements: 80, functions: 90 }`) em `jest.config.ts`.
+**Resolvido em:** TD Phase 4 fix — `coverageThreshold` adicionado ao Jest config em `package.json` com floor baseado nos valores atuais (statements: 44%, functions: 42%). Regressão de cobertura agora falha o CI.
 
 ---
 
@@ -49,25 +46,19 @@ Não há `--coverageThreshold` no Jest config. A cobertura pode cair silenciosam
 
 ---
 
-### TD-05 — Mobile viewport não testado no Playwright
+### ~~TD-05 — Mobile viewport não testado no Playwright~~ ✅ RESOLVIDO
 **Módulo:** `apps/web`
 **Identificado em:** Revisão pós-Epic 5
-**Prioridade:** P2
 
-`playwright.config.ts` usa apenas Chromium desktop. A página de booking (`/book/:slug`) é acessada majoritariamente via mobile (link do WhatsApp).
-
-**Fix:** Adicionar projeto `iphone-12` no config do Playwright para as suítes de booking (US-7.5).
+**Resolvido em:** TD Phase 4 fix — projeto `mobile` (iPhone 12) adicionado ao `playwright.config.ts` com `testMatch: '**/booking.spec.ts'` para rodar booking E2E em viewport mobile sem duplicar toda a suite.
 
 ---
 
-### TD-06 — `any` explícito em jwt-auth.guard.ts
+### ~~TD-06 — `any` explícito em jwt-auth.guard.ts~~ ✅ RESOLVIDO
 **Módulo:** `common/guards`
 **Identificado em:** Health Check US-7.2
-**Prioridade:** P3
 
-`jwt-auth.guard.ts` usa `: any` em um type assertion. Não é risco de runtime — é qualidade de tipo.
-
-**Fix:** Tipar corretamente com a interface `JwtPayload` do projeto.
+**Resolvido em:** TD Phase 4 fix — `handleRequest` tipado com `JwtPayload` importado de `jwt.strategy`. Removidos todos os `any` do guard.
 
 ---
 
@@ -118,14 +109,11 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### TD-15 — AgentSettingsRow duplicada entre agent-settings.service.ts e onboarding.service.ts
+### ~~TD-15 — AgentSettingsRow duplicada entre agent-settings.service.ts e onboarding.service.ts~~ ✅ RESOLVIDO
 **Módulo:** `doctor`
 **Identificado em:** US-8.1 (OBS-TL-1)
-**Prioridade:** P3
 
-A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.service.ts` (privada) e `onboarding.service.ts` (exportada). Se a tabela `agent_settings` ganhar colunas novas (ex: `extra_config` exposto), a manutenção acontece em dois pontos.
-
-**Fix:** Mover a interface para `doctor.types.ts` e reutilizar em ambos os services.
+**Resolvido em:** TD Phase 4 fix — interface unificada `AgentSettingsRow` criada em `doctor.types.ts` com todos os campos (incluindo `evolution_instance_name`). Ambos services importam de `./doctor.types`.
 
 ---
 
@@ -159,16 +147,11 @@ A interface `AgentSettingsRow` está definida em dois lugares: `agent-settings.s
 
 ---
 
-### TD-16 — `workingHours: {}` apaga horários mas não invalida step de onboarding
-**Módulo:** `apps/web/routes/doctor/settings`, `doctor/onboarding`
+### ~~TD-16 — `workingHours: {}` apaga horários mas não invalida step de onboarding~~ ✅ RESOLVIDO
+**Módulo:** `doctor/onboarding`
 **Identificado em:** US-8.3 / Revisão tech-lead (OBS-TL-1)
-**Prioridade:** P3
 
-Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar, o backend persiste `working_hours = {}`. O serviço de onboarding verifica schedule como `Object.keys(working_hours).length > 0` — portanto `{}` faria o step "Horários" parecer incompleto retroativamente (embora `onboarding_completed` permaneça `true`).
-
-**Impacto atual:** Nenhum no MVP. O step de onboarding não é exibido após conclusão. O campo `onboarding_completed` não é revertido pelo update.
-
-**Fix:** Documentar no onboarding service que working_hours vazio é um estado válido pós-onboarding. Ou adicionar validação no settings para não permitir salvar sem pelo menos um dia ativo.
+**Resolvido em:** TD Phase 4 fix — comentário adicionado no `onboarding.service.ts` documentando que `working_hours = {}` é estado válido pós-onboarding. O step não é exibido após `onboarding_completed=true`, portanto a inconsistência visual não se manifesta.
 
 ---
 
@@ -192,14 +175,11 @@ Se o usuário desativar todos os dias na `ScheduleSection` de settings e salvar,
 
 ---
 
-### TD-19 — Webhook controller sem decorator explícito de rota pública
+### ~~TD-19 — Webhook controller sem decorator explícito de rota pública~~ ✅ RESOLVIDO
 **Módulo:** `agent`
 **Identificado em:** US-9.2 (OBS-TL-3 tech-lead)
-**Prioridade:** P3
 
-`agent.controller.ts` não usa `JwtAuthGuard` mas também não tem um decorator `@Public()` ou `@SkipAuth()` para documentar explicitamente a ausência de auth. Auditoria de rotas públicas fica dependente de leitura manual.
-
-**Fix:** Criar `@Public()` decorator em `common/decorators/` e aplicar no controller. Útil quando o projeto escalar e múltiplos desenvolvedores precisarem auditar rotas sem auth.
+**Resolvido em:** TD Phase 4 fix — decorator `@Public()` criado em `common/decorators/public.decorator.ts`. Aplicado nos controllers e endpoints públicos: `agent.controller` (class), `booking.controller` (class), `health.controller` (class), e métodos públicos dos auth controllers (login, forgot-password, etc.).
 
 ---
 

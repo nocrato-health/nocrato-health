@@ -5,6 +5,7 @@ import type { UpdateProfileDto } from './dto/update-profile.dto'
 import type { UpdateScheduleDto } from './dto/update-schedule.dto'
 import type { UpdateBrandingDto } from './dto/update-branding.dto'
 import type { UpdateAgentSettingsDto } from './dto/update-agent-settings.dto'
+import type { AgentSettingsRow } from './doctor.types'
 
 export interface DoctorRow {
   id: string
@@ -28,17 +29,6 @@ export interface TenantRow {
   name: string
   primary_color: string
   logo_url: string | null
-}
-
-export interface AgentSettingsRow {
-  id: string
-  tenant_id: string
-  welcome_message: string | null
-  personality: string | null
-  faq: string | null
-  enabled: boolean
-  booking_mode: string
-  appointment_rules: string | null
 }
 
 export interface OnboardingStatus {
@@ -112,6 +102,8 @@ export class OnboardingService {
 
     const steps = {
       profile: Boolean(doctor.name && doctor.crm),
+      // working_hours vazio ({}) é estado válido pós-onboarding (médico pode desativar
+      // todos os dias nas configurações). O step não é exibido após onboarding_completed=true.
       schedule: doctor.working_hours !== null &&
         typeof doctor.working_hours === 'object' &&
         Object.keys(doctor.working_hours).length > 0,
@@ -293,6 +285,8 @@ export class OnboardingService {
       throw new BadRequestException('Perfil incompleto — preencha nome e CRM antes de concluir o onboarding')
     }
 
+    // working_hours vazio ({}) é estado válido pós-onboarding (médico pode desativar
+    // todos os dias nas configurações). O step não é exibido após onboarding_completed=true.
     const hasSchedule = doctor.working_hours !== null &&
       typeof doctor.working_hours === 'object' &&
       Object.keys(doctor.working_hours).length > 0

@@ -11,8 +11,10 @@ import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
 import { BookingService } from './booking.service'
 import { BookAppointmentSchema, type BookAppointmentDto } from './booking.dto'
+import { Public } from '@/common/decorators/public.decorator'
 
 @ApiTags('Public Booking')
+@Public()
 @Controller('public/booking/:slug')
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}

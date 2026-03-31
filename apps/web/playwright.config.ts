@@ -9,7 +9,14 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     headless: true,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'mobile',
+      use: { ...devices['iPhone 12'] },
+      testMatch: '**/booking.spec.ts',
+    },
+  ],
   webServer: {
     command: 'pnpm dev',
     url: 'http://localhost:5173',

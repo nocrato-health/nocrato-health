@@ -7,6 +7,7 @@ import { ForgotPasswordSchema, type ForgotPasswordDto } from './dto/forgot-passw
 import { ResetPasswordSchema, type ResetPasswordDto } from './dto/reset-password.dto'
 import { RefreshTokenSchema, type RefreshTokenDto } from './dto/refresh-token.dto'
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
+import { Public } from '@/common/decorators/public.decorator'
 
 @ApiTags('Agency Auth')
 @Controller('agency/auth')
@@ -15,6 +16,7 @@ export class AgencyAuthController {
 
   // US-1.1: Login da agência — SEC-09
   @Post('login')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Login de membro da agência' })
@@ -37,6 +39,7 @@ export class AgencyAuthController {
 
   // US-1.7: Solicitar redefinição de senha — SEC-09
   @Post('forgot-password')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Solicitar redefinição de senha por email' })
@@ -57,6 +60,7 @@ export class AgencyAuthController {
 
   // US-1.7: Redefinir senha com token — SEC-09
   @Post('reset-password')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Redefinir senha com token recebido por email' })
@@ -78,6 +82,7 @@ export class AgencyAuthController {
 
   // US-1.8: Renovar par de tokens — SEC-18
   @Post('refresh')
+  @Public()
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Renovar par de tokens usando refreshToken' })
