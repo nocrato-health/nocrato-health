@@ -62,10 +62,14 @@ test.describe('Agency Portal — Navegação', () => {
 })
 
 test.describe('Agency Portal — Doutores', () => {
-  test('lista de doutores exibe empty state sem registros', async ({ page }) => {
+  // Seed cria 2 doutores (test-new@ e test-done@) — asserção pelo EMAIL, que é
+  // estável entre runs. O nome do test-new é mutado em paralelo pelos testes de
+  // onboarding (CT-32-01 renomeia para "Dra. Ana Carvalho"), então não serve.
+  test('lista de doutores exibe doutores semeados', async ({ page }) => {
     await loginAsAdmin(page)
     await page.goto('/agency/doctors')
-    await expect(page.getByText('Nenhum doutor encontrado.')).toBeVisible()
+    await expect(page.getByText('test-new@nocrato.com')).toBeVisible()
+    await expect(page.getByText('test-done@nocrato.com')).toBeVisible()
   })
 
   test('filtro de status aceita seleção de "Ativo"', async ({ page }) => {
@@ -75,8 +79,9 @@ test.describe('Agency Portal — Doutores', () => {
     await expect(filtro).toBeVisible()
     await filtro.selectOption('active')
     await expect(filtro).toHaveValue('active')
-    // Sem doutores: empty state permanece
-    await expect(page.getByText('Nenhum doutor encontrado.')).toBeVisible()
+    // Ambos os doutores semeados têm status='active' — asserção pelo email estável
+    await expect(page.getByText('test-new@nocrato.com')).toBeVisible()
+    await expect(page.getByText('test-done@nocrato.com')).toBeVisible()
   })
 
   test('modal de convite abre e fecha com Cancelar', async ({ page }) => {

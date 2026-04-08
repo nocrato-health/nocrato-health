@@ -178,42 +178,30 @@ test('CT-SEC10-02 — Click em Download: request vai para /api/v1/doctor/documen
   expect(patientsData.data.length).toBeGreaterThan(0)
   const patientId = patientsData.data[0].id
 
-  // Garantir que o paciente tem pelo menos um documento (criar via API se necessário)
-  const docsRes = await request.get(
-    `${API_URL}/api/v1/doctor/documents?patientId=${patientId}&limit=5`,
-    { headers },
-  )
-  let documentId: string
+  // Sempre criar um documento fresco com filename único — rodando em paralelo
+  // com clinical.spec (que cria exame-ct65.pdf) e patients.spec (que cria
+  // Gustavo Ramos), o paciente pode ter N docs pré-existentes. Um nome único
+  // permite escopar o click do Download ao card certo.
+  const uniqueFilename = `sec10-test-${randomUUID().slice(0, 8)}.pdf`
+  const { readFileSync } = await import('node:fs')
+  const fileBuffer = readFileSync(FIXTURE_PDF)
+  const uploadRes = await request.fetch(`${API_URL}/api/v1/doctor/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${loginData.accessToken}` },
+    multipart: {
+      file: { name: uniqueFilename, mimeType: 'application/pdf', buffer: fileBuffer },
+    },
+  })
+  expect(uploadRes.ok()).toBeTruthy()
+  const { fileUrl } = (await uploadRes.json()) as { fileUrl: string; fileName: string }
 
-  if (docsRes.ok()) {
-    const docsData = (await docsRes.json()) as { data: Array<{ id: string }> }
-    if (docsData.data.length > 0) {
-      documentId = docsData.data[0].id
-    } else {
-      // Fazer upload para criar um documento
-      const { readFileSync } = await import('fs')
-      const fileBuffer = readFileSync(FIXTURE_PDF)
-      const uploadRes = await request.fetch(`${API_URL}/api/v1/doctor/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${loginData.accessToken}` },
-        multipart: {
-          file: { name: 'sec10-test.pdf', mimeType: 'application/pdf', buffer: fileBuffer },
-        },
-      })
-      expect(uploadRes.ok()).toBeTruthy()
-      const { fileUrl, fileName } = (await uploadRes.json()) as { fileUrl: string; fileName: string }
-
-      const createRes = await request.post(`${API_URL}/api/v1/doctor/documents`, {
-        headers,
-        data: { patientId, type: 'prescription', fileUrl, fileName },
-      })
-      expect(createRes.ok()).toBeTruthy()
-      const doc = (await createRes.json()) as { id: string }
-      documentId = doc.id
-    }
-  } else {
-    throw new Error(`Falha ao buscar documentos: ${docsRes.status()}`)
-  }
+  const createRes = await request.post(`${API_URL}/api/v1/doctor/documents`, {
+    headers,
+    data: { patientId, type: 'prescription', fileUrl, fileName: uniqueFilename },
+  })
+  expect(createRes.ok()).toBeTruthy()
+  const doc = (await createRes.json()) as { id: string }
+  const documentId = doc.id
 
   // Configurar auth no browser
   await setupBrowserAuth(page, loginData)
@@ -251,9 +239,18 @@ test('CT-SEC10-02 — Click em Download: request vai para /api/v1/doctor/documen
   await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: /^Documentos/ }).click()
 
-  // Aguardar botão Download aparecer
-  const downloadBtn = page.getByRole('button', { name: 'Download' }).first()
-  await expect(downloadBtn).toBeVisible({ timeout: 5000 })
+  // Aguardar o card do doc único aparecer e escopar o Download a ele
+  // (paralelismo: outros testes podem ter adicionado outros docs no mesmo paciente).
+  // Pegamos o div mais interno que contém tanto o filename quanto o botão Download
+  // — é a "linha" do documento no DOM.
+  await expect(page.getByText(uniqueFilename)).toBeVisible({ timeout: 5000 })
+  const docRow = page
+    .locator('div')
+    .filter({ hasText: uniqueFilename })
+    .filter({ has: page.getByRole('button', { name: 'Download' }) })
+    .last()
+  const downloadBtn = docRow.getByRole('button', { name: 'Download' })
+  await expect(downloadBtn).toBeVisible()
 
   // Aguardar o evento de download ao clicar
   const [download] = await Promise.all([

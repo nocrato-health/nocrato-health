@@ -145,7 +145,9 @@ test.describe('Doctor Wizard — doutor com onboarding pendente', () => {
     await expect(page.getByText('Perfil profissional')).toBeVisible()
     await page.fill('#name', 'Dra. Ana Carvalho')
     await page.fill('#crm', '654321')
-    await page.selectOption('#crmState', 'RJ')
+    // crmState é shadcn Select (button) — SelectItem também renderiza como button
+    await page.getByRole('button', { name: 'Selecione o estado' }).click()
+    await page.getByRole('button', { name: 'RJ', exact: true }).click()
     await page.getByRole('button', { name: 'Próximo' }).click()
 
     // Step 2 — horários já têm defaults (seg-sex habilitados); apenas clicar Próximo
@@ -179,7 +181,9 @@ test.describe('Doctor Wizard — doutor com onboarding pendente', () => {
     await expect(page.getByText('25% concluído')).toBeVisible()
     await page.fill('#name', 'Dra. Ana Carvalho')
     await page.fill('#crm', '654321')
-    await page.selectOption('#crmState', 'RJ')
+    // crmState é shadcn Select (button) — SelectItem também renderiza como button
+    await page.getByRole('button', { name: 'Selecione o estado' }).click()
+    await page.getByRole('button', { name: 'RJ', exact: true }).click()
     await page.getByRole('button', { name: 'Próximo' }).click()
 
     // Step 2 — Horários
