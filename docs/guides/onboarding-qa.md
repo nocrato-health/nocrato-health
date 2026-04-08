@@ -62,16 +62,13 @@ A suíte E2E roda **contra um banco isolado** (`nocrato_health_test`) e **com by
 ### Setup inicial (uma vez por máquina)
 
 ```bash
-# 1. Criar o banco de teste no Postgres do docker-compose dev
-docker exec nocrato_postgres createdb -U nocrato nocrato_health_test
-
-# 2. Copiar e preencher .env.test (na raiz do monorepo)
+# 1. Copiar e preencher .env.test (na raiz do monorepo)
 cp .env.test.example .env.test
 #   editar .env.test e gerar o secret:
-#   E2E_THROTTLE_BYPASS_SECRET=$(openssl rand -hex 16)
+#   echo "E2E_THROTTLE_BYPASS_SECRET=$(openssl rand -hex 16)" >> .env.test
 
-# 3. Aplicar migrations no banco de teste
-NODE_ENV=test pnpm --filter @nocrato/api migrate
+# 2. Criar o banco + aplicar migrations (idempotente — pode rodar sempre)
+pnpm test:e2e:setup
 ```
 
 ### Rodar a suíte (toda vez)
@@ -80,7 +77,8 @@ NODE_ENV=test pnpm --filter @nocrato/api migrate
 ```bash
 # Matar qualquer API de dev na porta 3000 antes
 lsof -ti:3000 | xargs -r kill
-NODE_ENV=test pnpm --filter @nocrato/api dev
+# Script dedicado — cross-env garante que NODE_ENV=test sobrevive a hot-reload
+pnpm --filter @nocrato/api dev:test
 # aguardar "Application is running on port 3000"
 ```
 
@@ -105,11 +103,10 @@ pnpm exec playwright test -g "CT-32-01"
 
 1. **Porta 3000 compartilhada** — não dá pra rodar API de dev e API de test ao mesmo tempo. Mate uma antes de subir a outra.
 
-2. **`nest --watch` pode perder `NODE_ENV=test` em hot-reload** — se 429s aparecerem do nada, verifique:
+2. **`nest --watch` e NODE_ENV** — resolvido: `dev:test` usa `cross-env` que reinjeta `NODE_ENV=test` em cada spawn do watcher. Se mesmo assim desconfiar, valide com:
    ```bash
    tr '\0' '\n' < /proc/$(lsof -ti:3000)/environ | grep NODE_ENV
    ```
-   Se vier vazio, mate (`lsof -ti:3000 | xargs kill`) e reinicie a API com `NODE_ENV=test`.
 
 3. **Bancos separados, dados separados** — o `nocrato_health_test` é diferente do `nocrato_health` (dev). Mudanças manuais que você fez no banco de dev não aparecem nos testes. O `globalSetup` (`apps/web/e2e/global-setup.ts`) roda `setup-test-data.ts` antes de cada execução, garantindo idempotência.
 

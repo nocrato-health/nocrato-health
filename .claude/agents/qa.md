@@ -371,17 +371,16 @@ A suíte Playwright **NÃO roda contra o banco de dev**. Roda contra `nocrato_he
 
 **Setup uma vez por máquina:**
 ```bash
-docker exec nocrato_postgres createdb -U nocrato nocrato_health_test
 cp .env.test.example .env.test
 # editar e setar: E2E_THROTTLE_BYPASS_SECRET=$(openssl rand -hex 16)
-NODE_ENV=test pnpm --filter @nocrato/api migrate
+pnpm test:e2e:setup   # idempotente: cria DB se não existe + roda migrations
 ```
 
 **Sempre antes de rodar a suíte:**
 ```bash
 # Terminal 1 — API em modo test (deixar rodando)
 lsof -ti:3000 | xargs -r kill
-NODE_ENV=test pnpm --filter @nocrato/api dev
+pnpm --filter @nocrato/api dev:test   # cross-env preserva NODE_ENV no hot-reload
 
 # Terminal 2 — Playwright
 cd apps/web
@@ -405,7 +404,7 @@ tr '\0' '\n' < /proc/$(lsof -ti:3000)/environ | grep NODE_ENV
 **Pegadinhas que você vai bater se não souber:**
 
 1. **Porta 3000 compartilhada** — API de dev e API de test não podem coexistir. Mate uma antes de subir a outra.
-2. **`nest --watch` perde `NODE_ENV` em hot-reload às vezes** — depois de editar arquivos `apps/api/`, valide com o `tr /proc` acima. Se vazio, reinicie a API explicitamente com `NODE_ENV=test`.
+2. **`dev:test` é obrigatório** — sempre use `pnpm --filter @nocrato/api dev:test` (não `dev`). `cross-env` reinjeta `NODE_ENV=test` em cada spawn do nest watcher, sobrevivendo a hot-reloads. `dev` puro + `export NODE_ENV=test` no shell perde a var em alguns restarts.
 3. **Seed compartilhado em paralelo** — diferentes suites mutam o mesmo seed (ex: onboarding wizard renomeia `test-new` para "Dra. Ana Carvalho"). Ao escrever ou debugar testes, **assertar por identificadores estáveis**:
    - Doutor: pelo **email** (`test-new@nocrato.com`), nunca pelo nome.
    - Documento criado no teste: **filename único** com `randomUUID().slice(0,8)`, escopar locator pelo nome (`page.locator('div').filter({ hasText: filename }).filter({ has: page.getByRole('button', { name: 'Download' }) }).last()`).
