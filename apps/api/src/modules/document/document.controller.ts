@@ -27,7 +27,7 @@ import {
 } from '@nestjs/swagger'
 import { diskStorage } from 'multer'
 import { mkdirSync } from 'node:fs'
-import { extname, join } from 'node:path'
+import { extname, isAbsolute, join, relative } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { DocumentService } from './document.service'
@@ -148,11 +148,13 @@ export class DocumentController {
   ) {
     const doc = await this.documentService.getDocumentForDownload(tenantId, id)
     const uploadsRoot = join(process.cwd(), 'uploads')
-    const filePath = join(process.cwd(), doc.file_url as string)
-    if (!filePath.startsWith(uploadsRoot + '/')) {
+    const filePath = join(process.cwd(), doc.file_url)
+    // Path traversal guard portatil: rejeita qualquer caminho fora de uploadsRoot
+    const rel = relative(uploadsRoot, filePath)
+    if (rel.startsWith('..') || isAbsolute(rel)) {
       throw new ForbiddenException('Acesso negado')
     }
-    res.download(filePath, doc.file_name as string)
+    res.download(filePath, doc.file_name)
   }
 
   // US-6.3: Registrar documento no banco após upload

@@ -247,25 +247,36 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-12 — Dependências com CVEs de alta severidade em produção e build ✅ RESOLVIDO (parcial — multer)
+#### SEC-12 — Dependências com CVEs de alta severidade em produção e build ✅ RESOLVIDO
 
 - **Severidade original:** LOW (risco real HIGH no runtime)
 - **Módulo:** `apps/api/package.json`, `package.json` (root)
 - **Resolvido em:** PR `fix/sec-10-sec-12-documents-auth`
-  - `multer` direto atualizado de `^1.4.5-lts.1` para `^2.1.0` em `apps/api/package.json`
-  - `@types/multer` atualizado de `^1.4.12` para `^2.0.0`
-  - Adicionado `pnpm.overrides: { multer: "^2.1.0" }` no `package.json` root para forçar a versão transitiva via `@nestjs/platform-express` (que pinava `multer@2.0.2`)
-  - Versão final no lockfile: **`multer@2.1.1`** (única instância — confirmado via `pnpm why multer`)
-  - CVEs fechadas: GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw (DoS via uploads malformados)
-  - 661/661 testes passando após upgrade (compatibilidade API preservada)
 
-- **Pendente (follow-up — não faziam parte do escopo original de SEC-12 — novas CVEs surgidas após março/2026):**
-  - `path-to-regexp` (via `@nestjs/platform-express > express > router`): DoS. Aguarda bump upstream em `@nestjs/platform-express`
-  - `lodash@4.17.23` (via `@nestjs/swagger` e `knex`): code injection via `_.template`. Swagger desabilitado em prod (SEC-13); `knex` não usa `_.template` com input de usuário
-  - `tar@6.2.1` (via `bcrypt > @mapbox/node-pre-gyp`): 5 CVEs HIGH — **apenas build phase** (compilação de binários nativos). Sem impacto em runtime
-  - `minimatch` (via `@nestjs/cli`): devDependency, não chega em produção
+**Resultado final:** de **9 HIGH CVEs para 0 HIGH CVEs** em runtime. `pnpm audit --prod --audit-level high` retorna zero issues HIGH (apenas 3 moderate, abaixo do threshold).
 
-- **Recomendação:** Acompanhar releases de `@nestjs/platform-express` e `@nestjs/swagger` para upgrade upstream. Configurar `pnpm audit --prod --audit-level high` como gate no CI.
+**Mudanças:**
+1. **multer** atualizado de `^1.4.5-lts.1` para `^2.1.0` (+ `@types/multer ^2.0.0`)
+   - CVEs fechadas: GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw (DoS via uploads malformados)
+2. **bcrypt** bumped de `^5.1.1` para `^6.0.0` (+ `@types/bcrypt ^6.0.0`)
+   - bcrypt 6.x dropou `@mapbox/node-pre-gyp` (que puxava tar/rimraf/glob/minimatch antigos e vulneráveis)
+   - Agora usa `node-gyp-build` + `node-addon-api` — zero transitive vulnerabilidades no install
+   - CVEs fechadas no install: 6 HIGH de `tar` + 2 HIGH de `minimatch`
+   - `bcrypt.compare()` e `bcrypt.hash()` API-compatíveis — hashes existentes continuam válidos (confirmado por Playwright E2E login)
+3. **pnpm.overrides** no root `package.json` forçando versões seguras transitivas:
+   - `multer: ^2.1.0` — força bump na cadeia `@nestjs/platform-express > multer`
+   - `path-to-regexp: ^8.4.2` — fecha DoS via `express > router`
+   - `lodash: ^4.18.1` — fecha code injection via `_.template` em `@nestjs/swagger` e `knex`
+   - `tar: ^7.5.0` — já eliminado pelo bump do bcrypt, override mantido como defesa
+   - `minimatch: ^10.0.0` — idem
+
+**Validação:**
+- 661/661 unit tests passando
+- Playwright login tests (td-phase1-validation, agency, patient-portal) **5+3+5 = 13 PASS** confirmando que bcrypt 6.x valida hashes existentes
+- 5/5 sec-10-documents E2E + 10/10 booking regression
+- TypeScript clean (API + Web)
+
+**Recomendação futura:** Configurar `pnpm audit --prod --audit-level high` como gate obrigatório no CI para detectar regressões em dependências.
 
 ---
 
