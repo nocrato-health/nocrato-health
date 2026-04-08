@@ -58,7 +58,7 @@ services:
       # Evolution API rodando no mesmo compose network
       EVOLUTION_API_URL: http://evolution:8080
     volumes:
-      # uploads_data compartilhado com nginx para servir arquivos diretamente
+      # uploads_data: somente o container api escreve/lê (SEC-10 — nginx não acessa mais)
       - uploads_data:/app/uploads
     networks:
       - nocrato_net
@@ -107,8 +107,8 @@ services:
       # Certificados Let's Encrypt gerados pelo Certbot no host (bind mount direto — não volume nomeado)
       # Certbot escreve em /etc/letsencrypt no host; nginx lê read-only
       - /etc/letsencrypt:/etc/letsencrypt:ro
-      # Volume compartilhado com a API para servir uploads diretamente
-      - uploads_data:/app/uploads:ro
+      # SEC-10: uploads_data NÃO é mais montado no nginx. Documentos são servidos
+      # exclusivamente via endpoints autenticados do NestJS (res.download).
     networks:
       - nocrato_net
     depends_on:

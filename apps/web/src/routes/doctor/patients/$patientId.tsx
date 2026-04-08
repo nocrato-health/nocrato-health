@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { ArrowLeft, ChevronRight, FileText, Calendar, Paperclip, User, Upload, ClipboardList } from 'lucide-react'
 
 import { patientProfileQueryOptions, useUpdatePatient, type UpdatePatientPayload } from '@/lib/queries/patients'
+import { downloadDocument } from '@/lib/download'
 import type { PatientAppointment } from '@/types/api'
 import { formatDate, formatDateTime, formatPhone } from '@/lib/utils'
 import { toast } from '@/lib/toast'
@@ -412,14 +413,17 @@ function DocumentsTab({ patientId, documents }: DocumentsTabProps) {
                   <p className="text-xs text-amber-mid mt-0.5 truncate">{doc.description}</p>
                 )}
               </div>
-              <a
-                href={doc.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() =>
+                  downloadDocument(doc.id, doc.file_name).catch((err: Error) =>
+                    toast.error(err.message),
+                  )
+                }
                 className="shrink-0 text-sm text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors"
               >
                 Download
-              </a>
+              </button>
             </div>
           ))}
         </div>

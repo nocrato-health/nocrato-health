@@ -16,5 +16,10 @@
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": "^2.1.0"
+    }
   }
 }

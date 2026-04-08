@@ -464,3 +464,83 @@ describe('DocumentService — listDocuments', () => {
     expect(result.pagination).toEqual({ page: 2, limit: 5, total: 12, totalPages: 3 })
   })
 })
+
+// ---------------------------------------------------------------------------
+// SEC-10 — getDocumentForDownload (download autenticado via JWT)
+// ---------------------------------------------------------------------------
+
+describe('DocumentService — getDocumentForDownload', () => {
+  let service: DocumentService
+  let mockKnex: jest.Mock & { transaction: jest.Mock }
+  let mockFirst: jest.Mock
+
+  beforeEach(async () => {
+    const transactionMock = jest.fn()
+    mockKnex = Object.assign(jest.fn(), { transaction: transactionMock }) as jest.Mock & {
+      transaction: jest.Mock
+    }
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        DocumentService,
+        { provide: KNEX, useValue: mockKnex },
+      ],
+    }).compile()
+
+    service = moduleRef.get<DocumentService>(DocumentService)
+
+    mockFirst = jest.fn()
+    const builder = {
+      where: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      first: mockFirst,
+    }
+    mockKnex.mockReturnValue(builder)
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
+  // CT-SEC10-SVC-01: happy path — retorna documento do proprio tenant
+  it('CT-SEC10-SVC-01: retorna documento quando existe no tenant', async () => {
+    const doc = makeCreatedDocument()
+    mockFirst.mockResolvedValue(doc)
+
+    const result = await service.getDocumentForDownload(TENANT_ID, DOCUMENT_ID)
+
+    expect(result).toEqual(doc)
+    // Isolamento: WHERE deve incluir tenant_id + id
+    const builder = mockKnex.mock.results[0].value
+    expect(builder.where).toHaveBeenCalledWith({ id: DOCUMENT_ID, tenant_id: TENANT_ID })
+  })
+
+  // CT-SEC10-SVC-02: documento inexistente → NotFoundException
+  it('CT-SEC10-SVC-02: lanca NotFoundException quando documento nao existe', async () => {
+    mockFirst.mockResolvedValue(undefined)
+
+    await expect(
+      service.getDocumentForDownload(TENANT_ID, 'missing-doc-id'),
+    ).rejects.toThrow(NotFoundException)
+    await expect(
+      service.getDocumentForDownload(TENANT_ID, 'missing-doc-id'),
+    ).rejects.toThrow('Documento não encontrado')
+  })
+
+  // CT-SEC10-SVC-03: cross-tenant isolation — doc de outro tenant nao retorna
+  it('CT-SEC10-SVC-03: retorna NotFoundException para documento de outro tenant (isolamento)', async () => {
+    // Mock retorna undefined porque o WHERE tenant_id garante filtragem
+    mockFirst.mockResolvedValue(undefined)
+
+    await expect(
+      service.getDocumentForDownload('tenant-uuid-OUTRO', DOCUMENT_ID),
+    ).rejects.toThrow(NotFoundException)
+
+    // Verifica que o WHERE usou o tenant solicitante, nao vazou
+    const builder = mockKnex.mock.results[0].value
+    expect(builder.where).toHaveBeenCalledWith({
+      id: DOCUMENT_ID,
+      tenant_id: 'tenant-uuid-OUTRO',
+    })
+  })
+})

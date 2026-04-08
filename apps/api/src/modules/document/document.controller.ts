@@ -2,10 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -16,6 +20,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -24,7 +29,7 @@ import { diskStorage } from 'multer'
 import { mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 import { DocumentService } from './document.service'
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard'
 import { TenantGuard } from '@/common/guards/tenant.guard'
@@ -127,6 +132,27 @@ export class DocumentController {
     @Query(new ZodValidationPipe(ListDocumentsSchema)) query: ListDocumentsDto,
   ) {
     return this.documentService.listDocuments(tenantId, query)
+  }
+
+  // SEC-10: Download autenticado de documento via JWT — path traversal guard obrigatório
+  @Get('documents/:id')
+  @ApiOperation({ summary: 'Download de documento autenticado via JWT' })
+  @ApiParam({ name: 'id', description: 'UUID do documento' })
+  @ApiResponse({ status: 200, description: 'Arquivo enviado via download' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({ status: 404, description: 'Documento não encontrado' })
+  async downloadDocument(
+    @TenantId() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.documentService.getDocumentForDownload(tenantId, id)
+    const uploadsRoot = join(process.cwd(), 'uploads')
+    const filePath = join(process.cwd(), doc.file_url as string)
+    if (!filePath.startsWith(uploadsRoot + '/')) {
+      throw new ForbiddenException('Acesso negado')
+    }
+    res.download(filePath, doc.file_name as string)
   }
 
   // US-6.3: Registrar documento no banco após upload

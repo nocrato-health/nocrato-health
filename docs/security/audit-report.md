@@ -214,21 +214,18 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ### LOW
 
-#### SEC-10 — Documentos clínicos servidos diretamente pelo Nginx sem autenticação
+#### SEC-10 — Documentos clínicos servidos diretamente pelo Nginx sem autenticação ✅ RESOLVIDO
 
-- **Severidade:** LOW
-- **Módulo:** `docker/nginx.conf:163-169`
-- **Evidência:**
-  ```nginx
-  location /uploads/ {
-      alias /app/uploads/;
-      add_header Cache-Control "no-store";
-      add_header X-Content-Type-Options "nosniff" always;
-  }
-  ```
-- **Descrição:** Documentos clínicos (exames, prescrições, atestados) são servidos diretamente pelo Nginx via `/uploads/{tenantId}/{filename}` sem verificação de autenticação. O `filename` é o `originalname` do upload (nome previsível). Qualquer pessoa que conhecer ou adivinhar o caminho pode acessar documentos médicos sem autenticação.
-- **Impacto:** Violação LGPD — documentos médicos são dados sensíveis de saúde. O caminho `/uploads/{tenantId}/{filename}` expõe o `tenantId` e usa um `filename` previsível. Com SEC-03 corrigido (UUID como filename), o risco é mitigado mas o endpoint ainda fica sem autenticação.
-- **Recomendação:** Remover o `location /uploads/` do Nginx e servir arquivos exclusivamente pelo NestJS via `res.download()` (já implementado em `patient-portal.controller.ts:58-66`), que verifica autenticação via código de acesso antes de servir o arquivo.
+- **Severidade original:** LOW (impacto real HIGH pela exposição de PHI/LGPD)
+- **Módulo:** `docker/nginx.conf`, `docker/docker-compose.prod.yml`, `apps/api/src/modules/document/`
+- **Resolvido em:** PR `fix/sec-10-sec-12-documents-auth`
+  - `location /uploads/` removido do `nginx.conf`
+  - Volume `uploads_data` desmontado do container `nginx` em `docker-compose.prod.yml` — apenas o container `api` tem acesso (read+write)
+  - Novo endpoint autenticado `GET /api/v1/doctor/documents/:id` em `document.controller.ts` com `JwtAuthGuard + TenantGuard + RolesGuard('doctor')` + `ParseUUIDPipe` + path traversal guard
+  - Novo método `DocumentService.getDocumentForDownload(tenantId, id)` aplica `WHERE { id, tenant_id }` — isolamento de tenant garantido no query level
+  - Frontend: helper `apps/web/src/lib/download.ts` usa `fetch` com `Authorization: Bearer {token}`, converte resposta em Blob e dispara download. Substitui `<a href={doc.file_url}>` por `<button onClick={downloadDocument(...)}>` em `$patientId.tsx`
+  - Portal do paciente (`GET /api/v1/patient/portal/documents/:id`) já estava autenticado via código de acesso — inalterado
+  - **Testes:** 3 CTs unitários no `document.service.spec.ts` (CT-SEC10-SVC-01/02/03) + 5 CTs E2E Playwright em `sec-10-documents.spec.ts` (CT-SEC10-01 a 05) + 10 CTs de regressão do booking — todos passando
 
 ---
 
@@ -250,19 +247,25 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-12 — Dependências com CVEs de alta severidade em produção e build
+#### SEC-12 — Dependências com CVEs de alta severidade em produção e build ✅ RESOLVIDO (parcial — multer)
 
-- **Severidade:** LOW (risco real limitado no contexto atual)
-- **Módulo:** `apps/api/package.json` — 13 vulnerabilidades (1 moderate, 12 high)
-- **Evidência (runtime):**
-  - `multer@2.0.2` (via `@nestjs/platform-express`): 3 CVEs HIGH — DoS via uploads malformados (GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw). Patched >= 2.1.0.
-  - `tar@6.2.1` (via `bcrypt > @mapbox/node-pre-gyp`): 5 CVEs HIGH — path traversal e arbitrary file write. Risco apenas em ambiente de build (instalação de binários nativos do bcrypt).
-- **Evidência (devDependencies/build):**
-  - `minimatch` (via `@nestjs/cli`): 3 CVEs HIGH — ReDoS. Apenas devDependency, não chega em produção.
-  - `serialize-javascript` (via `@nestjs/cli > webpack`): 1 CVE HIGH — RCE em serialização. Apenas devDependency/build tool.
-  - `ajv@8.17.1` (via `@nestjs/cli`): 1 CVE MODERATE — ReDoS. Apenas devDependency.
-- **Impacto real:** `multer` DoS é o único risco em runtime de produção — payload malformado pode esgotar recursos no endpoint `POST /api/v1/doctor/upload`. Os demais são riscos de build/dev apenas.
-- **Recomendação:** Atualizar `multer` para >=2.1.0 (urgente — dependency de runtime com patch disponível). Resolver os demais em janela de manutenção regular. Configurar `pnpm audit` no pipeline CI como gate obrigatório.
+- **Severidade original:** LOW (risco real HIGH no runtime)
+- **Módulo:** `apps/api/package.json`, `package.json` (root)
+- **Resolvido em:** PR `fix/sec-10-sec-12-documents-auth`
+  - `multer` direto atualizado de `^1.4.5-lts.1` para `^2.1.0` em `apps/api/package.json`
+  - `@types/multer` atualizado de `^1.4.12` para `^2.0.0`
+  - Adicionado `pnpm.overrides: { multer: "^2.1.0" }` no `package.json` root para forçar a versão transitiva via `@nestjs/platform-express` (que pinava `multer@2.0.2`)
+  - Versão final no lockfile: **`multer@2.1.1`** (única instância — confirmado via `pnpm why multer`)
+  - CVEs fechadas: GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw (DoS via uploads malformados)
+  - 661/661 testes passando após upgrade (compatibilidade API preservada)
+
+- **Pendente (follow-up — não faziam parte do escopo original de SEC-12 — novas CVEs surgidas após março/2026):**
+  - `path-to-regexp` (via `@nestjs/platform-express > express > router`): DoS. Aguarda bump upstream em `@nestjs/platform-express`
+  - `lodash@4.17.23` (via `@nestjs/swagger` e `knex`): code injection via `_.template`. Swagger desabilitado em prod (SEC-13); `knex` não usa `_.template` com input de usuário
+  - `tar@6.2.1` (via `bcrypt > @mapbox/node-pre-gyp`): 5 CVEs HIGH — **apenas build phase** (compilação de binários nativos). Sem impacto em runtime
+  - `minimatch` (via `@nestjs/cli`): devDependency, não chega em produção
+
+- **Recomendação:** Acompanhar releases de `@nestjs/platform-express` e `@nestjs/swagger` para upgrade upstream. Configurar `pnpm audit --prod --audit-level high` como gate no CI.
 
 ---
 

@@ -102,4 +102,18 @@ export class DocumentService {
       },
     }
   }
+
+  // SEC-10: Download autenticado de documento via JWT — isolamento de tenant obrigatório
+  async getDocumentForDownload(tenantId: string, documentId: string) {
+    const doc = await this.knex('documents')
+      .where({ id: documentId, tenant_id: tenantId })
+      .select(DOCUMENT_FIELDS)
+      .first()
+
+    if (!doc) {
+      throw new NotFoundException('Documento não encontrado')
+    }
+
+    return doc
+  }
 }
