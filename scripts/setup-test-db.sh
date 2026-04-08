@@ -24,7 +24,7 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   exit 1
 fi
 
-if ! docker exec "${CONTAINER}" psql -U "${DB_USER}" -d postgres -tAc \
+if ! docker exec "${CONTAINER}" psql -U "${DB_USER}" -d template1 -tAc \
   "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
   echo "📦 Criando banco ${DB_NAME}..."
   docker exec "${CONTAINER}" createdb -U "${DB_USER}" "${DB_NAME}"

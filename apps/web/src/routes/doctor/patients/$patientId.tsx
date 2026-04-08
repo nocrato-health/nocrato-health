@@ -402,6 +402,7 @@ function DocumentsTab({ patientId, documents }: DocumentsTabProps) {
           {filteredDocuments.map((doc) => (
             <div
               key={doc.id}
+              data-testid="document-row"
               className="rounded-lg border border-[#e8dfc8] bg-white p-4 flex items-center justify-between gap-4"
             >
               <div className="min-w-0">

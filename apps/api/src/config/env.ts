@@ -47,7 +47,15 @@ const envSchema = z.object({
 
   // E2E — bypass de ThrottlerGuard em NODE_ENV=test (ver TD-29 + E2eAwareThrottlerGuard)
   E2E_THROTTLE_BYPASS_SECRET: z.string().min(16).optional(),
-})
+}).refine(
+  (data) => data.NODE_ENV !== 'test' || !!data.E2E_THROTTLE_BYPASS_SECRET,
+  {
+    message:
+      'E2E_THROTTLE_BYPASS_SECRET é obrigatório quando NODE_ENV=test — ' +
+      'defina em .env.test (veja .env.test.example).',
+    path: ['E2E_THROTTLE_BYPASS_SECRET'],
+  },
+)
 
 const parsed = envSchema.safeParse(process.env)
 

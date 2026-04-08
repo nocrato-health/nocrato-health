@@ -240,15 +240,12 @@ test('CT-SEC10-02 — Click em Download: request vai para /api/v1/doctor/documen
   await page.getByRole('button', { name: /^Documentos/ }).click()
 
   // Aguardar o card do doc único aparecer e escopar o Download a ele
-  // (paralelismo: outros testes podem ter adicionado outros docs no mesmo paciente).
-  // Pegamos o div mais interno que contém tanto o filename quanto o botão Download
-  // — é a "linha" do documento no DOM.
-  await expect(page.getByText(uniqueFilename)).toBeVisible({ timeout: 5000 })
-  const docRow = page
-    .locator('div')
-    .filter({ hasText: uniqueFilename })
-    .filter({ has: page.getByRole('button', { name: 'Download' }) })
-    .last()
+  // via data-testid="document-row" (paralelismo: outros testes podem ter
+  // adicionado outros docs no mesmo paciente). Muito mais robusto que
+  // filtros encadeados de div, que quebram silenciosamente se a UI ganhar
+  // wrappers extras.
+  const docRow = page.getByTestId('document-row').filter({ hasText: uniqueFilename })
+  await expect(docRow).toBeVisible({ timeout: 5000 })
   const downloadBtn = docRow.getByRole('button', { name: 'Download' })
   await expect(downloadBtn).toBeVisible()
 

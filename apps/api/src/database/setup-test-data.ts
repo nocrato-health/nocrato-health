@@ -36,6 +36,16 @@ import * as fs from 'node:fs'
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env.test') })
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
 
+// Guard contra execução acidental em dev/prod — esse script apaga+recria
+// dados de teste, nunca deve tocar o banco de desenvolvimento.
+if (process.env.NODE_ENV !== 'test') {
+  console.error(
+    '❌ setup-test-data.ts só pode rodar com NODE_ENV=test\n' +
+      '   Use: pnpm test:e2e:setup ou rode via globalSetup do Playwright.',
+  )
+  process.exit(1)
+}
+
 const TEST_PASSWORD = 'Doctor123!'
 
 export const TEST_DOCTOR_NEW = {
@@ -117,16 +127,19 @@ async function setupTestData() {
 
 async function setupAgencyAdmin(db: ReturnType<typeof knex>): Promise<void> {
   // Agency admin para agency.spec.ts — email/senha fixos referenciados nos testes.
-  // Reset idempotente: upsert via delete+insert para garantir hash consistente.
+  // Upsert atômico via ON CONFLICT: idempotente e sem janela de inconsistência
+  // caso o insert falhe após o delete.
   const adminPasswordHash = await bcrypt.hash('admin123', 10)
-  await db('agency_members').where({ email: 'admin@nocrato.com' }).delete()
-  await db('agency_members').insert({
-    email: 'admin@nocrato.com',
-    password_hash: adminPasswordHash,
-    name: 'Admin Nocrato',
-    role: 'agency_admin',
-    status: 'active',
-  })
+  await db('agency_members')
+    .insert({
+      email: 'admin@nocrato.com',
+      password_hash: adminPasswordHash,
+      name: 'Admin Nocrato',
+      role: 'agency_admin',
+      status: 'active',
+    })
+    .onConflict('email')
+    .merge(['password_hash', 'name', 'role', 'status'])
 }
 
 async function setupDoctor(
