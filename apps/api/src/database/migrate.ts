@@ -2,7 +2,10 @@ import knex from 'knex'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({ path: path.resolve(__dirname, '../../../../.env.test') })
+}
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
 
 // Em produção (dist/), as migrations são compiladas para .js
 // Em desenvolvimento (src/), ts-node carrega .ts via pnpm migrate
