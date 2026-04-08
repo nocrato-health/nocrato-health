@@ -26,7 +26,7 @@ jest.mock('@/config/env', () => ({
 
 import { Test, TestingModule } from '@nestjs/testing'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { ThrottlerGuard } from '@nestjs/throttler'
+import { E2eAwareThrottlerGuard } from '@/common/guards/e2e-throttler.guard'
 import { join } from 'path'
 import { PatientPortalController } from './patient-portal.controller'
 import { PatientService } from './patient.service'
@@ -93,7 +93,7 @@ describe('PatientPortalController', () => {
       controllers: [PatientPortalController],
       providers: [{ provide: PatientService, useValue: service }],
     })
-      .overrideGuard(ThrottlerGuard)
+      .overrideGuard(E2eAwareThrottlerGuard)
       .useValue({ canActivate: jest.fn().mockResolvedValue(true) })
       .compile()
 

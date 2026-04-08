@@ -39,6 +39,9 @@ const envSchema = z.object({
 
   // OpenAI (módulo agent/ — gpt-4o-mini)
   OPENAI_API_KEY: z.string().startsWith('sk-'),
+
+  // E2E — bypass de ThrottlerGuard em NODE_ENV=test (ver TD-29 + E2eAwareThrottlerGuard)
+  E2E_THROTTLE_BYPASS_SECRET: z.string().min(16).optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
