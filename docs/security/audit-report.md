@@ -214,21 +214,18 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ### LOW
 
-#### SEC-10 — Documentos clínicos servidos diretamente pelo Nginx sem autenticação
+#### SEC-10 — Documentos clínicos servidos diretamente pelo Nginx sem autenticação ✅ RESOLVIDO
 
-- **Severidade:** LOW
-- **Módulo:** `docker/nginx.conf:163-169`
-- **Evidência:**
-  ```nginx
-  location /uploads/ {
-      alias /app/uploads/;
-      add_header Cache-Control "no-store";
-      add_header X-Content-Type-Options "nosniff" always;
-  }
-  ```
-- **Descrição:** Documentos clínicos (exames, prescrições, atestados) são servidos diretamente pelo Nginx via `/uploads/{tenantId}/{filename}` sem verificação de autenticação. O `filename` é o `originalname` do upload (nome previsível). Qualquer pessoa que conhecer ou adivinhar o caminho pode acessar documentos médicos sem autenticação.
-- **Impacto:** Violação LGPD — documentos médicos são dados sensíveis de saúde. O caminho `/uploads/{tenantId}/{filename}` expõe o `tenantId` e usa um `filename` previsível. Com SEC-03 corrigido (UUID como filename), o risco é mitigado mas o endpoint ainda fica sem autenticação.
-- **Recomendação:** Remover o `location /uploads/` do Nginx e servir arquivos exclusivamente pelo NestJS via `res.download()` (já implementado em `patient-portal.controller.ts:58-66`), que verifica autenticação via código de acesso antes de servir o arquivo.
+- **Severidade original:** LOW (impacto real HIGH pela exposição de PHI/LGPD)
+- **Módulo:** `docker/nginx.conf`, `docker/docker-compose.prod.yml`, `apps/api/src/modules/document/`
+- **Resolvido em:** PR `fix/sec-10-sec-12-documents-auth`
+  - `location /uploads/` removido do `nginx.conf`
+  - Volume `uploads_data` desmontado do container `nginx` em `docker-compose.prod.yml` — apenas o container `api` tem acesso (read+write)
+  - Novo endpoint autenticado `GET /api/v1/doctor/documents/:id` em `document.controller.ts` com `JwtAuthGuard + TenantGuard + RolesGuard('doctor')` + `ParseUUIDPipe` + path traversal guard
+  - Novo método `DocumentService.getDocumentForDownload(tenantId, id)` aplica `WHERE { id, tenant_id }` — isolamento de tenant garantido no query level
+  - Frontend: helper `apps/web/src/lib/download.ts` usa `fetch` com `Authorization: Bearer {token}`, converte resposta em Blob e dispara download. Substitui `<a href={doc.file_url}>` por `<button onClick={downloadDocument(...)}>` em `$patientId.tsx`
+  - Portal do paciente (`GET /api/v1/patient/portal/documents/:id`) já estava autenticado via código de acesso — inalterado
+  - **Testes:** 3 CTs unitários no `document.service.spec.ts` (CT-SEC10-SVC-01/02/03) + 5 CTs E2E Playwright em `sec-10-documents.spec.ts` (CT-SEC10-01 a 05) + 10 CTs de regressão do booking — todos passando
 
 ---
 
@@ -250,19 +247,36 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-12 — Dependências com CVEs de alta severidade em produção e build
+#### SEC-12 — Dependências com CVEs de alta severidade em produção e build ✅ RESOLVIDO
 
-- **Severidade:** LOW (risco real limitado no contexto atual)
-- **Módulo:** `apps/api/package.json` — 13 vulnerabilidades (1 moderate, 12 high)
-- **Evidência (runtime):**
-  - `multer@2.0.2` (via `@nestjs/platform-express`): 3 CVEs HIGH — DoS via uploads malformados (GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw). Patched >= 2.1.0.
-  - `tar@6.2.1` (via `bcrypt > @mapbox/node-pre-gyp`): 5 CVEs HIGH — path traversal e arbitrary file write. Risco apenas em ambiente de build (instalação de binários nativos do bcrypt).
-- **Evidência (devDependencies/build):**
-  - `minimatch` (via `@nestjs/cli`): 3 CVEs HIGH — ReDoS. Apenas devDependency, não chega em produção.
-  - `serialize-javascript` (via `@nestjs/cli > webpack`): 1 CVE HIGH — RCE em serialização. Apenas devDependency/build tool.
-  - `ajv@8.17.1` (via `@nestjs/cli`): 1 CVE MODERATE — ReDoS. Apenas devDependency.
-- **Impacto real:** `multer` DoS é o único risco em runtime de produção — payload malformado pode esgotar recursos no endpoint `POST /api/v1/doctor/upload`. Os demais são riscos de build/dev apenas.
-- **Recomendação:** Atualizar `multer` para >=2.1.0 (urgente — dependency de runtime com patch disponível). Resolver os demais em janela de manutenção regular. Configurar `pnpm audit` no pipeline CI como gate obrigatório.
+- **Severidade original:** LOW (risco real HIGH no runtime)
+- **Módulo:** `apps/api/package.json`, `package.json` (root)
+- **Resolvido em:** PR `fix/sec-10-sec-12-documents-auth`
+
+**Resultado final:** de **9 HIGH CVEs para 0 HIGH CVEs** em runtime. `pnpm audit --prod --audit-level high` retorna zero issues HIGH (apenas 3 moderate, abaixo do threshold).
+
+**Mudanças:**
+1. **multer** atualizado de `^1.4.5-lts.1` para `^2.1.0` (+ `@types/multer ^2.0.0`)
+   - CVEs fechadas: GHSA-xf7r-hgr6-v32p, GHSA-e9vh-46qr-2ccm, GHSA-m46v-3p4x-c5pw (DoS via uploads malformados)
+2. **bcrypt** bumped de `^5.1.1` para `^6.0.0` (+ `@types/bcrypt ^6.0.0`)
+   - bcrypt 6.x dropou `@mapbox/node-pre-gyp` (que puxava tar/rimraf/glob/minimatch antigos e vulneráveis)
+   - Agora usa `node-gyp-build` + `node-addon-api` — zero transitive vulnerabilidades no install
+   - CVEs fechadas no install: 6 HIGH de `tar` + 2 HIGH de `minimatch`
+   - `bcrypt.compare()` e `bcrypt.hash()` API-compatíveis — hashes existentes continuam válidos (confirmado por Playwright E2E login)
+3. **pnpm.overrides** no root `package.json` forçando versões seguras transitivas:
+   - `multer: ^2.1.0` — força bump na cadeia `@nestjs/platform-express > multer`
+   - `path-to-regexp: ^8.4.2` — fecha DoS via `express > router`
+   - `lodash: ^4.18.1` — fecha code injection via `_.template` em `@nestjs/swagger` e `knex`
+   - `tar: ^7.5.0` — já eliminado pelo bump do bcrypt, override mantido como defesa
+   - `minimatch: ^10.0.0` — idem
+
+**Validação:**
+- 661/661 unit tests passando
+- Playwright login tests (td-phase1-validation, agency, patient-portal) **5+3+5 = 13 PASS** confirmando que bcrypt 6.x valida hashes existentes
+- 5/5 sec-10-documents E2E + 10/10 booking regression
+- TypeScript clean (API + Web)
+
+**Recomendação futura:** Configurar `pnpm audit --prod --audit-level high` como gate obrigatório no CI para detectar regressões em dependências.
 
 ---
 

@@ -181,6 +181,25 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
+### TD-29 — ThrottlerGuard quebra execução paralela do full suite Playwright
+**Módulo:** `apps/web/e2e`, `apps/api/src/modules/auth`
+**Identificado em:** PR SEC-10/12 — regressão QA (Playwright full suite)
+**Prioridade:** P2
+
+O endpoint `POST /api/v1/doctor/auth/login` tem `@Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })` — 5 req/15min por IP. Com 6 workers Playwright rodando em paralelo, múltiplos `beforeAll` disparam `loginDoctor()` simultaneamente e exaurem o bucket no primeiro minuto. Suites subsequentes recebem 429 e abortam em cascata. No run do QA: **17 fails por throttler** em suites não-relacionadas (appointments, clinical, patients, settings, sec-10-documents quando rodadas depois de outras).
+
+**Impacto atual:** Nenhum em produção. Bloqueia qualquer pipeline CI que rode full suite em paralelo.
+
+**Fix:** Opções:
+1. Bypass do throttler em ambiente de teste via header especial (`X-Test-Bypass: ${env.TEST_BYPASS_TOKEN}`) + guard que libera quando presente
+2. Raise limit quando `NODE_ENV === 'test'`
+3. Serializar login calls (reduzir workers para 1 no full suite) — mais lento mas sem mudança de código
+4. Pool de contas de teste (6 doutores distintos, um por worker)
+
+Opção 1 é a mais limpa e permite manter paralelismo. Requer gerar `TEST_BYPASS_TOKEN` seguro e nunca vazá-lo em prod.
+
+---
+
 ### ~~TD-18 — Type guard do webhook controller não valida `data.key` antes do cast~~ ✅ RESOLVIDO em US-9.3
 **Módulo:** `agent`
 **Identificado em:** US-9.2 (OBS-TL-2 tech-lead)

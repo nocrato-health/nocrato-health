@@ -102,4 +102,27 @@ export class DocumentService {
       },
     }
   }
+
+  // SEC-10: Download autenticado de documento via JWT — isolamento de tenant obrigatório
+  async getDocumentForDownload(
+    tenantId: string,
+    documentId: string,
+  ): Promise<DocumentDownloadRow> {
+    const doc = await this.knex('documents')
+      .where({ id: documentId, tenant_id: tenantId })
+      .select<DocumentDownloadRow>('file_url', 'file_name')
+      .first()
+
+    if (!doc) {
+      throw new NotFoundException('Documento não encontrado')
+    }
+
+    return doc
+  }
+}
+
+// SEC-10: tipo de retorno minimo para download — somente os campos usados pelo controller
+export interface DocumentDownloadRow {
+  file_url: string
+  file_name: string
 }
