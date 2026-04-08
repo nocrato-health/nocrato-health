@@ -27,6 +27,9 @@ import * as dotenv from 'dotenv'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 
+// setup-test-data.ts é específico do Playwright — sempre carrega .env.test
+// (se existir) por cima do .env, garantindo que aponte para o banco de teste.
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env.test') })
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
 
 const TEST_PASSWORD = 'Doctor123!'
