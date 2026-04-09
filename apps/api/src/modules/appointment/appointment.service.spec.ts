@@ -1159,7 +1159,8 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       'patient.portal_activated',
       'system',
       null,
-      expect.objectContaining({ patient_id: PATIENT_ID, patient_name: 'João Santos' }),
+      // LGPD SEC-11: patient_name removido do payload (PII em event_log retido 90d)
+      expect.objectContaining({ patient_id: PATIENT_ID }),
     )
     // SEC-14: portal_access_code NUNCA deve aparecer no audit log (LGPD)
     expect(mockEventLogService.append).not.toHaveBeenCalledWith(
@@ -1203,9 +1204,9 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       'patient.portal_activated',
       'system',
       null,
+      // LGPD SEC-11: patient_name removido do payload
       expect.objectContaining({
         patient_id: PATIENT_ID,
-        patient_name: 'João Santos',
       }),
     )
 

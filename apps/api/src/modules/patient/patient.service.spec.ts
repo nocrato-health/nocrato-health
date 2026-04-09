@@ -2071,7 +2071,8 @@ describe('PatientService — activatePortal', () => {
       'patient.portal_activated',
       'system',
       null,
-      expect.objectContaining({ patientId: PATIENT_ID_A, phone: patient.phone }),
+      // LGPD SEC-11: phone removido do payload (PII em event_log retido 90d)
+      expect.objectContaining({ patientId: PATIENT_ID_A }),
     )
 
     // EventEmitter2.emit foi chamado

@@ -397,6 +397,9 @@ export class AppointmentService {
             .where({ id: appointment.patient_id, tenant_id: tenantId })
             .update({ portal_access_code: code, portal_active: true })
 
+          // LGPD SEC-11: event_log.payload não pode conter PII (name, phone, email).
+          // O payload é retido 90 dias — guardar só IDs. Nome do paciente pode ser
+          // recuperado via join com patients se necessário para análise.
           await this.eventLogService.append(
             tenantId,
             'patient.portal_activated',
@@ -404,7 +407,6 @@ export class AppointmentService {
             null,
             {
               patient_id: appointment.patient_id,
-              patient_name: patient?.name as string | undefined,
             },
           )
 
@@ -435,9 +437,10 @@ export class AppointmentService {
         payload.completed_at = updated.completed_at
         payload.duration_minutes = appointment.duration_minutes
         payload.portal_activated = portalActivated
-      } else if (dto.status === 'cancelled') {
-        payload.cancellation_reason = dto.cancellationReason
       }
+      // LGPD SEC-11: cancellation_reason (texto livre) NÃO é gravado no
+      // event_log.payload — ele é retido e pode conter PII. O valor fica na
+      // coluna appointments.cancellation_reason (dado funcional da consulta).
 
       await this.eventLogService.append(
         tenantId,
@@ -507,12 +510,13 @@ export class AppointmentService {
       updated_at: this.knex.fn.now(),
     })
 
+    // LGPD SEC-11: cancellation_reason fica apenas na coluna do appointment,
+    // não no event_log.payload (texto livre pode ter PII e é retido 90d).
     await this.eventLogService.append(tenantId, 'appointment.cancelled', 'agent', null, {
       appointment_id: appointmentId,
       patient_id: appointment.patient_id,
       old_status: appointment.status,
       new_status: 'cancelled',
-      cancellation_reason: reason,
     })
 
     this.eventEmitter.emit('appointment.cancelled', {

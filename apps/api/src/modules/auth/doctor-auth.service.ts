@@ -14,6 +14,7 @@ import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import { env } from '@/config/env'
 import { EmailService } from '@/modules/email/email.service'
+import { redactPiiInString } from '@/common/logging/redact-pii'
 
 interface InviteRow {
   id: string
@@ -341,10 +342,14 @@ export class DoctorAuthService {
     try {
       await this.emailService.sendPasswordReset({ to: email, token, userType: 'doctor' })
     } catch (err) {
-      this.logger.error(`Falha ao enviar e-mail de reset para ${email}: ${(err as Error).message}`)
+      this.logger.error(
+        redactPiiInString(
+          `Falha ao enviar e-mail de reset para ${email}: ${(err as Error).message}`,
+        ),
+      )
     }
 
-    this.logger.log(`Solicitação de reset de senha para doutor: ${email}`)
+    this.logger.log(redactPiiInString(`Solicitação de reset de senha para doutor: ${email}`))
     return { message: 'Se este e-mail estiver cadastrado, você receberá as instruções em breve.' }
   }
 
@@ -437,7 +442,7 @@ export class DoctorAuthService {
       })
     })
 
-    this.logger.log(`Senha redefinida para doutor: ${invite.email}`)
+    this.logger.log(redactPiiInString(`Senha redefinida para doutor: ${invite.email}`))
     return { message: 'Senha redefinida com sucesso' }
   }
 }

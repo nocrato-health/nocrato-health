@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt'
 import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import { EmailService } from '@/modules/email/email.service'
+import { redactPiiInString } from '@/common/logging/redact-pii'
 
 interface InviteRow {
   id: string
@@ -97,7 +98,9 @@ export class InviteService {
     // 7. Enviar email
     await this.emailService.sendInviteMember({ to: email, token, invitedByName })
 
-    this.logger.log(`Convite agency_member enviado para ${email} por ${invitedBy}`)
+    this.logger.log(
+      redactPiiInString(`Convite agency_member enviado para ${email} por ${invitedBy}`),
+    )
 
     return { message: 'Convite enviado com sucesso' }
   }
@@ -162,7 +165,7 @@ export class InviteService {
       })
     })
 
-    this.logger.log(`Convite aceito por ${invite.email}`)
+    this.logger.log(redactPiiInString(`Convite aceito por ${invite.email}`))
 
     return { message: 'Conta criada com sucesso. Faça login para continuar.' }
   }
@@ -213,7 +216,7 @@ export class InviteService {
     // 7. Enviar email
     await this.emailService.sendInviteDoctor({ to: email, token, invitedByName })
 
-    this.logger.log(`Convite doctor enviado para ${email} por ${invitedBy}`)
+    this.logger.log(redactPiiInString(`Convite doctor enviado para ${email} por ${invitedBy}`))
 
     return { message: 'Convite enviado com sucesso' }
   }

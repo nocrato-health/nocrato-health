@@ -410,12 +410,13 @@ export class PatientService {
       .update({ portal_active: true })
 
     // 4. Registrar no event_log via EventLogService
+    // LGPD SEC-11: payload sem PII — telefone pode ser recuperado via patients join.
     await this.eventLogService.append(
       tenantId,
       'patient.portal_activated',
       'system',
       null,
-      { patientId, phone: patient.phone },
+      { patientId },
     )
 
     // 5. Emitir evento via EventEmitter2 (fire-and-forget)
