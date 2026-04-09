@@ -4,9 +4,15 @@ import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, ChevronRight, FileText, Calendar, Paperclip, User, Upload, ClipboardList } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Eye, EyeOff, FileText, Calendar, Paperclip, User, Upload, ClipboardList } from 'lucide-react'
 
-import { patientProfileQueryOptions, useUpdatePatient, type UpdatePatientPayload } from '@/lib/queries/patients'
+import {
+  patientProfileQueryOptions,
+  useUpdatePatient,
+  usePatientDocumentQuery,
+  type UpdatePatientPayload,
+} from '@/lib/queries/patients'
+import { maskCpf, unmaskDocument } from '@/lib/masks'
 import { downloadDocument } from '@/lib/download'
 import type { PatientAppointment } from '@/types/api'
 import { formatDate, formatDateTime, formatPhone } from '@/lib/utils'
@@ -56,14 +62,103 @@ const documentTypeLabels: Record<string, string> = {
 
 // ─── Schema de edição ─────────────────────────────────────────────────────────
 
-const updatePatientSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  phone: z.string().min(8, 'Telefone inválido'),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-  status: z.enum(['active', 'inactive']),
-})
+const updatePatientSchema = z
+  .object({
+    name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+    phone: z.string().min(8, 'Telefone inválido'),
+    email: z.string().email('Email inválido').optional().or(z.literal('')),
+    status: z.enum(['active', 'inactive']),
+    documentType: z.enum(['cpf', 'rg', '']).optional(),
+    document: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const hasType = !!data.documentType && data.documentType !== ''
+      const hasDoc = !!data.document && data.document.trim() !== ''
+      // Ambos presentes, ou nenhum — parcial é inválido
+      return (!hasType && !hasDoc) || (hasType && hasDoc)
+    },
+    {
+      message: 'Informe o tipo E o número do documento, ou deixe ambos em branco',
+      path: ['document'],
+    },
+  )
 
 type UpdatePatientForm = z.infer<typeof updatePatientSchema>
+
+// ─── Componente de revelação de documento ─────────────────────────────────────
+
+interface PatientDocumentRevealProps {
+  patientId: string
+  documentType: 'cpf' | 'rg'
+}
+
+function PatientDocumentReveal({ patientId, documentType }: Readonly<PatientDocumentRevealProps>) {
+  const [visible, setVisible] = React.useState(false)
+  const { data, isFetching, refetch, error } = usePatientDocumentQuery(patientId)
+
+  // Limpar estado local ao trocar de paciente
+  React.useEffect(() => {
+    setVisible(false)
+  }, [patientId])
+
+  async function handleReveal() {
+    const result = await refetch()
+    if (result.error) {
+      toast.error('Erro ao carregar documento.')
+      return
+    }
+    setVisible(true)
+  }
+
+  const label = documentType === 'cpf' ? 'CPF' : 'RG'
+
+  if (!visible) {
+    return (
+      <button
+        type="button"
+        onClick={() => void handleReveal()}
+        disabled={isFetching}
+        className="inline-flex items-center gap-1.5 text-sm text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-label={`Ver ${label} do paciente`}
+      >
+        <Eye className="w-3.5 h-3.5" />
+        {isFetching ? 'Carregando...' : `Ver ${label}`}
+      </button>
+    )
+  }
+
+  function formatDoc(raw: string): string {
+    if (documentType === 'cpf') return maskCpf(raw)
+    return raw
+  }
+
+  const formattedDoc = data?.document ? formatDoc(data.document) : null
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {error || !formattedDoc ? (
+        <span className="text-sm text-red-500">Erro ao carregar</span>
+      ) : (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-md bg-amber-bright/10 border border-amber-bright/30 px-2.5 py-1 text-sm font-mono font-medium text-amber-dark"
+          aria-live="polite"
+        >
+          {formattedDoc}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => setVisible(false)}
+        className="inline-flex items-center gap-1 text-xs text-amber-mid hover:text-amber-dark transition-colors"
+        aria-label="Ocultar documento"
+      >
+        <EyeOff className="w-3.5 h-3.5" />
+        Ocultar
+      </button>
+    </div>
+  )
+}
 
 // ─── Tab: Informações ─────────────────────────────────────────────────────────
 
@@ -77,6 +172,7 @@ interface InfoTabProps {
     source: 'manual' | 'agent'
     created_at: string
     portal_active: boolean
+    document_type?: 'cpf' | 'rg' | null
   }
 }
 
@@ -102,17 +198,50 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
       phone: patient.phone,
       email: patient.email ?? '',
       status: patient.status,
+      // Tipo preenchido conforme o que o backend retornou; valor do documento vem vazio
+      // (dado sensível — o doutor precisa clicar "Ver documento" para carregar)
+      documentType: patient.document_type ?? '',
+      document: '',
     },
   })
 
   const watchedStatus = watch('status')
+  const watchedDocType = watch('documentType')
+  const watchedDoc = watch('document') ?? ''
 
-  function onSubmit(data: UpdatePatientForm) {
+  function docPlaceholder(): string {
+    if (watchedDocType === 'cpf') return '000.000.000-00'
+    if (watchedDocType === 'rg') return 'somente dígitos'
+    return '—'
+  }
+
+  function handleDocumentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value
+    if (watchedDocType === 'cpf') {
+      setValue('document', maskCpf(raw), { shouldDirty: true })
+    } else {
+      setValue('document', raw.replaceAll(/\D/g, '').slice(0, 14), { shouldDirty: true })
+    }
+  }
+
+  function onSubmit(formData: UpdatePatientForm) {
+    const hasDocument =
+      !!formData.documentType &&
+      formData.documentType !== '' &&
+      !!formData.document &&
+      formData.document.trim() !== ''
+
     const payload: UpdatePatientPayload = {
-      name: data.name,
-      phone: data.phone,
-      status: data.status,
-      ...(data.email ? { email: data.email } : {}),
+      name: formData.name,
+      phone: formData.phone,
+      status: formData.status,
+      ...(formData.email ? { email: formData.email } : {}),
+      ...(hasDocument
+        ? {
+            documentType: formData.documentType as 'cpf' | 'rg',
+            document: unmaskDocument(formData.document ?? ''),
+          }
+        : {}),
     }
 
     updatePatient.mutate(payload, {
@@ -126,77 +255,145 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
     })
   }
 
+  const currentDocLabel = patient.document_type
+    ? patient.document_type.toUpperCase()
+    : 'documento'
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Coluna esquerda — form (2/3 do espaço) */}
       <div className="lg:col-span-2">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="pt-name">Nome completo</Label>
-          <Input
-            id="pt-name"
-            {...register('name')}
-            error={!!errors.name}
-          />
-          {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="pt-name">Nome completo</Label>
+              <Input
+                id="pt-name"
+                {...register('name')}
+                error={!!errors.name}
+              />
+              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+            </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pt-phone">Telefone</Label>
-          <Input
-            id="pt-phone"
-            value={watch('phone') ?? ''}
-            onChange={(e) => setValue('phone', formatPhone(e.target.value))}
-            error={!!errors.phone}
-          />
-          {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
-        </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pt-phone">Telefone</Label>
+              <Input
+                id="pt-phone"
+                value={watch('phone') ?? ''}
+                onChange={(e) => setValue('phone', formatPhone(e.target.value))}
+                error={!!errors.phone}
+              />
+              {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+            </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pt-email">Email</Label>
-          <Input
-            id="pt-email"
-            type="email"
-            {...register('email')}
-            error={!!errors.email}
-            placeholder="(não informado)"
-          />
-          {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
-        </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pt-email">Email</Label>
+              <Input
+                id="pt-email"
+                type="email"
+                {...register('email')}
+                error={!!errors.email}
+                placeholder="(não informado)"
+              />
+              {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+            </div>
 
-        <div className="space-y-1.5">
-          <Label>Status</Label>
-          <Select
-            value={watchedStatus}
-            onValueChange={(val) => setValue('status', val as 'active' | 'inactive', { shouldDirty: true })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Ativo</SelectItem>
-              <SelectItem value="inactive">Inativo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select
+                value={watchedStatus}
+                onValueChange={(val) =>
+                  setValue('status', val as 'active' | 'inactive', { shouldDirty: true })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-      {/* Campos não editáveis */}
-      <div className="rounded-lg border border-[#e8dfc8] bg-cream p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-        <div>
-          <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Origem</p>
-          <p className="text-amber-dark font-medium">{sourceLabels[patient.source] ?? patient.source}</p>
-        </div>
-        <div>
-          <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Cadastrado em</p>
-          <p className="text-amber-dark font-medium">{formatDate(patient.created_at)}</p>
-        </div>
-        <div>
-          <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Portal do paciente</p>
-          <p className="text-amber-dark font-medium">{patient.portal_active ? 'Ativo' : 'Inativo'}</p>
-        </div>
-      </div>
+          {/* Documento de identificação */}
+          <div className="rounded-lg border border-[#e8dfc8] bg-cream p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs font-medium text-amber-mid uppercase tracking-wide">
+                Documento de identificação
+              </p>
+              {/* Botão "Ver documento" — só aparece se o paciente tem um tipo registrado */}
+              {patient.document_type && (
+                <PatientDocumentReveal
+                  patientId={patientId}
+                  documentType={patient.document_type}
+                />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pt-doc-type">Tipo</Label>
+                <Select
+                  value={watchedDocType ?? ''}
+                  onValueChange={(val) => {
+                    setValue('documentType', val as 'cpf' | 'rg' | '', { shouldDirty: true })
+                    setValue('document', '', { shouldDirty: true })
+                  }}
+                >
+                  <SelectTrigger id="pt-doc-type" aria-label="Tipo de documento">
+                    <SelectValue placeholder="Não alterar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Não alterar</SelectItem>
+                    <SelectItem value="cpf">CPF</SelectItem>
+                    <SelectItem value="rg">RG</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="pt-document">Novo número</Label>
+                <Input
+                  id="pt-document"
+                  placeholder={docPlaceholder()}
+                  value={watchedDoc}
+                  onChange={handleDocumentChange}
+                  disabled={!watchedDocType || watchedDocType === ''}
+                  inputMode="numeric"
+                  maxLength={14}
+                  aria-label="Novo número do documento"
+                  error={!!errors.document}
+                />
+              </div>
+            </div>
+
+            {errors.document && (
+              <p className="text-xs text-red-500">{errors.document.message}</p>
+            )}
+
+            <p className="text-xs text-amber-mid">
+              Preencha apenas se quiser atualizar o documento. O valor atual não é exibido por
+              segurança — use &ldquo;Ver {currentDocLabel}&rdquo; acima para conferir.
+            </p>
+          </div>
+
+          {/* Campos não editáveis */}
+          <div className="rounded-lg border border-[#e8dfc8] bg-cream p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Origem</p>
+              <p className="text-amber-dark font-medium">{sourceLabels[patient.source] ?? patient.source}</p>
+            </div>
+            <div>
+              <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Cadastrado em</p>
+              <p className="text-amber-dark font-medium">{formatDate(patient.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-amber-mid text-xs uppercase tracking-wide mb-1">Portal do paciente</p>
+              <p className="text-amber-dark font-medium">{patient.portal_active ? 'Ativo' : 'Inativo'}</p>
+            </div>
+          </div>
 
           <div className="flex justify-end">
             <Button
