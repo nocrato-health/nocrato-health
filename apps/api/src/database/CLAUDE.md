@@ -50,6 +50,10 @@ export class MyService {
 | 012 | `012_create_triggers.ts` | função + triggers | 001–011 |
 | 013 | `013_create_conversations.ts` | `conversations` | 003, 012 |
 | 014 | `014_add_booking_mode_to_agent_settings.ts` | ALTER `agent_settings` | 005 |
+| 015 | `015_alter_doctors_nullable_crm.ts` | ALTER `doctors` (crm/crm_state nullable, working_hours DEFAULT NULL) | 004 |
+| 016 | `016_add_evolution_instance_to_agent_settings.ts` | ALTER `agent_settings` (evolution_instance_name) | 005 |
+| 017 | `017_add_refresh_token_version_to_users.ts` | ALTER `agency_members` + `doctors` (refresh_token_version) | 001, 004 |
+| 018 | `018_patients_document_pgcrypto.ts` | ALTER `patients`: drop cpf, add document bytea + document_type (LGPD fase 0) | 006 |
 
 ## Como rodar
 

@@ -38,7 +38,7 @@ const APPOINTMENT_LIST_FIELDS = [
 ] as const
 
 // Campos do paciente retornados no detalhe da consulta
-// cpf e portal_access_code nunca são expostos
+// document e portal_access_code nunca são expostos
 const APPOINTMENT_DETAIL_PATIENT_FIELDS = [
   'id',
   'name',

@@ -92,6 +92,12 @@ WhatsApp AI agent configuration for a tenant. Stores the welcome message, person
 ### 6. patients
 Patient records created primarily by the WhatsApp agent. Identified by phone number within a tenant. After their first completed appointment, patients receive a globally unique portal access code for read-only portal access.
 
+Colunas de documento de identificação (LGPD Fase 0, migration 018):
+- `document BYTEA` — documento criptografado via `pgp_sym_encrypt` (pgcrypto AES-256). Descriptografar com `DOCUMENT_ENCRYPTION_KEY` do env. **Nunca expor o valor raw na API.**
+- `document_type VARCHAR(10)` — metadado não sensível: `'cpf'` ou `'rg'`. Pode aparecer nas respostas da API sem decrypt.
+
+Ambas as colunas são NULL ou ambas preenchidas (constraint `patients_document_both_or_neither_check`). O índice `idx_patients_tenant_cpf` foi removido pois índices sobre ciphertext bytea não servem para buscas por igualdade.
+
 ### 7. appointments
 Core scheduling entity with a multi-step status lifecycle: `scheduled` -> `waiting` -> `in_progress` -> `completed`. Also supports `cancelled`, `rescheduled`, and `no_show` terminal states. Links to the patient who booked and optionally chains to a rescheduled replacement via self-referencing FK.
 

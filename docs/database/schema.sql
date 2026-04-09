@@ -279,9 +279,13 @@ CREATE TABLE patients (
     name                    VARCHAR(255) NOT NULL,
     phone                   VARCHAR(20)  NOT NULL,
     -- Primary identifier used by the WhatsApp agent. Brazilian format: +5511999999999
-    cpf                     VARCHAR(14),
-    -- Brazilian tax ID. Optional because the agent may not collect it initially.
-    -- Format: "123.456.789-00" or "12345678900" (app normalizes).
+    document                BYTEA,
+    -- Documento de identificação criptografado via pgcrypto (AES-256).
+    -- Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.
+    -- NULL quando o paciente não forneceu documento.
+    document_type           VARCHAR(10),
+    -- Tipo do documento: cpf ou rg. Escolha do paciente no momento do cadastro.
+    -- NULL quando document também é NULL (constraint garante consistência).
     email                   VARCHAR(255),
     -- Optional. Collected if patient volunteers it.
     date_of_birth           DATE,
@@ -304,8 +308,15 @@ CREATE TABLE patients (
 
     CONSTRAINT patients_source_check CHECK (source IN ('whatsapp_agent', 'manual')),
     CONSTRAINT patients_status_check CHECK (status IN ('active', 'inactive')),
-    CONSTRAINT patients_portal_access_code_unique UNIQUE (portal_access_code)
+    CONSTRAINT patients_portal_access_code_unique UNIQUE (portal_access_code),
     -- Globally unique so patients can log in with just the code.
+    CONSTRAINT patients_document_type_check CHECK (document_type IN ('cpf', 'rg')),
+    CONSTRAINT patients_document_both_or_neither_check CHECK (
+        (document IS NULL AND document_type IS NULL)
+        OR
+        (document IS NOT NULL AND document_type IS NOT NULL)
+    )
+    -- Garante consistência: ou ambos preenchidos ou ambos NULL.
 );
 
 -- Index: phone lookup within tenant (agent's primary patient resolution)
@@ -320,14 +331,14 @@ CREATE INDEX idx_patients_portal_access_code ON patients (portal_access_code)
 -- Index: tenant-scoped patient listing
 CREATE INDEX idx_patients_tenant_id ON patients (tenant_id);
 
--- Index: CPF lookup within tenant (for deduplication if CPF is provided)
-CREATE INDEX idx_patients_tenant_cpf ON patients (tenant_id, cpf)
-    WHERE cpf IS NOT NULL;
+-- Nota: idx_patients_tenant_cpf removido em 018_patients_document_pgcrypto.
+-- Índice sobre ciphertext (bytea) é inútil para buscas por igualdade.
 
 COMMENT ON TABLE patients IS 'Patient records. Primarily created by WhatsApp agent. Portal activated after first completed appointment.';
 COMMENT ON COLUMN patients.phone IS 'Primary identifier for WhatsApp. Brazilian format: +5511999999999. Unique per tenant.';
 COMMENT ON COLUMN patients.portal_access_code IS 'Globally unique code for patient portal login. NULL until portal activation.';
-COMMENT ON COLUMN patients.cpf IS 'Brazilian tax ID. Optional. Format: 123.456.789-00 or bare digits.';
+COMMENT ON COLUMN patients.document IS 'Documento de identificação criptografado via pgcrypto (AES-256). Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.';
+COMMENT ON COLUMN patients.document_type IS 'Tipo do documento: cpf ou rg. Escolha do paciente no momento do cadastro.';
 
 
 -- =============================================================================

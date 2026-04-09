@@ -52,6 +52,11 @@ const envSchema = z.object({
   // Em dev: opcional — se vazio, Sentry.init é pulado e nenhum erro é capturado.
   // Em prod: obrigatório — refine abaixo bloqueia o boot se NODE_ENV=production e DSN ausente.
   SENTRY_DSN: z.string().url().optional(),
+
+  // LGPD — chave simétrica AES-256 para pgp_sym_encrypt/decrypt (64 hex chars = 32 bytes)
+  // Usada para patients.document, clinical_notes.content e outros dados sensíveis em repouso.
+  // Obrigatória em TODOS os ambientes (inclusive dev/test).
+  DOCUMENT_ENCRYPTION_KEY: z.string().length(64, 'DOCUMENT_ENCRYPTION_KEY deve ter 64 hex chars (32 bytes). Gerar com: openssl rand -hex 32'),
 }).refine(
   (data) => data.NODE_ENV !== 'test' || !!data.E2E_THROTTLE_BYPASS_SECRET,
   {
