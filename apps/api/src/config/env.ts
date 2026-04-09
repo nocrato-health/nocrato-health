@@ -47,6 +47,11 @@ const envSchema = z.object({
 
   // E2E — bypass de ThrottlerGuard em NODE_ENV=test (ver TD-29 + E2eAwareThrottlerGuard)
   E2E_THROTTLE_BYPASS_SECRET: z.string().min(16).optional(),
+
+  // Bugsink (Sentry-compatible) — error tracking self-hosted.
+  // Em dev: opcional — se vazio, Sentry.init é pulado e nenhum erro é capturado.
+  // Em prod: obrigatório — refine abaixo bloqueia o boot se NODE_ENV=production e DSN ausente.
+  SENTRY_DSN: z.string().url().optional(),
 }).refine(
   (data) => data.NODE_ENV !== 'test' || !!data.E2E_THROTTLE_BYPASS_SECRET,
   {
@@ -54,6 +59,14 @@ const envSchema = z.object({
       'E2E_THROTTLE_BYPASS_SECRET é obrigatório quando NODE_ENV=test — ' +
       'defina em .env.test (veja .env.test.example).',
     path: ['E2E_THROTTLE_BYPASS_SECRET'],
+  },
+).refine(
+  (data) => data.NODE_ENV !== 'production' || !!data.SENTRY_DSN,
+  {
+    message:
+      'SENTRY_DSN é obrigatório quando NODE_ENV=production — ' +
+      'configure o Bugsink e preencha em .env (veja .env.example).',
+    path: ['SENTRY_DSN'],
   },
 )
 

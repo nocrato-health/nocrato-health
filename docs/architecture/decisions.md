@@ -386,11 +386,30 @@ Designado: o próprio fundador (Pedro Vidal). Contato público obrigatório na p
 
 **Razão**: empresa pequena, dev solo. LGPD não exige DPO formal pra todas as empresas, mas exige um ponto de contato. Centralizar no fundador é o mais simples.
 
-### 7. Sentry — apenas backend (frontend pós-piloto)
+### 7. Bugsink self-hosted — error tracking LGPD-clean
 
-Configurar Sentry no backend NestJS com `beforeSend` filtrando PII (email, telefone, CPF, tokens). Frontend fica sem Sentry inicialmente.
+Escolhido **Bugsink** (Sentry-compatible, self-host, 1 container Django) rodando no mesmo VPS Hostinger. Integrado na API NestJS via `@sentry/node` SDK (DSN do Bugsink em vez do Sentry SaaS). Frontend fica sem instrumentação inicialmente.
 
-**Razão**: backend é onde os dados sensíveis transitam — Sentry lá é prioridade. Frontend errors são menos críticos pro MVP e adicionam complexidade de CSP. Reavaliar quando tiver tráfego real.
+**Config aplicada:**
+- `sendDefaultPii: false` — não coleta headers, cookies, IP, user-agent
+- `beforeSend(redactPii)` — redação final do evento antes do envio (defense-in-depth sobre o SEC-11)
+- `beforeBreadcrumb(redactPii)` — redação de queries SQL e fetches
+- `tracesSampleRate: 0` — performance tracing desligado
+- Bind em `127.0.0.1:8000` — acesso **apenas via SSH tunnel**, nunca exposto publicamente
+- Postgres reusado do container existente (DB `bugsink` com user isolado)
+
+**Razão**: backend é onde os dados sensíveis transitam — error tracking lá é prioridade. Sentry SaaS foi descartado porque envia stack traces e breadcrumbs pra servidores de terceiros (mesmo com EU region tem caveat), contraditório com o resto da Fase 0 (criptografia em repouso, backup criptografado, logs sem PII). Bugsink mantém 100% dos dados no VPS.
+
+**Alternativas consideradas e rejeitadas:**
+- Sentry self-hosted — exige 16GB RAM mínimos + ~25 containers; inviável no VPS básico
+- GlitchTip — válido mas mais pesado (4 containers vs 1 do Bugsink)
+- Sentry SaaS EU region — free tier bom mas transferência internacional de dados
+- AppSignal — melhor SaaS LGPD-puro (servidores NL), $19/mês, plano B quando Bugsink não for suficiente
+- Datadog/New Relic — overkill + US-based
+
+**Plano de migração futura**: SDK é idêntico pro Sentry SaaS, AppSignal ou GlitchTip. Se Bugsink não atender (bug grave, manutenção ruim, features faltando), troca a DSN e reinstala um SDK específico. Zero lock-in.
+
+**Frontend errors**: são menos críticos pro MVP e adicionam complexidade de CSP. Reavaliar quando tiver tráfego real.
 
 ### 8. Backup criptografado — pg_dump + GPG
 
@@ -434,3 +453,4 @@ Configuração: `log_format` customizado que registra apenas método + path (sem
 | 015 | Patient portal without JWT | Code-based security vs zero friction |
 | 016 | Single environment (dev + prod) até 5 doutores | Custo zero vs sem camada intermediária pra mudanças arriscadas |
 | 017 | LGPD Fase 0 — criptografia, consentimento, retenção 90d | ~17h de impl + nova chave de criptografia vs conformidade legal pra dados sensíveis |
+| 017.7 | Bugsink self-hosted para error tracking | +1 container Django vs zero transferência internacional de dados + zero custo recorrente |

@@ -80,13 +80,25 @@ describe('redactPii (deep)', () => {
     })
   })
 
-  it('redata array de objetos', () => {
-    const input = { patients: [{ name: 'João', id: '1' }, { name: 'Maria', id: '2' }] }
+  it('redata array de objetos com patient_name (chave específica de pessoa)', () => {
+    const input = {
+      patients: [
+        { patient_name: 'João', id: '1' },
+        { patient_name: 'Maria', id: '2' },
+      ],
+    }
     expect(redactPii(input)).toEqual({
       patients: [
-        { name: '[REDACTED]', id: '1' },
-        { name: '[REDACTED]', id: '2' },
+        { patient_name: '[REDACTED]', id: '1' },
+        { patient_name: '[REDACTED]', id: '2' },
       ],
+    })
+  })
+
+  it('NÃO redata "name" genérico (os.name, server_name, event.name) — só variantes específicas de pessoa', () => {
+    expect(redactPii({ os: { name: 'Linux', version: '22.04' }, server_name: 'pop-os' })).toEqual({
+      os: { name: 'Linux', version: '22.04' },
+      server_name: 'pop-os',
     })
   })
 
@@ -112,10 +124,10 @@ describe('redactPii (deep)', () => {
   })
 
   it('lida com referência circular sem stack overflow', () => {
-    const a: Record<string, unknown> = { name: 'João' }
+    const a: Record<string, unknown> = { patient_name: 'João' }
     a.self = a
     const out = redactPii(a) as Record<string, unknown>
-    expect(out.name).toBe('[REDACTED]')
+    expect(out.patient_name).toBe('[REDACTED]')
     expect(out.self).toBe('[Circular]')
   })
 

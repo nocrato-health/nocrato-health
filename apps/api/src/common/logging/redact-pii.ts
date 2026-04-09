@@ -33,7 +33,10 @@ const SENSITIVE_KEYS = new Set(
     'cpf',
     'rg',
     'document',
-    'name',
+    // 'name' sozinho é genérico demais — capturaria os.name, server_name,
+    // file.name, event.name etc. Só entram as variantes específicas
+    // ligadas a pessoa. Se um service precisar redatar um campo 'name'
+    // de paciente/doutor, usar 'patient_name' ou 'doctor_name' como chave.
     'fullname',
     'full_name',
     'patient_name',
