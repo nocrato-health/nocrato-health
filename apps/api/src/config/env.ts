@@ -2,7 +2,12 @@ import * as dotenv from 'dotenv'
 import * as path from 'path'
 import { z } from 'zod'
 
-// Carrega .env da raiz do monorepo (apps/api roda 2 níveis abaixo da raiz)
+// Carrega .env da raiz do monorepo (apps/api roda 2 níveis abaixo da raiz).
+// Em NODE_ENV=test, .env.test é carregado ANTES — dotenv não sobrescreve vars
+// já definidas em process.env, então .env.test vence sobre .env (DB_NAME etc).
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({ path: path.resolve(process.cwd(), '../../.env.test') })
+}
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') })
 // Fallback: .env local em apps/api/ (caso exista)
 dotenv.config()
@@ -39,7 +44,18 @@ const envSchema = z.object({
 
   // OpenAI (módulo agent/ — gpt-4o-mini)
   OPENAI_API_KEY: z.string().startsWith('sk-'),
-})
+
+  // E2E — bypass de ThrottlerGuard em NODE_ENV=test (ver TD-29 + E2eAwareThrottlerGuard)
+  E2E_THROTTLE_BYPASS_SECRET: z.string().min(16).optional(),
+}).refine(
+  (data) => data.NODE_ENV !== 'test' || !!data.E2E_THROTTLE_BYPASS_SECRET,
+  {
+    message:
+      'E2E_THROTTLE_BYPASS_SECRET é obrigatório quando NODE_ENV=test — ' +
+      'defina em .env.test (veja .env.test.example).',
+    path: ['E2E_THROTTLE_BYPASS_SECRET'],
+  },
+)
 
 const parsed = envSchema.safeParse(process.env)
 

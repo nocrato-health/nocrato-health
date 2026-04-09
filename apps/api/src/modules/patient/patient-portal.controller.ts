@@ -1,6 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
+import { Throttle } from '@nestjs/throttler'
+import { E2eAwareThrottlerGuard } from '@/common/guards/e2e-throttler.guard'
 import { Response } from 'express'
 import { join } from 'node:path'
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe'
@@ -24,7 +25,7 @@ export class PatientPortalController {
    * clinical_notes NUNCA são retornadas.
    */
   @Post('access')
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Autenticar paciente pelo código de acesso e retornar dados do portal' })
   @ApiBody({

@@ -195,16 +195,25 @@ test.describe('Páginas de pacientes — doutor autenticado', () => {
     const appointmentTexts = await page.locator('[data-testid="appointment-item"], .appointment-item').allTextContents()
 
     if (appointmentTexts.length === 0) {
-      // Fallback: verifica que 15/03/2025 aparece e 01/12/2024 também
-      await expect(page.getByText(/15\/03\/2025|mar.*2025|2025-03-15/i)).toBeVisible({ timeout: 5000 })
-      await expect(page.getByText(/01\/12\/2024|dez.*2024|2024-12-01/i)).toBeVisible()
+      // Datas dinâmicas (seed: hoje, -90d, -180d). Computamos dd/mm/yyyy pra bater com pt-BR.
+      const fmt = (d: Date) =>
+        `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      const DAY_MS = 24 * 60 * 60 * 1000
+      const today = new Date()
+      const mostRecent = fmt(today)
+      const oldest = fmt(new Date(today.getTime() - 180 * DAY_MS))
 
-      // Verificar ordem: 2025-03 deve aparecer antes de 2024-12 no DOM
-      const page2025 = await page.getByText(/15\/03\/2025|mar.*2025|2025-03-15/i).first().boundingBox()
-      const page2024 = await page.getByText(/01\/12\/2024|dez.*2024|2024-12-01/i).first().boundingBox()
+      const mostRecentLocator = page.getByText(mostRecent).first()
+      const oldestLocator = page.getByText(oldest).first()
 
-      if (page2025 && page2024) {
-        expect(page2025.y).toBeLessThan(page2024.y)
+      await expect(mostRecentLocator).toBeVisible({ timeout: 5000 })
+      await expect(oldestLocator).toBeVisible()
+
+      // Verificar ordem: mais recente antes do mais antigo no DOM
+      const recentBox = await mostRecentLocator.boundingBox()
+      const oldestBox = await oldestLocator.boundingBox()
+      if (recentBox && oldestBox) {
+        expect(recentBox.y).toBeLessThan(oldestBox.y)
       }
     }
   })

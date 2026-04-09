@@ -8,6 +8,13 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     headless: true,
+    // TD-29: bypass do ThrottlerGuard quando a API roda em NODE_ENV=test.
+    // Match com E2E_THROTTLE_BYPASS_SECRET no .env.test da raiz do monorepo.
+    // Sem secret no env do shell → sem header → API aplica throttler normal
+    // e a primeira corrida quebra com 429 acionável, em vez de bypass silencioso.
+    extraHTTPHeaders: process.env.E2E_THROTTLE_BYPASS_SECRET
+      ? { 'x-e2e-bypass': process.env.E2E_THROTTLE_BYPASS_SECRET }
+      : {},
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

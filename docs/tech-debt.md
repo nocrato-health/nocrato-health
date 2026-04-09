@@ -181,22 +181,11 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### TD-29 — ThrottlerGuard quebra execução paralela do full suite Playwright
-**Módulo:** `apps/web/e2e`, `apps/api/src/modules/auth`
+### ~~TD-29 — ThrottlerGuard quebra execução paralela do full suite Playwright~~ ✅ RESOLVIDO
+**Módulo:** `apps/web/e2e`, `apps/api/src/modules/auth`, `apps/api/src/common/guards`
 **Identificado em:** PR SEC-10/12 — regressão QA (Playwright full suite)
-**Prioridade:** P2
 
-O endpoint `POST /api/v1/doctor/auth/login` tem `@Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })` — 5 req/15min por IP. Com 6 workers Playwright rodando em paralelo, múltiplos `beforeAll` disparam `loginDoctor()` simultaneamente e exaurem o bucket no primeiro minuto. Suites subsequentes recebem 429 e abortam em cascata. No run do QA: **17 fails por throttler** em suites não-relacionadas (appointments, clinical, patients, settings, sec-10-documents quando rodadas depois de outras).
-
-**Impacto atual:** Nenhum em produção. Bloqueia qualquer pipeline CI que rode full suite em paralelo.
-
-**Fix:** Opções:
-1. Bypass do throttler em ambiente de teste via header especial (`X-Test-Bypass: ${env.TEST_BYPASS_TOKEN}`) + guard que libera quando presente
-2. Raise limit quando `NODE_ENV === 'test'`
-3. Serializar login calls (reduzir workers para 1 no full suite) — mais lento mas sem mudança de código
-4. Pool de contas de teste (6 doutores distintos, um por worker)
-
-Opção 1 é a mais limpa e permite manter paralelismo. Requer gerar `TEST_BYPASS_TOKEN` seguro e nunca vazá-lo em prod.
+**Resolvido em:** Opção 1 implementada — `E2eAwareThrottlerGuard` em `apps/api/src/common/guards/e2e-throttler.guard.ts` estende `ThrottlerGuard` e sobrescreve `shouldSkip()`. Bypass triplo-guardado: requer `NODE_ENV === 'test'` **E** `env.E2E_THROTTLE_BYPASS_SECRET` setado **E** header `x-e2e-bypass` batendo com o secret. Em qualquer outro caso, delega ao `super.shouldSkip()` (comportamento idêntico ao vanilla). Substituído `@UseGuards(ThrottlerGuard)` pelo novo guard nos 3 controllers afetados (doctor-auth, agency-auth, patient-portal). `playwright.config.ts` injeta o header via `extraHTTPHeaders` consumindo `process.env.E2E_THROTTLE_BYPASS_SECRET`. Em prod (`NODE_ENV=production`) o bypass é inerte mesmo que o secret seja definido por engano.
 
 ---
 

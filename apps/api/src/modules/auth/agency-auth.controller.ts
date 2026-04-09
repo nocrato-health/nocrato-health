@@ -1,6 +1,7 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
+import { Throttle } from '@nestjs/throttler'
+import { E2eAwareThrottlerGuard } from '@/common/guards/e2e-throttler.guard'
 import { AgencyAuthService } from './agency-auth.service'
 import { AgencyLoginSchema, type AgencyLoginDto } from './dto/agency-login.dto'
 import { ForgotPasswordSchema, type ForgotPasswordDto } from './dto/forgot-password.dto'
@@ -17,7 +18,7 @@ export class AgencyAuthController {
   // US-1.1: Login da agência — SEC-09
   @Post('login')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Login de membro da agência' })
   @ApiBody({
@@ -40,7 +41,7 @@ export class AgencyAuthController {
   // US-1.7: Solicitar redefinição de senha — SEC-09
   @Post('forgot-password')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Solicitar redefinição de senha por email' })
   @ApiBody({
@@ -61,7 +62,7 @@ export class AgencyAuthController {
   // US-1.7: Redefinir senha com token — SEC-09
   @Post('reset-password')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Redefinir senha com token recebido por email' })
   @ApiBody({
@@ -83,7 +84,7 @@ export class AgencyAuthController {
   // US-1.8: Renovar par de tokens — SEC-18
   @Post('refresh')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Renovar par de tokens usando refreshToken' })
   @ApiBody({

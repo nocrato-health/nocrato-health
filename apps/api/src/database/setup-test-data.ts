@@ -4,6 +4,9 @@
  * Script utilitário para criar (ou resetar) dados de teste de doutores no banco.
  * Executado pelo globalSetup do Playwright antes da suíte E2E de doctor.
  *
+ * Cria um agency admin:
+ *   - admin@nocrato.com / admin123 → agency_admin, status=active (para agency.spec.ts)
+ *
  * Cria dois doutores:
  *   - test-new@nocrato.com  → onboarding_completed = false  (para CT-32-01, CT-32-02, CT-32-04, CT-32-05)
  *   - test-done@nocrato.com → onboarding_completed = true   (para CT-32-03, CT-45-xx)
@@ -15,9 +18,10 @@
  *   - "Fernanda Oliveira" → inactive  (CT-45-03 inactive filter, CT-45-04 click)
  *
  * Appointments de teste (para CT-45-05, vinculados à "Fernanda Oliveira"):
- *   - 2025-03-15 → scheduled  (mais recente — deve aparecer primeiro)
- *   - 2025-01-10 → completed
- *   - 2024-12-01 → completed  (mais antiga — deve aparecer por último)
+ *   - hoje 10h UTC (scheduled)   — mais recente, aparece primeiro
+ *   - 90 dias atrás (completed)
+ *   - 180 dias atrás (completed) — mais antiga, aparece por último
+ * Datas calculadas dinamicamente para não envelhecerem com o tempo (ex-TD: 2025-03-15 hardcoded).
  *
  * É idempotente: se os registros já existem, reseta ao estado inicial.
  */
@@ -27,7 +31,20 @@ import * as dotenv from 'dotenv'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 
+// setup-test-data.ts é específico do Playwright — sempre carrega .env.test
+// (se existir) por cima do .env, garantindo que aponte para o banco de teste.
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env.test') })
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
+
+// Guard contra execução acidental em dev/prod — esse script apaga+recria
+// dados de teste, nunca deve tocar o banco de desenvolvimento.
+if (process.env.NODE_ENV !== 'test') {
+  console.error(
+    '❌ setup-test-data.ts só pode rodar com NODE_ENV=test\n' +
+      '   Use: pnpm test:e2e:setup ou rode via globalSetup do Playwright.',
+  )
+  process.exit(1)
+}
 
 const TEST_PASSWORD = 'Doctor123!'
 
@@ -69,6 +86,8 @@ async function setupTestData() {
   try {
     const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
 
+    await setupAgencyAdmin(db)
+
     await setupDoctor(db, {
       email: TEST_DOCTOR_NEW.email,
       tenantSlug: TEST_DOCTOR_NEW.tenantSlug,
@@ -104,6 +123,23 @@ async function setupTestData() {
   } finally {
     await db.destroy()
   }
+}
+
+async function setupAgencyAdmin(db: ReturnType<typeof knex>): Promise<void> {
+  // Agency admin para agency.spec.ts — email/senha fixos referenciados nos testes.
+  // Upsert atômico via ON CONFLICT: idempotente e sem janela de inconsistência
+  // caso o insert falhe após o delete.
+  const adminPasswordHash = await bcrypt.hash('admin123', 10)
+  await db('agency_members')
+    .insert({
+      email: 'admin@nocrato.com',
+      password_hash: adminPasswordHash,
+      name: 'Admin Nocrato',
+      role: 'agency_admin',
+      status: 'active',
+    })
+    .onConflict('email')
+    .merge(['password_hash', 'name', 'role', 'status'])
 }
 
 async function setupDoctor(
@@ -198,6 +234,10 @@ async function setupPatients(db: ReturnType<typeof knex>, tenantId: string): Pro
     const todayAt10 = new Date()
     todayAt10.setUTCHours(10, 0, 0, 0)
 
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const ninetyDaysAgo = new Date(todayAt10.getTime() - 90 * DAY_MS)
+    const oneEightyDaysAgo = new Date(todayAt10.getTime() - 180 * DAY_MS)
+
     await db('appointments').insert([
       {
         tenant_id: tenantId,
@@ -209,14 +249,14 @@ async function setupPatients(db: ReturnType<typeof knex>, tenantId: string): Pro
       {
         tenant_id: tenantId,
         patient_id: fernanda.id,
-        date_time: '2025-01-10T14:00:00Z',
+        date_time: ninetyDaysAgo.toISOString(),
         status: 'completed',
         duration_minutes: 30,
       },
       {
         tenant_id: tenantId,
         patient_id: fernanda.id,
-        date_time: '2024-12-01T09:00:00Z',
+        date_time: oneEightyDaysAgo.toISOString(),
         status: 'completed',
         duration_minutes: 30,
       },

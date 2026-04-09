@@ -55,6 +55,79 @@ URL de teste para booking: `http://localhost:5173/book/test-done-doctor?token={t
 
 ---
 
+## Rodando a suíte Playwright (E2E)
+
+A suíte E2E roda **contra um banco isolado** (`nocrato_health_test`) e **com bypass do throttler de login** — sem isso, em paralelo a partir do 6º login a API responde 429 e quebra ~17 testes em cascata.
+
+### Setup inicial (uma vez por máquina)
+
+```bash
+# 1. Copiar e preencher .env.test (na raiz do monorepo)
+cp .env.test.example .env.test
+#   editar .env.test e gerar o secret:
+#   echo "E2E_THROTTLE_BYPASS_SECRET=$(openssl rand -hex 16)" >> .env.test
+
+# 2. Criar o banco + aplicar migrations (idempotente — pode rodar sempre)
+pnpm test:e2e:setup
+```
+
+### Rodar a suíte (toda vez)
+
+**Terminal 1 — API em modo test (deixar rodando):**
+```bash
+# Matar qualquer API de dev na porta 3000 antes
+lsof -ti:3000 | xargs -r kill
+# Script dedicado — cross-env garante que NODE_ENV=test sobrevive a hot-reload
+pnpm --filter @nocrato/api dev:test
+# aguardar "Application is running on port 3000"
+```
+
+**Terminal 2 — Playwright:**
+```bash
+cd apps/web
+export E2E_THROTTLE_BYPASS_SECRET=$(grep '^E2E_THROTTLE_BYPASS_SECRET=' ../../.env.test | cut -d= -f2)
+
+# Full suite (paralelo, ~25s)
+pnpm exec playwright test --workers=6
+
+# Arquivo único
+pnpm exec playwright test e2e/agency.spec.ts
+
+# Filtro por nome do CT
+pnpm exec playwright test -g "CT-32-01"
+```
+
+**Voltar ao normal:** `Ctrl+C` na API de teste e `pnpm --filter @nocrato/api dev` para retomar o banco de dev.
+
+### Pegadinhas conhecidas
+
+1. **Porta 3000 compartilhada** — não dá pra rodar API de dev e API de test ao mesmo tempo. Mate uma antes de subir a outra.
+
+2. **`nest --watch` e NODE_ENV** — resolvido: `dev:test` usa `cross-env` que reinjeta `NODE_ENV=test` em cada spawn do watcher. Se mesmo assim desconfiar, valide com:
+   ```bash
+   tr '\0' '\n' < /proc/$(lsof -ti:3000)/environ | grep NODE_ENV
+   ```
+
+3. **Bancos separados, dados separados** — o `nocrato_health_test` é diferente do `nocrato_health` (dev). Mudanças manuais que você fez no banco de dev não aparecem nos testes. O `globalSetup` (`apps/web/e2e/global-setup.ts`) roda `setup-test-data.ts` antes de cada execução, garantindo idempotência.
+
+4. **Asserts em testes novos devem ser parallel-safe** — em paralelo, diferentes suites mutam o mesmo seed. Regras:
+   - Doutor: assertar por **email** (estável), nunca por nome (mutado pelo onboarding wizard).
+   - Documento criado durante o teste: usar **filename único** (`randomUUID().slice(0,8)`) e escopar locator pelo nome.
+   - Datas em fixtures: sempre **computadas dinamicamente** de `new Date()`, nunca strings hardcoded como `2025-03-15` (envelhecem).
+   - Recursos compartilhados (pacientes "Gustavo Ramos", "Fernanda Oliveira"): outros testes podem ter adicionado artefatos. Não dependa de contagens ou de `.first()`.
+
+### Troubleshooting
+
+| Sintoma | Causa provável | Verificação |
+|---|---|---|
+| `429 Too Many Requests` em login | API não está em `NODE_ENV=test` ou secret diverge | `curl -X POST http://localhost:3000/api/v1/doctor/auth/login -H "x-e2e-bypass: $E2E_THROTTLE_BYPASS_SECRET" -d '{}'` deve dar 400, não 429 |
+| `relation "tenants" does not exist` | Migrations não aplicadas no banco de teste | `NODE_ENV=test pnpm --filter @nocrato/api migrate` |
+| Testes de agency 401 / "credenciais inválidas" | Seed do agency admin não rodou | Verificar que `setup-test-data.ts` chama `setupAgencyAdmin(db)` |
+| `getByText('Dr. Teste Novo')` não encontra | Nome do test-new foi mutado pelo onboarding em paralelo | Usar `getByText('test-new@nocrato.com')` (email é estável) |
+| `expect(capturedRequests).toBeGreaterThan(0)` falha | `.first()` em locator pegou doc de outra suite | Criar doc com filename único e escopar locator pelo nome |
+
+---
+
 ## Mapa do Sistema — O que testar
 
 O sistema tem 4 superfícies principais. Cada uma tem seu próprio fluxo de acesso e conjunto de funcionalidades.

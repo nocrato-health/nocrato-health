@@ -365,6 +365,72 @@ pnpm --filter @nocrato/web dev &
 
 **Seed de acesso:** `admin@nocrato.com` / `admin123`
 
+### Rodando a suíte E2E em paralelo (banco isolado + bypass de throttler)
+
+A suíte Playwright **NÃO roda contra o banco de dev**. Roda contra `nocrato_health_test`, com a API em `NODE_ENV=test` e o ThrottlerGuard bypassado via header `x-e2e-bypass`. Sem isso, o login dispara 429s a partir do 6º request paralelo e quebra ~17 testes em cascata.
+
+**Setup uma vez por máquina:**
+```bash
+cp .env.test.example .env.test
+# editar e setar: E2E_THROTTLE_BYPASS_SECRET=$(openssl rand -hex 16)
+pnpm test:e2e:setup   # idempotente: cria DB se não existe + roda migrations
+```
+
+**Sempre antes de rodar a suíte:**
+```bash
+# Terminal 1 — API em modo test (deixar rodando)
+lsof -ti:3000 | xargs -r kill
+pnpm --filter @nocrato/api dev:test   # cross-env preserva NODE_ENV no hot-reload
+
+# Terminal 2 — Playwright
+cd apps/web
+export E2E_THROTTLE_BYPASS_SECRET=$(grep '^E2E_THROTTLE_BYPASS_SECRET=' ../../.env.test | cut -d= -f2)
+pnpm exec playwright test --workers=6   # full suite
+pnpm exec playwright test e2e/foo.spec.ts   # arquivo único
+```
+
+**Validar o bypass antes de acusar regressão:**
+```bash
+SECRET=$(grep '^E2E_THROTTLE_BYPASS_SECRET=' /home/vidales/nocrato-health-v2/.env.test | cut -d= -f2)
+for i in 1 2 3 4 5 6 7; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3000/api/v1/doctor/auth/login \
+    -H "Content-Type: application/json" -H "x-e2e-bypass: $SECRET" -d '{}'
+done
+# Esperado: 7x 400 (zero 429). Se vier 429, o bypass NÃO está ativo —
+# verifique que a API está em NODE_ENV=test:
+tr '\0' '\n' < /proc/$(lsof -ti:3000)/environ | grep NODE_ENV
+```
+
+**Pegadinhas que você vai bater se não souber:**
+
+1. **Porta 3000 compartilhada** — API de dev e API de test não podem coexistir. Mate uma antes de subir a outra.
+2. **`dev:test` é obrigatório** — sempre use `pnpm --filter @nocrato/api dev:test` (não `dev`). `cross-env` reinjeta `NODE_ENV=test` em cada spawn do nest watcher, sobrevivendo a hot-reloads. `dev` puro + `export NODE_ENV=test` no shell perde a var em alguns restarts.
+3. **Seed compartilhado em paralelo** — diferentes suites mutam o mesmo seed (ex: onboarding wizard renomeia `test-new` para "Dra. Ana Carvalho"). Ao escrever ou debugar testes, **assertar por identificadores estáveis**:
+   - Doutor: pelo **email** (`test-new@nocrato.com`), nunca pelo nome.
+   - Documento criado no teste: **filename único** com `randomUUID().slice(0,8)`, escopar locator pelo nome (`page.locator('div').filter({ hasText: filename }).filter({ has: page.getByRole('button', { name: 'Download' }) }).last()`).
+   - Datas em fixtures: **computar dinamicamente** de `new Date()`, nunca hardcoded (`2025-03-15` envelhece e quebra).
+   - Pacientes seed (`Gustavo Ramos`, `Fernanda Oliveira`): outros testes podem ter docs/notas. Nunca usar `.first()` ou contagens.
+
+4. **`nocrato_health_test` é vazio até `setup-test-data.ts` rodar** — o `globalSetup` do Playwright executa antes de cada `playwright test` e é idempotente. Se você curou dados manualmente no banco de dev, eles **não** aparecem nos testes E2E.
+
+5. **shadcn `<Select>` não responde a `selectOption`** — renderiza como `<button>`. Padrão correto:
+   ```typescript
+   await page.getByRole('button', { name: 'Selecione o estado' }).click()
+   await page.getByRole('button', { name: 'RJ', exact: true }).click()
+   ```
+
+**Tabela de seed atual** (criado por `apps/api/src/database/setup-test-data.ts`):
+
+| Recurso | Identificador estável | Mutado em paralelo? |
+|---|---|---|
+| Agency admin | `admin@nocrato.com` / `admin123` | não |
+| Doctor pendente | email `test-new@nocrato.com` | nome SIM (onboarding) |
+| Doctor completo | email `test-done@nocrato.com` | não |
+| Paciente portal | código `MRS-5678-PAC` (Maria Oliveira) | não |
+| Pacientes seed | `Ana Lima`, `Ana Souza`, `João Costa`, `Fernanda Oliveira` | docs/notas/appointments podem ser adicionados |
+| Tokens booking | `abcdef01`x8 (válido), `dead0000`x8 (expirado), `cafe1234`x8 (com phone), `beef5678`x8 (race) | tokens são consumidos — usar par chromium/mobile separado |
+| Appointments Fernanda | hoje 10h UTC, -90d, -180d (computados) | — |
+
 ### Restrição crítica: Playwright roda APENAS no contexto principal
 
 O Playwright MCP **não está disponível dentro de subagentes (Task tool)**. A validação Playwright deve ser executada diretamente no contexto principal — nunca delegada via Task tool.

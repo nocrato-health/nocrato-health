@@ -1,7 +1,8 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ResolveEmailSchema, type ResolveEmailDto } from './dto/resolve-email.dto'
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
+import { Throttle } from '@nestjs/throttler'
+import { E2eAwareThrottlerGuard } from '@/common/guards/e2e-throttler.guard'
 import { DoctorAuthService } from './doctor-auth.service'
 import { AcceptDoctorInviteSchema, type AcceptDoctorInviteDto } from './dto/accept-doctor-invite.dto'
 import { DoctorLoginSchema, type DoctorLoginDto } from './dto/doctor-login.dto'
@@ -56,7 +57,7 @@ export class DoctorAuthController {
   // US-1.6: Resolver email antes do login (retorna slug ou hasPendingInvite) — SEC-08 / TD-25
   @Post('resolve-email')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Resolver email antes do login — retorna slug do portal ou flag de convite pendente' })
   @ApiBody({ schema: { type: 'object', properties: { email: { type: 'string', format: 'email' } }, required: ['email'] } })
@@ -69,7 +70,7 @@ export class DoctorAuthController {
   // US-1.6: Login do doutor — SEC-09
   @Post('login')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Login do doutor' })
   @ApiBody({
@@ -92,7 +93,7 @@ export class DoctorAuthController {
   // US-1.7: Solicitar redefinição de senha — SEC-09
   @Post('forgot-password')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Solicitar redefinição de senha do doutor por email' })
   @ApiBody({
@@ -113,7 +114,7 @@ export class DoctorAuthController {
   // US-1.7: Redefinir senha com token — SEC-09
   @Post('reset-password')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Redefinir senha do doutor com token recebido por email' })
   @ApiBody({
@@ -135,7 +136,7 @@ export class DoctorAuthController {
   // US-1.8: Renovar par de tokens — SEC-18
   @Post('refresh')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(E2eAwareThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Renovar par de tokens do doutor usando refreshToken' })
   @ApiBody({
