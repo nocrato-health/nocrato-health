@@ -13,7 +13,8 @@
     "test:e2e": "jest --config jest-e2e.json",
     "migrate": "ts-node -r tsconfig-paths/register src/database/migrate.ts",
     "migrate:test": "cross-env NODE_ENV=test ts-node -r tsconfig-paths/register src/database/migrate.ts",
-    "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
+    "seed:prod": "ts-node -r tsconfig-paths/register src/database/seed-prod.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
