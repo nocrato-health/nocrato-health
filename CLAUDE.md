@@ -25,8 +25,23 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 | Health Check | `/health-check` | Após **qualquer entrega de código** — antes do commit |
 | Code Review | `/code-review` | **Ao criar ou atualizar qualquer PR** — obrigatório antes do merge |
 | Casos de Teste | `/test-cases` | **Ao iniciar epic novo**, antes da primeira US |
+| Assumptions | `/assumptions` | Antes de planejar US ambígua, bugfix sem causa raiz clara, migration destrutiva, refactor >3 módulos |
+| Plant Seed | `/seed` | Ao surgir ideia tangencial "legal, mas não agora" — captura em `docs/seeds/` sem sair do fluxo |
+| Verify Security Fix | `/verify-sec-fix` | Ao terminar implementação de um `SEC-NN` — antes de marcar `done` na auditoria |
+| Intel Refresh | `/intel-refresh` | Início de sessão longa, após epic grande, ou antes de doc que cite números |
 
 > **"Qualquer entrega de código"** = US, bugfix, TD, melhoria, refactor, hotfix, config. Se mudou arquivo sob `apps/` ou `docker/`, DoD + Health Check são obrigatórios.
+
+### Hooks ativos (`.claude/hooks/`)
+
+Registrados em `.claude/settings.json` — advisory, nunca bloqueiam execução.
+
+| Hook | Evento | Função |
+|---|---|---|
+| `statusline-bridge.js` | Statusline | Grava `/tmp/claude-ctx-{session}.json` com métricas de contexto (sem renderizar statusline) |
+| `context-monitor.js` | PostToolUse | Lê bridge file e injeta warning quando remaining ≤ 45% (warning) ou ≤ 30% (critical) |
+| `prompt-guard.js` | PreToolUse Write/Edit | Scan por padrões de prompt injection em `.claude/**/*.md`, `CLAUDE.md`, `docs/architecture/decisions.md` |
+| `validate-commit.sh` | PreToolUse Bash | Valida Conventional Commits em `git commit -m` (advisory) |
 
 ---
 
@@ -46,7 +61,9 @@ Checklist rápido — isso afeta:
 - Arquitetura? → ADR em `docs/architecture/decisions.md`
 - Roadmap? → epic correspondente
 - Débito técnico? → `docs/tech-debt.md`
-- Agente? → `.claude/agents/{agente}.md`
+- Ideia tangencial sem trigger imediato? → `docs/seeds/` via `/seed` (possibilidade futura, não TD)
+- Estado quantitativo (contagens, métricas)? → `docs/intel/` via `/intel-refresh`
+- Agente? → `.claude/agents/{agente}.md` (ver também `.claude/agent-prompt-template.md` antes de delegar)
 
 ---
 
@@ -132,6 +149,10 @@ Tech-lead e security sempre rodam no contexto principal (só leem).
 | End-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
 | Docker / infra | `devops` → `tech-lead` |
 | Decisão arquitetural | `architect` → ADR em `decisions.md` |
+| Bug não-trivial | `debugger` (método científico 5 fases) → fix via agent de domínio |
+| Auditoria de docs vs código | `doc-verifier` (read-only) |
+
+> **Antes de delegar a qualquer agent**: consultar `.claude/agent-prompt-template.md` para checklist de base-da-worktree, escopo, restrições e formato do relatório esperado.
 
 ### Tech Debt workflow
 
