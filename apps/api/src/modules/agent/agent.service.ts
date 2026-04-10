@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { OnEvent } from '@nestjs/event-emitter'
 import { RetryOnError } from '@/common/decorators/retry-on-error.decorator'
+import { redactPiiInString } from '@/common/logging/redact-pii'
 import type { Knex } from 'knex'
 import OpenAI from 'openai'
 import { KNEX } from '@/database/knex.provider'
@@ -135,7 +136,9 @@ export class AgentService {
       })
     } catch (err) {
       this.logger.error(
-        `[AgentService] Falha na chamada inicial à OpenAI — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+        redactPiiInString(
+          `[AgentService] Falha na chamada inicial à OpenAI — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+        ),
       )
       return
     }
@@ -177,7 +180,9 @@ export class AgentService {
         })
       } catch (err) {
         this.logger.error(
-          `[AgentService] Falha na chamada à OpenAI após ${iterations} iteração(ões) de tool_calls — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+          redactPiiInString(
+            `[AgentService] Falha na chamada à OpenAI após ${iterations} iteração(ões) de tool_calls — tenant=${tenantId} phone=${phone}: ${err instanceof Error ? err.message : String(err)}`,
+          ),
         )
         return
       }
