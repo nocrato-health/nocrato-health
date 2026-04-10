@@ -20,7 +20,7 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 
 | Skill | Comando | Ativar quando |
 |---|---|---|
-| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** entrega concluída **ou** antes de trabalho novo complexo |
+| Resumo de Continuação | `/compact` | Hook `context-monitor` avisa em 45% (warning) e 30% (critical) **ou** entrega concluída **ou** antes de trabalho novo complexo |
 | Definition of Done | `/definition-of-done` | Ao final de **qualquer entrega de código** — antes do commit |
 | Health Check | `/health-check` | Após **qualquer entrega de código** — antes do commit |
 | Code Review | `/code-review` | **Ao criar ou atualizar qualquer PR** — obrigatório antes do merge |
@@ -84,6 +84,8 @@ Checklist rápido — isso afeta:
 
 Regras adicionais:
 - **Primeira US de epic novo:** acionar `/test-cases` antes de começar
+- **US ambígua, migration destrutiva, bugfix sem causa raiz, refactor >3 módulos:** acionar `/assumptions` antes de planejar
+- **Trabalho relacionado a SEC-NN:** acionar `/verify-sec-fix` após implementar, antes de marcar done
 - Consultar agente em `.claude/agents/` para o domínio
 - Consultar `.claude/prompt-engineering.md` antes de acionar subagentes
 
@@ -106,32 +108,43 @@ Push direto na main é proibido. Padrões:
 ### Ciclo de vida
 
 ```
-0. Explore agent     → pré-carrega contexto
-1. Branch            → git checkout -b <tipo>/descricao
-2. Implementar       → agents em worktrees (quem escreve código)
-3. Tech-lead revisa  → aprova qualidade, padrões, segurança
-4. QA testa          → agent (backend) ou Playwright (frontend)
-5. /definition-of-done + /health-check
-6. Commit + Push + PR
-7. /code-review      → obrigatório em todo PR
-8. Merge + atualizar docs afetadas
+0. Explore agent       → pré-carrega contexto
+0a. /assumptions       → se US ambígua, migration destrutiva ou bugfix sem causa raiz (ver tabela)
+0b. /test-cases        → se primeira US de epic novo
+1. Branch              → git checkout -b <tipo>/descricao
+2. Implementar         → agents em worktrees (quem escreve código)
+3. Tech-lead revisa    → aprova qualidade, padrões, segurança
+4. QA testa            → agent (backend) ou Playwright (frontend)
+5. /verify-sec-fix     → se trabalho fechou item SEC-NN (antes do DoD)
+6. /definition-of-done + /health-check
+7. Commit + Push + PR
+8. /code-review        → obrigatório em todo PR
+9. Merge + atualizar docs afetadas
+9a. doc-verifier       → se mudou schema, migration, flow ou endpoint (valida docs vs código)
 ```
+
+**Hooks automáticos** (não precisam de ação manual — disparam sozinhos):
+- `context-monitor`: injeta warning em 45% e critical em 30% → você decide quando rodar `/compact`
+- `prompt-guard`: alerta se conteúdo suspeito for escrito em docs protegidos
+- `validate-commit`: advisory se commit message não seguir Conventional Commits
 
 ### Escala de rigor por tipo
 
-| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review |
-|------|---------|-----------|-----------|------------|---------------|--------|--------------|
-| User Story | completo | sim | sim | sim | se UI | sim | sim |
-| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim |
-| Bugfix backend | focado | sim | sim | sim | se afeta UI | sim | sim |
-| Bugfix frontend | focado | sim | sim | — | sim | sim | sim |
-| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim |
-| Melhoria UX | focado | sim | sim | — | sim | sim | sim |
-| Refactor | completo | sim | sim | sim | se UI | sim | sim |
-| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim |
-| Config / Env | — | — | revisão rápida | — | — | sim | sim |
-| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim |
-| Docs only | — | — | — | — | — | — | — |
+| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review | doc-verifier |
+|------|---------|-----------|-----------|------------|---------------|--------|--------------|--------------|
+| User Story | completo | sim | sim | sim | se UI | sim | sim | se schema/flow/endpoint |
+| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim | se schema/flow |
+| Bugfix backend (causa clara) | focado | sim | sim | sim | se afeta UI | sim | sim | — |
+| Bugfix backend (causa incerta) | focado | sim (`debugger` primeiro) | sim | sim | se afeta UI | sim | sim | — |
+| Bugfix frontend | focado | sim | sim | — | sim | sim | sim | — |
+| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim | — |
+| Melhoria UX | focado | sim | sim | — | sim | sim | sim | — |
+| Refactor | completo | sim | sim | sim | se UI | sim | sim | se renomeou módulo/endpoint |
+| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim | **sim** (obrigatório) |
+| Config / Env | — | — | revisão rápida | — | — | sim | sim | — |
+| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim | — |
+| Docs only | — | — | — | — | — | — | — | **sim** (valida o que mudou) |
+| **Fechamento de epic** | — | — | — | — | — | — | — | **sim** (audit completo) |
 
 ### Worktrees
 
@@ -167,12 +180,25 @@ TDs seguem o mesmo ciclo de vida, com ajustes:
 
 TDs podem ser agrupados em batch quando são relacionados (ex: cluster de timezone TD-01/12/14/27).
 
+### Quando usar `debugger` vs agent de domínio direto
+
+| Situação | Usar |
+|----------|------|
+| Stack trace claro, causa óbvia (typo, null, import errado) | `backend` ou `frontend` direto |
+| Erro reproduzível mas causa incerta, múltiplos suspeitos | `debugger` → diagnóstico → depois `backend`/`frontend` para o fix |
+| Teste flaky, comportamento intermitente | `debugger` (obrigatório) |
+| Regressão sem commit óbvio | `debugger` (obrigatório) |
+
+O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao agent de domínio com o diagnóstico como input.
+
 ### Regras de ouro
 
 1. **QA é agente, não terminal** — invocar via Agent tool, não `npx jest` direto
 2. **Frontend só via agents** — `frontend` → `designer` → `tech-lead` → Playwright. Sem exceção por tamanho
 3. **CLAUDE.md em diretório novo** — criar antes do primeiro arquivo de código
 4. **DoCDD mid-implementation** — se escopo diverge do doc, parar e atualizar doc primeiro
+5. **Hooks são passivos** — não precisam de ação manual; disparam sozinhos via `settings.json`
+6. **Skills são ativas** — precisam ser invocadas no momento certo do ciclo de vida (ver tabela de gatilhos)
 
 ---
 
@@ -236,8 +262,10 @@ nocrato-health-v2/
 ├── docker/                    ← compose dev + prod, Dockerfiles, nginx
 ├── docs/                      ← documentação completa
 └── .claude/
-    ├── agents/                ← 10 agentes especializados
-    └── skills/                ← compact, definition-of-done, health-check, code-review, test-cases
+    ├── agents/                ← 12 agentes (backend, frontend, dba, qa, tech-lead, designer, architect, pm, devops, security, debugger, doc-verifier)
+    ├── hooks/                 ← 4 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit)
+    ├── skills/                ← 9 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh)
+    └── agent-prompt-template.md ← checklist canônico de delegação
 ```
 
 ## Pontos de entrada
@@ -263,8 +291,13 @@ nocrato-health-v2/
 | `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
 | `docs/security/` | Auditoria OWASP |
 | `docs/tech-debt.md` | Registro de TDs com prioridade P1/P2/P3 |
-| `.claude/agents/` | 10 agentes especializados |
+| `docs/seeds/` | Ideias tangenciais com trigger — via `/seed` |
+| `docs/intel/` | Snapshots quantitativos do estado do projeto — via `/intel-refresh` |
+| `.claude/agents/` | 12 agentes especializados |
+| `.claude/hooks/` | 4 hooks advisory (context, prompt-guard, statusline, commit-lint) |
+| `.claude/skills/` | 9 skills com gatilhos definidos na tabela acima |
 | `.claude/prompt-engineering.md` | Guia de PE — ler antes de editar agentes |
+| `.claude/agent-prompt-template.md` | Checklist de delegação a subagents |
 
 ---
 
