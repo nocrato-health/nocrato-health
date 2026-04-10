@@ -73,7 +73,7 @@ const updatePatientSchema = z
   })
   .refine(
     (data) => {
-      const hasType = !!data.documentType && data.documentType !== ''
+      const hasType = !!data.documentType
       const hasDoc = !!data.document && data.document.trim() !== ''
       // Ambos presentes, ou nenhum — parcial é inválido
       return (!hasType && !hasDoc) || (hasType && hasDoc)
@@ -227,7 +227,6 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
   function onSubmit(formData: UpdatePatientForm) {
     const hasDocument =
       !!formData.documentType &&
-      formData.documentType !== '' &&
       !!formData.document &&
       formData.document.trim() !== ''
 
@@ -360,7 +359,7 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
                   placeholder={docPlaceholder()}
                   value={watchedDoc}
                   onChange={handleDocumentChange}
-                  disabled={!watchedDocType || watchedDocType === ''}
+                  disabled={!watchedDocType}
                   inputMode="numeric"
                   maxLength={14}
                   aria-label="Novo número do documento"

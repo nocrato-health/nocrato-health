@@ -31,7 +31,7 @@ const createPatientSchema = z
   })
   .refine(
     (data) => {
-      const hasType = !!data.documentType && data.documentType !== ''
+      const hasType = !!data.documentType
       const hasDoc = !!data.document && data.document.trim() !== ''
       return (!hasType && !hasDoc) || (hasType && hasDoc)
     },
@@ -95,7 +95,7 @@ function NewPatientDialog({ open, onOpenChange }: NewPatientDialogProps) {
   }
 
   function onSubmit(data: CreatePatientForm) {
-    const hasDocument = !!data.documentType && data.documentType !== '' && !!data.document
+    const hasDocument = !!data.documentType && !!data.document
 
     const payload = {
       name: data.name,
@@ -204,7 +204,7 @@ function NewPatientDialog({ open, onOpenChange }: NewPatientDialogProps) {
                   placeholder={docPlaceholder()}
                   value={watchedDoc}
                   onChange={handleDocumentChange}
-                  disabled={!watchedDocType || watchedDocType === ''}
+                  disabled={!watchedDocType}
                   inputMode="numeric"
                   maxLength={14}
                   aria-label="Número do documento"
