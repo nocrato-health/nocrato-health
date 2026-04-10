@@ -336,6 +336,7 @@ async function runSeed() {
       },
     ]
 
+    const encKey = process.env.DOCUMENT_ENCRYPTION_KEY
     for (const note of notesData) {
       // Idempotência: verificar por (appointment_id, patient_id)
       const existingNote = await db('clinical_notes')
@@ -343,7 +344,14 @@ async function runSeed() {
         .first()
 
       if (!existingNote) {
-        await db('clinical_notes').insert(note)
+        await db('clinical_notes').insert({
+          tenant_id: note.tenant_id,
+          patient_id: note.patient_id,
+          appointment_id: note.appointment_id,
+          content: encKey
+            ? db.raw('pgp_sym_encrypt(?, ?)', [note.content, encKey])
+            : note.content,
+        })
         counts.clinical_notes += 1
       }
     }

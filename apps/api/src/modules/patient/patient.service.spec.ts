@@ -540,6 +540,8 @@ describe('PatientService — getPatientProfile', () => {
       if (table === 'documents') return documentsBuilder
       return makeQueryBuilder()
     })
+    // knex.raw é chamado por getClinicalNoteSelectFields para pgp_sym_decrypt
+    ;(mockKnexProfile as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [

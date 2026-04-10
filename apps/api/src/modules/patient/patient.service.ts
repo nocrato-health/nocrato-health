@@ -10,6 +10,7 @@ import type { Knex } from 'knex'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { KNEX } from '@/database/knex.provider'
 import { env } from '@/config/env'
+import { getClinicalNoteSelectFields } from '@/modules/clinical-note/clinical-note.service'
 import { EventLogService } from '@/modules/event-log/event-log.service'
 import { ListPatientsQueryDto } from './dto/list-patients.dto'
 import { CreatePatientDto } from './dto/create-patient.dto'
@@ -60,13 +61,6 @@ const APPOINTMENT_FIELDS = [
   'duration_minutes',
   'started_at',
   'completed_at',
-] as const
-
-const CLINICAL_NOTE_FIELDS = [
-  'id',
-  'appointment_id',
-  'content',
-  'created_at',
 ] as const
 
 const DOCUMENT_FIELDS = [
@@ -171,7 +165,7 @@ export class PatientService {
         .orderBy('date_time', 'desc'),
       this.knex('clinical_notes')
         .where({ tenant_id: tenantId, patient_id: patientId })
-        .select(CLINICAL_NOTE_FIELDS)
+        .select(getClinicalNoteSelectFields(this.knex))
         .orderBy('created_at', 'desc'),
       this.knex('documents')
         .where({ tenant_id: tenantId, patient_id: patientId })

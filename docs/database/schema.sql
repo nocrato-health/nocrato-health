@@ -421,11 +421,10 @@ CREATE TABLE clinical_notes (
     tenant_id       UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     patient_id      UUID         NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     appointment_id  UUID         NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-    content         TEXT         NOT NULL,
-    -- The clinical note content. Free-form text written by the doctor.
-    -- Shared with the agent for follow-up context.
-    -- IMPORTANT: This is medical data. Encryption at rest should be
-    -- configured at the database/storage level.
+    content         BYTEA        NOT NULL,
+    -- Nota clínica criptografada via pgcrypto (AES-256).
+    -- Decrypt com pgp_sym_decrypt(content, DOCUMENT_ENCRYPTION_KEY).
+    -- LGPD Fase 0 — migration 019.
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
     -- No explicit created_by column needed: clinical notes are always
@@ -443,7 +442,7 @@ CREATE INDEX idx_clinical_notes_patient_id ON clinical_notes (patient_id);
 CREATE INDEX idx_clinical_notes_tenant_id ON clinical_notes (tenant_id);
 
 COMMENT ON TABLE clinical_notes IS 'Doctor clinical notes per appointment. Shared with agent for follow-up context. Medical data - ensure encryption at rest.';
-COMMENT ON COLUMN clinical_notes.content IS 'Free-form clinical note. Always authored by the doctor.';
+COMMENT ON COLUMN clinical_notes.content IS 'Nota clínica criptografada via pgcrypto (AES-256). Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.';
 
 
 -- =============================================================================

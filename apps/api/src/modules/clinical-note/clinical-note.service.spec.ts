@@ -107,6 +107,8 @@ const createMockTrx = (options: {
     if (table === 'event_log') return eventLogBuilder
     throw new Error(`Tabela inesperada no mock: ${table}`)
   })
+  // trx.raw é chamado pelo service para pgp_sym_encrypt/decrypt
+  ;(trx as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_encrypt_stub')
 
   return { trx, appointmentBuilder, patientBuilder, noteInsertBuilder, eventLogBuilder }
 }
@@ -124,6 +126,8 @@ describe('ClinicalNoteService — createClinicalNote', () => {
     mockKnex = Object.assign(jest.fn(), {
       transaction: transactionMock,
       fn: { now: jest.fn().mockReturnValue('now()') },
+      // knex.raw é chamado por getClinicalNoteSelectFields — necessário para encrypt/decrypt
+      raw: jest.fn().mockReturnValue('pgp_sym_decrypt_stub'),
     }) as jest.Mock & { transaction: jest.Mock; fn: { now: jest.Mock } }
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -166,11 +170,12 @@ describe('ClinicalNoteService — createClinicalNote', () => {
 
     await service.createClinicalNote(TENANT_ID, ACTOR_ID, DEFAULT_DTO)
 
+    // content é o resultado de trx.raw('pgp_sym_encrypt(?, ?)', [...]) — retorna o stub configurado no mock
     expect(noteInsertBuilder.insert).toHaveBeenCalledWith({
       tenant_id: TENANT_ID,
       appointment_id: APPOINTMENT_ID,
       patient_id: PATIENT_ID,
-      content: DEFAULT_DTO.content,
+      content: 'pgp_sym_encrypt_stub',
     })
   })
 
@@ -381,6 +386,8 @@ describe('ClinicalNoteService — listClinicalNotes', () => {
     mockKnex = Object.assign(jest.fn(), {
       transaction: transactionMock,
       fn: { now: jest.fn().mockReturnValue('now()') },
+      // knex.raw é chamado por getClinicalNoteSelectFields para pgp_sym_decrypt
+      raw: jest.fn().mockReturnValue('pgp_sym_decrypt_stub'),
     }) as jest.Mock & { transaction: jest.Mock; fn: { now: jest.Mock } }
 
     const moduleRef: TestingModule = await Test.createTestingModule({

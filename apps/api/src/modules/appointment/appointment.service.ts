@@ -3,9 +3,11 @@ import type { Knex } from 'knex'
 import { randomInt } from 'node:crypto'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { KNEX } from '@/database/knex.provider'
+import { env } from '@/config/env'
 import { EventLogService } from '@/modules/event-log/event-log.service'
 import { ListAppointmentsDto } from './dto/list-appointments.dto'
 import { CreateAppointmentDto } from './dto/create-appointment.dto'
+import { getClinicalNoteSelectFields } from '@/modules/clinical-note/clinical-note.service'
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto'
 
 // Gera código de acesso ao portal do paciente no formato AAA-1234-BBB
@@ -173,7 +175,7 @@ export class AppointmentService {
         .first(),
       this.knex('clinical_notes')
         .where({ appointment_id: appointmentId, tenant_id: tenantId })
-        .select(['id', 'content', 'created_at'])
+        .select(getClinicalNoteSelectFields(this.knex))
         .orderBy('created_at', 'asc'),
     ])
 
@@ -360,13 +362,13 @@ export class AppointmentService {
           'created_at',
         ])
 
-      // 5. Inserir clinical_note quando completar consulta
+      // 5. Inserir clinical_note quando completar consulta (content criptografado via pgcrypto)
       if (dto.status === 'completed') {
         const [note] = await trx('clinical_notes').insert({
           tenant_id: tenantId,
           patient_id: appointment.patient_id,
           appointment_id: appointmentId,
-          content: dto.notes,
+          content: trx.raw('pgp_sym_encrypt(?, ?)', [dto.notes, env.DOCUMENT_ENCRYPTION_KEY]),
         }).returning('id')
 
         await trx('event_log').insert({

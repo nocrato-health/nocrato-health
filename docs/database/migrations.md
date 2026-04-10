@@ -29,6 +29,7 @@ The schema is split into 17 sequential migration files. The ordering strictly re
 | 016 | `016_add_evolution_instance_to_agent_settings.ts` | `agent_settings.evolution_instance_name VARCHAR(100) NULL` + index parcial (TD-20) | `agent_settings` |
 | 017 | `017_add_refresh_token_version_to_users.ts` | `agency_members.refresh_token_version INTEGER NOT NULL DEFAULT 0`, `doctors.refresh_token_version INTEGER NOT NULL DEFAULT 0` (SEC-07) | `agency_members`, `doctors` |
 | 018 | `018_patients_document_pgcrypto.ts` | Drop `patients.cpf`, add `patients.document` (bytea pgcrypto) + `document_type` enum (cpf\|rg). LGPD fase 0. **⚠️ Destrutiva:** rollback recria `cpf` vazio — dados do `document` ciphertext são perdidos. Após deploy em prod, rollback NÃO é viável sem migração de compensação. | `patients` (006) |
+| 019 | `019_encrypt_clinical_notes_content.ts` | Drop `clinical_notes.content` (TEXT), add `clinical_notes.content` (BYTEA pgcrypto AES-256). LGPD fase 0. **⚠️ Destrutiva:** 12 notas em dev perdidas (confirmado OK), prod vazio. Mesma chave `DOCUMENT_ENCRYPTION_KEY` de 018. Rollback NÃO recupera ciphertext. | `clinical_notes` (008) |
 
 ---
 
