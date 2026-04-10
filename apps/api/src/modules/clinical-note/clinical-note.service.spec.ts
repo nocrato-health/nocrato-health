@@ -22,6 +22,7 @@ jest.mock('@/config/env', () => ({
     DB_NAME: 'nocrato_test',
     DB_USER: 'postgres',
     DB_PASSWORD: 'postgres',
+    DOCUMENT_ENCRYPTION_KEY: 'a'.repeat(64),
   },
 }))
 

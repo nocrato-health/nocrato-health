@@ -38,7 +38,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Log local com PII redatada (SEC-11).
     this.logger.error(
       redactPiiInString(`[${request.method} ${request.url}] ${err.message}`),
-      err.stack,
+      redactPiiInString(err.stack ?? ''),
     )
 
     // Reporta ao Bugsink/Sentry — redactPii no beforeSend do SDK faz a

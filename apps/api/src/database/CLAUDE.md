@@ -2,7 +2,7 @@
 
 ## O que este módulo faz
 
-Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 14 migrations SQL e os scripts de migrate/seed.
+Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 19 migrations SQL e os scripts de migrate/seed.
 
 ## Arquivos
 
@@ -13,7 +13,7 @@ Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS
 | `knexfile.ts` | Config para o CLI do Knex (carrega `.env` via dotenv, aponta para `/migrations`) |
 | `migrate.ts` | Script standalone que roda `knex.migrate.latest()` — `pnpm migrate` |
 | `seed.ts` | Script standalone que insere o agency_admin inicial — `pnpm seed` |
-| `migrations/` | 14 arquivos `.ts` com SQL puro via `knex.raw()` |
+| `migrations/` | 19 arquivos `.ts` com SQL puro via `knex.raw()` |
 
 ## Injeção nos services
 
@@ -54,6 +54,7 @@ export class MyService {
 | 016 | `016_add_evolution_instance_to_agent_settings.ts` | ALTER `agent_settings` (evolution_instance_name) | 005 |
 | 017 | `017_add_refresh_token_version_to_users.ts` | ALTER `agency_members` + `doctors` (refresh_token_version) | 001, 004 |
 | 018 | `018_patients_document_pgcrypto.ts` | ALTER `patients`: drop cpf, add document bytea + document_type (LGPD fase 0) | 006 |
+| 019 | `019_encrypt_clinical_notes_content.ts` | ALTER `clinical_notes`: content TEXT → BYTEA (pgcrypto AES-256, destrutiva) | 008 |
 
 ## Como rodar
 

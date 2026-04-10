@@ -102,7 +102,7 @@ Ambas as colunas são NULL ou ambas preenchidas (constraint `patients_document_b
 Core scheduling entity with a multi-step status lifecycle: `scheduled` -> `waiting` -> `in_progress` -> `completed`. Also supports `cancelled`, `rescheduled`, and `no_show` terminal states. Links to the patient who booked and optionally chains to a rescheduled replacement via self-referencing FK.
 
 ### 8. clinical_notes
-Doctor-authored clinical notes tied to a specific appointment. Shared with the WhatsApp agent for post-appointment follow-up context. Contains sensitive medical data -- encryption at rest should be configured at the database/storage level.
+Doctor-authored clinical notes tied to a specific appointment. Shared with the WhatsApp agent for post-appointment follow-up context. `content` is stored as `BYTEA` encrypted via pgcrypto AES-256 (`pgp_sym_encrypt/pgp_sym_decrypt`) using `DOCUMENT_ENCRYPTION_KEY` from env. Decrypt at query time via `getClinicalNoteSelectFields()` helper. LGPD Fase 0 (migration 019).
 
 ### 9. documents
 Files uploaded by the doctor for a patient (prescriptions, certificates, exams). Stored in object storage with URL references. Optionally linked to a specific appointment. Viewable by patients in their read-only portal.

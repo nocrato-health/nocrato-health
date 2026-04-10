@@ -252,7 +252,7 @@ nocrato-health-v2/
 │   ├── api/                   ← NestJS backend
 │   │   └── src/
 │   │       ├── common/        ← guards, decorators, filters, pipes
-│   │       ├── database/      ← Knex provider + 17 migrations
+│   │       ├── database/      ← Knex provider + 19 migrations
 │   │       └── modules/       ← 13 módulos de feature
 │   └── web/                   ← React frontend
 │       └── src/
@@ -286,7 +286,7 @@ nocrato-health-v2/
 |-----------|----------|
 | `docs/guides/` | Setup dev, onboarding, VPS cheatsheet |
 | `docs/architecture/` | Stack, estrutura backend/frontend, 15 ADRs |
-| `docs/database/` | Schema DDL, ER diagram, 17 migrations |
+| `docs/database/` | Schema DDL, ER diagram, 19 migrations |
 | `docs/flows/` | Auth, booking, appointment lifecycle, patient portal, agent |
 | `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
 | `docs/security/` | Auditoria OWASP |
