@@ -28,6 +28,8 @@ The schema is split into 17 sequential migration files. The ordering strictly re
 | 015 | `015_alter_doctors_nullable_crm.ts` | `doctors.crm`, `doctors.crm_state` → nullable; `doctors.working_hours` DEFAULT `'{}'` → `NULL` (BUG-01 + BUG-02) | `doctors` |
 | 016 | `016_add_evolution_instance_to_agent_settings.ts` | `agent_settings.evolution_instance_name VARCHAR(100) NULL` + index parcial (TD-20) | `agent_settings` |
 | 017 | `017_add_refresh_token_version_to_users.ts` | `agency_members.refresh_token_version INTEGER NOT NULL DEFAULT 0`, `doctors.refresh_token_version INTEGER NOT NULL DEFAULT 0` (SEC-07) | `agency_members`, `doctors` |
+| 018 | `018_patients_document_pgcrypto.ts` | Drop `patients.cpf`, add `patients.document` (bytea pgcrypto) + `document_type` enum (cpf\|rg). LGPD fase 0. **⚠️ Destrutiva:** rollback recria `cpf` vazio — dados do `document` ciphertext são perdidos. Após deploy em prod, rollback NÃO é viável sem migração de compensação. | `patients` (006) |
+| 019 | `019_encrypt_clinical_notes_content.ts` | Drop `clinical_notes.content` (TEXT), add `clinical_notes.content` (BYTEA pgcrypto AES-256). LGPD fase 0. **⚠️ Destrutiva:** 12 notas em dev perdidas (confirmado OK), prod vazio. Mesma chave `DOCUMENT_ENCRYPTION_KEY` de 018. Rollback NÃO recupera ciphertext. | `clinical_notes` (008) |
 
 ---
 
@@ -71,6 +73,8 @@ The dependency ordering can be visualized as a directed acyclic graph (DAG). An 
  +---> 016 alter agent_settings (add evolution_instance_name column)
  |
  +---> 017 alter agency_members + doctors (add refresh_token_version column)
+ |
+ +---> 018 alter patients (drop cpf; add document bytea + document_type; LGPD fase 0)
 ```
 
 ### Critical Ordering Constraints
@@ -178,7 +182,7 @@ Migration 012 (triggers) additionally contains:
 | patients | `idx_patients_tenant_phone` | Unique Composite | Agent patient resolution + phone dedup per tenant |
 | patients | `idx_patients_portal_access_code` | Partial B-tree | Patient portal login (only rows with non-NULL code) |
 | patients | `idx_patients_tenant_id` | B-tree | Doctor patient listing |
-| patients | `idx_patients_tenant_cpf` | Partial Composite | CPF deduplication (only rows with non-NULL CPF) |
+| ~~patients~~ | ~~`idx_patients_tenant_cpf`~~ | ~~Partial Composite~~ | Removido em 018 — índice sobre ciphertext bytea é inútil para buscas por igualdade. |
 | appointments | `idx_appointments_tenant_datetime` | Composite B-tree | Schedule view -- THE most common query |
 | appointments | `idx_appointments_patient_id` | B-tree | Patient appointment history |
 | appointments | `idx_appointments_tenant_status` | Composite B-tree | Status filtering within tenant |

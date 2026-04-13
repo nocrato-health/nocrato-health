@@ -301,12 +301,18 @@ async function setupPatientPortal(db: ReturnType<typeof knex>, tenantId: string)
     },
   ])
 
-  // Criar diretório de uploads para o tenant (necessário para download no CT-103-05)
-  const uploadsDir = path.resolve(__dirname, '../../../../../apps/api/uploads', tenantId)
+  // Criar diretório de uploads para o tenant (necessário para download no CT-103-05).
+  // Usa process.cwd() — consistente com document.controller.ts que resolve os
+  // paths da mesma forma. Ambos setup-test-data e API dev:test rodam com
+  // cwd=apps/api, então "uploads/<tenant>" cai no mesmo diretório em disco.
+  // Antes: path.resolve(__dirname, '../../../../../apps/api/uploads', ...) subia
+  // 5 níveis (um a mais que deveria) e escrevia fora do monorepo — o arquivo
+  // era criado mas a API nunca achava, resultando em 404 silencioso no CT-103-05.
+  const uploadsDir = path.resolve(process.cwd(), 'uploads', tenantId)
   fs.mkdirSync(uploadsDir, { recursive: true })
 
   // Copiar fixture PDF para simular documento real no disco
-  const fixtureSource = path.resolve(__dirname, '../../../../../apps/web/e2e/fixtures/test-doc.pdf')
+  const fixtureSource = path.resolve(process.cwd(), '../web/e2e/fixtures/test-doc.pdf')
   const destFilename = 'portal-test-doc.pdf'
   const destPath = path.join(uploadsDir, destFilename)
   if (fs.existsSync(fixtureSource)) {

@@ -1,9 +1,16 @@
 import './config/env' // valida variáveis de ambiente na inicialização
+// Sentry/Bugsink init DEVE rodar antes de qualquer require do app — o SDK
+// monkey-patcha bibliotecas (http, express) no import. Por isso fica aqui
+// em cima, logo após o env.
+import { initSentry } from './observability/sentry'
+initSentry()
+
 import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter'
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 import { env } from './config/env'
 
 async function bootstrap() {
@@ -22,7 +29,11 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   })
   app.setGlobalPrefix('api/v1', { exclude: ['health'] })
-  app.useGlobalFilters(new HttpExceptionFilter())
+  // Ordem importa: NestJS aplica filtros na ordem inversa do registro.
+  // Registramos AllExceptionsFilter PRIMEIRO (catch-all para não-HTTP → Bugsink)
+  // e HttpExceptionFilter DEPOIS (catch específico para HttpException).
+  // Resultado: HttpException → HttpExceptionFilter, resto → AllExceptionsFilter.
+  app.useGlobalFilters(new AllExceptionsFilter(), new HttpExceptionFilter())
 
   if (env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()

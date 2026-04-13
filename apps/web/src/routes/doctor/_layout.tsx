@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Outlet, Link } from '@tanstack/react-router'
-import { LayoutDashboard, Users, Calendar, Settings, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Users, Calendar, Settings, MessageSquare, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
 
@@ -79,6 +79,10 @@ export function DoctorLayout() {
           <NavLink to="/doctor/appointments" onClick={closeSidebar}>
             <Calendar className="w-4 h-4" />
             Consultas
+          </NavLink>
+          <NavLink to="/doctor/whatsapp" onClick={closeSidebar}>
+            <MessageSquare className="w-4 h-4" />
+            WhatsApp
           </NavLink>
           <NavLink to="/doctor/settings" onClick={closeSidebar}>
             <Settings className="w-4 h-4" />

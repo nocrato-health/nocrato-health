@@ -916,6 +916,8 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       }
       throw new Error(`Tabela inesperada no mock: ${table}`)
     })
+    // trx.raw é chamado pelo service para pgp_sym_encrypt ao inserir clinical_note
+    ;(trx as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_encrypt_stub')
 
     return { trx, apptSelectBuilder, apptUpdateBuilder, clinicalNoteInsertBuilder, eventLogInsertBuilder, patientSelectBuilder, patientUpdateBuilder }
   }
@@ -987,6 +989,8 @@ describe('AppointmentService — updateAppointmentStatus', () => {
     mockKnex = Object.assign(jest.fn(), {
       transaction: transactionMock,
       fn: { now: jest.fn().mockReturnValue('NOW()') },
+      // knex.raw é chamado por getClinicalNoteSelectFields (pgp_sym_decrypt) e pelo service
+      raw: jest.fn().mockReturnValue('pgp_sym_decrypt_stub'),
     }) as jest.Mock & { transaction: jest.Mock; fn: { now: jest.Mock } }
 
     const moduleRef = await Test.createTestingModule({
@@ -1159,7 +1163,8 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       'patient.portal_activated',
       'system',
       null,
-      expect.objectContaining({ patient_id: PATIENT_ID, patient_name: 'João Santos' }),
+      // LGPD SEC-11: patient_name removido do payload (PII em event_log retido 90d)
+      expect.objectContaining({ patient_id: PATIENT_ID }),
     )
     // SEC-14: portal_access_code NUNCA deve aparecer no audit log (LGPD)
     expect(mockEventLogService.append).not.toHaveBeenCalledWith(
@@ -1203,9 +1208,9 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       'patient.portal_activated',
       'system',
       null,
+      // LGPD SEC-11: patient_name removido do payload
       expect.objectContaining({
         patient_id: PATIENT_ID,
-        patient_name: 'João Santos',
       }),
     )
 
@@ -1305,11 +1310,12 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       notes: 'Paciente apresentou melhora.',
     }, ACTOR_ID)
 
+    // content é o resultado de trx.raw('pgp_sym_encrypt(?, ?)', [...]) — retorna o stub configurado no mock
     expect(clinicalNoteInsertBuilder.insert).toHaveBeenCalledWith({
       tenant_id: TENANT_ID,
       patient_id: existing.patient_id,
       appointment_id: APPOINTMENT_ID,
-      content: 'Paciente apresentou melhora.',
+      content: 'pgp_sym_encrypt_stub',
     })
   })
 
@@ -1349,11 +1355,12 @@ describe('AppointmentService — updateAppointmentStatus', () => {
       notes: 'Consulta finalizada com sucesso.',
     }, ACTOR_ID)
 
+    // content é o resultado de trx.raw('pgp_sym_encrypt(?, ?)', [...]) — retorna o stub configurado no mock
     expect(clinicalNoteInsertBuilder.insert).toHaveBeenCalledWith({
       tenant_id: customTenantId,
       patient_id: existing.patient_id,
       appointment_id: APPOINTMENT_ID,
-      content: 'Consulta finalizada com sucesso.',
+      content: 'pgp_sym_encrypt_stub',
     })
   })
 
@@ -1657,8 +1664,11 @@ describe('AppointmentService — getAppointmentDetail', () => {
   }
 
   beforeEach(async () => {
-    mockKnex = jest.fn()
     jest.clearAllMocks()
+    mockKnex = Object.assign(jest.fn(), {
+      // knex.raw é chamado por getClinicalNoteSelectFields para pgp_sym_decrypt
+      raw: jest.fn().mockReturnValue('pgp_sym_decrypt_stub'),
+    })
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [

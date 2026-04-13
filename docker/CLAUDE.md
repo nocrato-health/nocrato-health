@@ -19,16 +19,54 @@ Contém os arquivos Docker Compose, Dockerfiles e config do Nginx para desenvolv
 | Serviço | Imagem | Porta | Credenciais |
 |---|---|---|---|
 | `postgres` | `postgres:16-alpine` | `5432` | user: `nocrato` / db: `nocrato_health` / pass: `nocrato_secret` |
+| `bugsink` | `bugsink/bugsink:2` | `127.0.0.1:8000` | via `.env`: `BUGSINK_ADMIN_EMAIL` / `BUGSINK_ADMIN_PASSWORD` |
 
 ## Serviços (prod)
 
 | Serviço | Imagem | Porta interna | Descrição |
 |---|---|---|---|
-| `postgres` | `postgres:16-alpine` | `5432` | Banco de dados principal |
+| `postgres` | `postgres:16-alpine` | `5432` | Banco de dados principal (hospeda também o DB do Bugsink) |
+| `bugsink` | `bugsink/bugsink:2` | `127.0.0.1:8000` | Error tracking self-hosted. Acesso via SSH tunnel (nunca público) |
 | `evolution` | `atendai/evolution-api:v2.2.3` | `8080` | Gateway WhatsApp |
 | `api` | build local | `3000` | NestJS backend |
 | `web` | build local | `80` | React SPA (nginx estático) |
 | `nginx` | `nginx:alpine` | `80`, `443` | Reverse proxy público + SSL |
+
+## Acesso ao Bugsink (SSH tunnel)
+
+Bugsink é bindado apenas em `127.0.0.1:8000` — não tem entrada no Nginx, não existe na internet pública. Para acessar a UI da sua máquina local:
+
+```bash
+# Opção 1: tunnel ad-hoc
+ssh -L 8000:localhost:8000 <user>@<vps-host>
+# deixe o terminal aberto, abra http://localhost:8000 no browser
+
+# Opção 2: alias em ~/.ssh/config (recomendado)
+# Host nocrato-bugs
+#     HostName <vps-host>
+#     User <user>
+#     LocalForward 8000 localhost:8000
+ssh nocrato-bugs
+# http://localhost:8000
+```
+
+Notificações de novos erros chegam por email (Resend) independentemente do acesso à UI.
+
+## Adicionar DB do Bugsink a um Postgres existente
+
+O init script `postgres-init/01-bugsink.sh` só roda no primeiro boot (volume vazio). Se o volume já existe (dev ou prod atual), criar manualmente:
+
+```bash
+# Dev
+docker exec nocrato_postgres psql -U nocrato -d postgres -c \
+  "CREATE USER bugsink WITH ENCRYPTED PASSWORD '${BUGSINK_DB_PASSWORD}';"
+docker exec nocrato_postgres psql -U nocrato -d postgres -c \
+  "CREATE DATABASE bugsink OWNER bugsink;"
+docker exec nocrato_postgres psql -U nocrato -d postgres -c \
+  "GRANT ALL PRIVILEGES ON DATABASE bugsink TO bugsink;"
+
+# Prod (mesma coisa, trocar container por nocrato_postgres_prod e user por ${DB_USER})
+```
 
 ## Contexto de build (docker-compose.prod.yml)
 
