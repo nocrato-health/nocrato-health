@@ -246,6 +246,8 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
     updatePatient.mutate(payload, {
       onSuccess: () => {
         toast.success('Paciente atualizado com sucesso!')
+        setValue('documentType', '')
+        setValue('document', '')
       },
       onError: (err: Error & { data?: { message?: string } }) => {
         const msg = err.data?.message ?? 'Erro ao atualizar paciente.'
