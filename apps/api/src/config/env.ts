@@ -38,6 +38,9 @@ const envSchema = z.object({
   EVOLUTION_API_URL: z.string().url(),
   EVOLUTION_API_KEY: z.string().min(1),
   EVOLUTION_WEBHOOK_TOKEN: z.string().min(1),
+  // URL pública do backend acessível pela Evolution API (pra webhook callback)
+  // Em dev: http://localhost:3000, em prod: https://app.nocrato.com
+  WEBHOOK_BASE_URL: z.string().url().default('http://localhost:3000'),
 
   // Frontend
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
