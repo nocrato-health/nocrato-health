@@ -198,9 +198,9 @@ function InfoTab({ patientId, patient }: InfoTabProps) {
       phone: patient.phone,
       email: patient.email ?? '',
       status: patient.status,
-      // Tipo preenchido conforme o que o backend retornou; valor do documento vem vazio
-      // (dado sensível — o doutor precisa clicar "Ver documento" para carregar)
-      documentType: patient.document_type ?? '',
+      // Campos de documento sempre iniciam vazios — o doutor preenche só se quiser atualizar.
+      // Para ver o valor atual, usa "Ver CPF/RG" (PatientDocumentReveal).
+      documentType: '',
       document: '',
     },
   })
