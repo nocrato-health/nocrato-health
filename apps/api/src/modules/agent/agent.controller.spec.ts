@@ -39,6 +39,10 @@ describe('AgentController', () => {
           provide: AgentService,
           useValue: agentService,
         },
+        {
+          provide: require('@/database/knex.provider').KNEX,
+          useValue: jest.fn(),
+        },
       ],
     }).compile()
 
