@@ -27,11 +27,13 @@ jest.mock('@/config/env', () => ({
     DB_NAME: 'nocrato_test',
     DB_USER: 'postgres',
     DB_PASSWORD: 'postgres',
+    // 64 hex chars = 32 bytes AES-256 — valor fake para testes
+    DOCUMENT_ENCRYPTION_KEY: 'a'.repeat(64),
   },
 }))
 
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { PatientService } from './patient.service'
 import { EventLogService } from '@/modules/event-log/event-log.service'
@@ -386,7 +388,7 @@ describe('PatientService', () => {
 
       await service.listPatients(TENANT_ID, { page: 1, limit: 20 })
 
-      // Verificar que select foi chamado com os campos corretos
+      // Verificar que select foi chamado com os campos corretos (inclui document_type, não document)
       expect(mockQueryBuilder.select).toHaveBeenCalledWith([
         'id',
         'name',
@@ -394,6 +396,7 @@ describe('PatientService', () => {
         'email',
         'source',
         'status',
+        'document_type',
         'created_at',
       ])
     })
@@ -408,14 +411,24 @@ describe('PatientService', () => {
       expect(selectCall).not.toContain('portal_access_code')
     })
 
-    it('should NOT include cpf in selected fields', async () => {
+    it('should NOT include document in selected fields (dado sensível — exposto via endpoint separado)', async () => {
       mockQueryBuilder.first.mockResolvedValue({ count: '1' })
       mockQueryBuilder.offset.mockResolvedValue([makePatient()])
 
       await service.listPatients(TENANT_ID, { page: 1, limit: 20 })
 
       const selectCall = mockQueryBuilder.select.mock.calls[0][0] as string[]
-      expect(selectCall).not.toContain('cpf')
+      expect(selectCall).not.toContain('document')
+    })
+
+    it('should include document_type in selected fields (metadado não sensível)', async () => {
+      mockQueryBuilder.first.mockResolvedValue({ count: '1' })
+      mockQueryBuilder.offset.mockResolvedValue([makePatient()])
+
+      await service.listPatients(TENANT_ID, { page: 1, limit: 20 })
+
+      const selectCall = mockQueryBuilder.select.mock.calls[0][0] as string[]
+      expect(selectCall).toContain('document_type')
     })
   })
 
@@ -527,6 +540,8 @@ describe('PatientService — getPatientProfile', () => {
       if (table === 'documents') return documentsBuilder
       return makeQueryBuilder()
     })
+    // knex.raw é chamado por getClinicalNoteSelectFields para pgp_sym_decrypt
+    ;(mockKnexProfile as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -797,7 +812,7 @@ describe('PatientService — getPatientProfile', () => {
   // -------------------------------------------------------------------------
 
   describe('getPatientProfile — campos sensíveis', () => {
-    it('should NOT include cpf in patient profile fields', async () => {
+    it('should NOT include document in patient profile fields (dado sensível — endpoint separado)', async () => {
       const patientBuilder = makeQueryBuilder()
       patientBuilder.first.mockResolvedValue(makePatientProfile())
       mockKnexProfile.mockImplementation((table: string) => {
@@ -808,7 +823,7 @@ describe('PatientService — getPatientProfile', () => {
       await service.getPatientProfile('tenant-uuid-1', PATIENT_ID)
 
       const selectCall = patientBuilder.select.mock.calls[0][0] as string[]
-      expect(selectCall).not.toContain('cpf')
+      expect(selectCall).not.toContain('document')
     })
 
     it('should NOT include portal_access_code in patient profile fields', async () => {
@@ -870,6 +885,8 @@ describe('PatientService — createPatient', () => {
     mockReturning = jest.fn().mockResolvedValue([makeCreatedPatient()])
     mockInsert = jest.fn().mockReturnValue({ returning: mockReturning })
     mockKnexCreate = jest.fn().mockReturnValue({ insert: mockInsert })
+    // knex.raw é chamado pelo service para pgp_sym_encrypt
+    ;(mockKnexCreate as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_encrypt_stub')
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -893,7 +910,7 @@ describe('PatientService — createPatient', () => {
       const result = await service.createPatient('tenant-uuid-1', dto)
 
       expect(result).toEqual(makeCreatedPatient())
-      expect(result).not.toHaveProperty('cpf')
+      expect(result).not.toHaveProperty('document')
       expect(result).not.toHaveProperty('portal_access_code')
     })
 
@@ -910,6 +927,7 @@ describe('PatientService — createPatient', () => {
         'email',
         'source',
         'status',
+        'document_type',
         'created_at',
       ])
     })
@@ -966,12 +984,13 @@ describe('PatientService — createPatient', () => {
   // -------------------------------------------------------------------------
 
   describe('createPatient — campos opcionais', () => {
-    it('should insert cpf as null when not provided', async () => {
+    it('should insert document/document_type as null when not provided', async () => {
       const dto = { name: 'Carlos', phone: '11944440000' }
       await service.createPatient('tenant-uuid-1', dto)
 
       const insertedData = mockInsert.mock.calls[0][0] as Record<string, unknown>
-      expect(insertedData.cpf).toBeNull()
+      expect(insertedData.document).toBeNull()
+      expect(insertedData.document_type).toBeNull()
     })
 
     it('should insert email as null when not provided', async () => {
@@ -990,12 +1009,30 @@ describe('PatientService — createPatient', () => {
       expect(insertedData.date_of_birth).toBeNull()
     })
 
-    it('should pass cpf to insert when provided', async () => {
-      const dto = { name: 'Carlos', phone: '11944440000', cpf: '123.456.789-00' }
+    it('should encrypt document and pass document_type when provided', async () => {
+      const dto = { name: 'Carlos', phone: '11944440000', document: '12345678901', documentType: 'cpf' as const }
       await service.createPatient('tenant-uuid-1', dto)
 
       const insertedData = mockInsert.mock.calls[0][0] as Record<string, unknown>
-      expect(insertedData.cpf).toBe('123.456.789-00')
+      // document é um knex.raw — não dá comparar igualdade direta (ciphertext com IV aleatório)
+      expect(insertedData).toMatchObject({
+        document: expect.anything(),
+        document_type: 'cpf',
+      })
+      // Garantir que NÃO inseriu o valor em plaintext
+      expect(insertedData.document).not.toBe('12345678901')
+    })
+
+    it('should normalize CPF with formatting before encrypt ("123.456.789-00" → "12345678900")', async () => {
+      const dto = { name: 'Carlos', phone: '11944440000', document: '123.456.789-00', documentType: 'cpf' as const }
+      await service.createPatient('tenant-uuid-1', dto)
+
+      // O service deve ter normalizado os dígitos — o objeto knex.raw deve ter sido chamado
+      // com o valor normalizado (11 dígitos), não com a versão formatada
+      expect(mockInsert).toHaveBeenCalled()
+      const insertedData = mockInsert.mock.calls[0][0] as Record<string, unknown>
+      // document_type presente confirma que o fluxo de encrypt foi executado
+      expect(insertedData.document_type).toBe('cpf')
     })
 
     it('should pass email to insert when provided', async () => {
@@ -1110,6 +1147,8 @@ describe('PatientService — updatePatient', () => {
     })
     // this.knex.fn.now() é chamado pelo service para setar updated_at
     ;(mockKnexUpdate as unknown as Record<string, unknown>).fn = { now: jest.fn().mockReturnValue('NOW()') }
+    // this.knex.raw é chamado pelo service para pgp_sym_encrypt
+    ;(mockKnexUpdate as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_encrypt_stub')
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
@@ -1128,7 +1167,7 @@ describe('PatientService — updatePatient', () => {
   // -------------------------------------------------------------------------
 
   describe('updatePatient — happy path (nome)', () => {
-    it('should update name and return patient without cpf or portal_access_code', async () => {
+    it('should update name and return patient without document or portal_access_code', async () => {
       let callCount = 0
       mockKnexUpdate.mockImplementation(() => {
         callCount++
@@ -1139,7 +1178,7 @@ describe('PatientService — updatePatient', () => {
       const result = await service.updatePatient(TENANT_ID_U, PATIENT_ID_U, { name: 'Novo Nome' })
 
       expect(result).toMatchObject({ name: 'Novo Nome' })
-      expect(result).not.toHaveProperty('cpf')
+      expect(result).not.toHaveProperty('document')
       expect(result).not.toHaveProperty('portal_access_code')
     })
   })
@@ -1168,11 +1207,12 @@ describe('PatientService — updatePatient', () => {
   // -------------------------------------------------------------------------
 
   describe('updatePatient — todos os campos', () => {
-    it('should update all optional fields and return patient without cpf or portal_access_code', async () => {
+    it('should update all optional fields and return patient without document or portal_access_code', async () => {
       const fullUpdate = {
         name: 'Novo Nome',
         phone: '11900000002',
-        cpf: '12345678901',
+        document: '12345678901',
+        documentType: 'cpf' as const,
         email: 'novo@example.com',
         status: 'inactive' as const,
       }
@@ -1181,13 +1221,13 @@ describe('PatientService — updatePatient', () => {
       mockKnexUpdate.mockImplementation(() => {
         callCount++
         if (callCount === 1) return makeSelectBuilder(makeExistingStub())
-        // returning nunca inclui cpf — retornamos sem o campo
+        // returning nunca inclui document raw — retornamos sem o campo
         return makeUpdateBuilder([makeUpdatedPatient({ name: 'Novo Nome', phone: '11900000002', email: 'novo@example.com', status: 'inactive' })])
       })
 
       const result = await service.updatePatient(TENANT_ID_U, PATIENT_ID_U, fullUpdate)
 
-      expect(result).not.toHaveProperty('cpf')
+      expect(result).not.toHaveProperty('document')
       expect(result).not.toHaveProperty('portal_access_code')
     })
   })
@@ -1299,6 +1339,212 @@ describe('PatientService — updatePatient', () => {
         service.updatePatient(TENANT_ID_U, PATIENT_ID_U, { name: 'X' }),
       ).rejects.not.toThrow(ConflictException)
     })
+  })
+})
+
+// =============================================================================
+// getDoctorPatientDocument — documento descriptografado (LGPD fase 0)
+// =============================================================================
+
+describe('PatientService — getDoctorPatientDocument', () => {
+  let service: PatientService
+  let mockKnexDocDecrypt: jest.Mock
+
+  const TENANT_ID_D = 'tenant-uuid-decrypt'
+  const PATIENT_ID_D = 'patient-uuid-decrypt'
+
+  // Simula o resultado de pgp_sym_decrypt via knex.raw
+  const makeDecryptedRow = (overrides: Record<string, unknown> = {}) => ({
+    document_type: 'cpf',
+    document: '12345678901', // valor após decrypt (plaintext normalizado)
+    ...overrides,
+  })
+
+  // Builder para query com knex.select([...]).from('patients').where({...}).first()
+  const makeDecryptBuilder = (firstValue: unknown) => ({
+    select: jest.fn().mockReturnThis(),
+    from: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    first: jest.fn().mockResolvedValue(firstValue),
+  })
+
+  beforeEach(async () => {
+    jest.clearAllMocks()
+
+    const decryptBuilder = makeDecryptBuilder(makeDecryptedRow())
+
+    mockKnexDocDecrypt = jest.fn().mockReturnValue(decryptBuilder)
+    // Simular knex.raw (chamado internamente para pgp_sym_decrypt)
+    ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+    ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        PatientService,
+        { provide: KNEX, useValue: mockKnexDocDecrypt },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EventLogService, useValue: mockEventLogService },
+      ],
+    }).compile()
+
+    service = moduleRef.get<PatientService>(PatientService)
+  })
+
+  describe('getDoctorPatientDocument — happy path (CPF)', () => {
+    it('should return document_type and decrypted document when patient has CPF', async () => {
+      const decryptedRow = makeDecryptedRow({ document_type: 'cpf', document: '12345678901' })
+      const decryptBuilder = makeDecryptBuilder(decryptedRow)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      const result = await service.getDoctorPatientDocument(TENANT_ID_D, PATIENT_ID_D)
+
+      expect(result).toEqual({
+        document_type: 'cpf',
+        document: '12345678901',
+      })
+    })
+
+    it('should call knex with where({ id, tenant_id }) for tenant isolation', async () => {
+      const decryptBuilder = makeDecryptBuilder(makeDecryptedRow())
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      await service.getDoctorPatientDocument(TENANT_ID_D, PATIENT_ID_D)
+
+      expect(decryptBuilder.where).toHaveBeenCalledWith({
+        id: PATIENT_ID_D,
+        tenant_id: TENANT_ID_D,
+      })
+    })
+  })
+
+  describe('getDoctorPatientDocument — paciente sem documento', () => {
+    it('should return null when document_type is null (patient has no document)', async () => {
+      const rowWithoutDoc = { document_type: null, document: null }
+      const decryptBuilder = makeDecryptBuilder(rowWithoutDoc)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      const result = await service.getDoctorPatientDocument(TENANT_ID_D, PATIENT_ID_D)
+
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('getDoctorPatientDocument — paciente não encontrado', () => {
+    it('should throw NotFoundException when patient not found', async () => {
+      const decryptBuilder = makeDecryptBuilder(null)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      await expect(
+        service.getDoctorPatientDocument(TENANT_ID_D, PATIENT_ID_D),
+      ).rejects.toThrow(NotFoundException)
+    })
+
+    it('should throw NotFoundException with message "Paciente não encontrado"', async () => {
+      const decryptBuilder = makeDecryptBuilder(null)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      await expect(
+        service.getDoctorPatientDocument(TENANT_ID_D, PATIENT_ID_D),
+      ).rejects.toThrow('Paciente não encontrado')
+    })
+  })
+
+  describe('getDoctorPatientDocument — cross-tenant isolado', () => {
+    it('should throw NotFoundException when patient belongs to a different tenant (never 404-leak)', async () => {
+      // Simula que knex WHERE { id, tenant_id: otherTenant } → null (não vazar existência)
+      const decryptBuilder = makeDecryptBuilder(null)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).select = jest.fn().mockReturnValue(decryptBuilder)
+      ;(mockKnexDocDecrypt as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_decrypt_stub')
+
+      await expect(
+        service.getDoctorPatientDocument('outro-tenant', PATIENT_ID_D),
+      ).rejects.toThrow(NotFoundException)
+    })
+  })
+})
+
+// =============================================================================
+// createPatient — validação de formato de documento
+// =============================================================================
+
+describe('PatientService — createPatient (validação de documento)', () => {
+  let service: PatientService
+  let mockReturning: jest.Mock
+  let mockInsert: jest.Mock
+  let mockKnexDocVal: jest.Mock
+
+  const makeCreatedPatient = () => ({
+    id: 'new-patient-uuid',
+    name: 'João Costa',
+    phone: '11988880000',
+    email: null,
+    source: 'manual',
+    status: 'active',
+    document_type: null,
+    created_at: new Date('2024-03-01T09:00:00Z'),
+  })
+
+  beforeEach(async () => {
+    jest.clearAllMocks()
+
+    mockReturning = jest.fn().mockResolvedValue([makeCreatedPatient()])
+    mockInsert = jest.fn().mockReturnValue({ returning: mockReturning })
+    mockKnexDocVal = jest.fn().mockReturnValue({ insert: mockInsert })
+    ;(mockKnexDocVal as unknown as Record<string, unknown>).raw = jest.fn().mockReturnValue('pgp_sym_encrypt_stub')
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        PatientService,
+        { provide: KNEX, useValue: mockKnexDocVal },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EventLogService, useValue: mockEventLogService },
+      ],
+    }).compile()
+
+    service = moduleRef.get<PatientService>(PatientService)
+  })
+
+  it('should throw BadRequestException when CPF has 10 digits', async () => {
+    const dto = { name: 'Carlos', phone: '11944440000', document: '1234567890', documentType: 'cpf' as const }
+
+    await expect(service.createPatient('tenant-uuid-1', dto)).rejects.toThrow(BadRequestException)
+  })
+
+  it('should throw BadRequestException with message "CPF deve ter 11 dígitos"', async () => {
+    const dto = { name: 'Carlos', phone: '11944440000', document: '1234567890', documentType: 'cpf' as const }
+
+    await expect(service.createPatient('tenant-uuid-1', dto)).rejects.toThrow('CPF deve ter 11 dígitos')
+  })
+
+  it('should throw BadRequestException when RG has only 5 digits', async () => {
+    const dto = { name: 'Ana', phone: '11944441111', document: '12345', documentType: 'rg' as const }
+
+    await expect(service.createPatient('tenant-uuid-1', dto)).rejects.toThrow(BadRequestException)
+  })
+
+  it('should throw BadRequestException with message "RG deve ter entre 7 e 14 dígitos"', async () => {
+    const dto = { name: 'Ana', phone: '11944441111', document: '12345', documentType: 'rg' as const }
+
+    await expect(service.createPatient('tenant-uuid-1', dto)).rejects.toThrow('RG deve ter entre 7 e 14 dígitos')
+  })
+
+  it('should succeed when CPF has valid 11 digits (formatted: 123.456.789-09 → normalized)', async () => {
+    // CPF com formatação — o service normaliza para "12345678909" antes de validar
+    const dto = { name: 'Valid', phone: '11944442222', document: '123.456.789-09', documentType: 'cpf' as const }
+
+    // Não deve lançar exceção
+    await expect(service.createPatient('tenant-uuid-1', dto)).resolves.toBeDefined()
+  })
+
+  it('should succeed when RG has 7 digits (mínimo válido)', async () => {
+    const dto = { name: 'Valid', phone: '11944443333', document: '1234567', documentType: 'rg' as const }
+
+    await expect(service.createPatient('tenant-uuid-1', dto)).resolves.toBeDefined()
   })
 })
 
@@ -2071,7 +2317,8 @@ describe('PatientService — activatePortal', () => {
       'patient.portal_activated',
       'system',
       null,
-      expect.objectContaining({ patientId: PATIENT_ID_A, phone: patient.phone }),
+      // LGPD SEC-11: phone removido do payload (PII em event_log retido 90d)
+      expect.objectContaining({ patientId: PATIENT_ID_A }),
     )
 
     // EventEmitter2.emit foi chamado

@@ -251,6 +251,12 @@ CREATE TABLE agent_settings (
                         CONSTRAINT agent_settings_booking_mode_check CHECK (booking_mode IN ('link', 'chat', 'both')),
     -- 'link': agent only sends booking link; 'chat': agent books in-chat; 'both': agent decides
 
+    -- Meta WhatsApp Cloud API (migration 020) — preenchidos via Embedded Signup OAuth flow
+    whatsapp_phone_number_id    VARCHAR(50)  NULL,  -- ID do número na Meta Graph API
+    whatsapp_waba_id            VARCHAR(50)  NULL,  -- WhatsApp Business Account ID do doutor
+    whatsapp_display_phone_number VARCHAR(20) NULL,  -- Número formatado pra exibir
+    whatsapp_verified_name      VARCHAR(255) NULL,  -- Nome verificado na Meta
+
     CONSTRAINT agent_settings_tenant_unique UNIQUE (tenant_id)
     -- 1:1 with tenant. Only one agent config per portal.
 );
@@ -258,11 +264,15 @@ CREATE TABLE agent_settings (
 -- Index: tenant lookup (primary access pattern)
 CREATE INDEX idx_agent_settings_tenant_id ON agent_settings (tenant_id);
 
--- Index: instance name lookup for webhook tenant resolution (1 query per incoming message)
+-- Index: instance name lookup for webhook tenant resolution (Evolution API)
 CREATE INDEX idx_agent_settings_evolution_instance ON agent_settings (evolution_instance_name)
     WHERE evolution_instance_name IS NOT NULL;
 
-COMMENT ON TABLE agent_settings IS 'WhatsApp AI agent configuration. 1:1 with tenant. Read by internal agent module (agent.service.ts).';
+-- Index: phone_number_id lookup for webhook tenant resolution (Cloud API)
+CREATE UNIQUE INDEX idx_agent_settings_cloud_phone_number_id ON agent_settings (whatsapp_phone_number_id)
+    WHERE whatsapp_phone_number_id IS NOT NULL;
+
+COMMENT ON TABLE agent_settings IS 'WhatsApp AI agent configuration. 1:1 with tenant. Read by internal agent module (agent.service.ts). Supports dual provider: Evolution API (evolution_instance_name) and Meta Cloud API (whatsapp_phone_number_id).';
 COMMENT ON COLUMN agent_settings.extra_config IS 'Flexible JSONB for agent config that does not warrant its own column yet.';
 COMMENT ON COLUMN agent_settings.appointment_rules IS 'Natural language scheduling rules interpreted by the agent.';
 
@@ -279,9 +289,13 @@ CREATE TABLE patients (
     name                    VARCHAR(255) NOT NULL,
     phone                   VARCHAR(20)  NOT NULL,
     -- Primary identifier used by the WhatsApp agent. Brazilian format: +5511999999999
-    cpf                     VARCHAR(14),
-    -- Brazilian tax ID. Optional because the agent may not collect it initially.
-    -- Format: "123.456.789-00" or "12345678900" (app normalizes).
+    document                BYTEA,
+    -- Documento de identificação criptografado via pgcrypto (AES-256).
+    -- Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.
+    -- NULL quando o paciente não forneceu documento.
+    document_type           VARCHAR(10),
+    -- Tipo do documento: cpf ou rg. Escolha do paciente no momento do cadastro.
+    -- NULL quando document também é NULL (constraint garante consistência).
     email                   VARCHAR(255),
     -- Optional. Collected if patient volunteers it.
     date_of_birth           DATE,
@@ -304,8 +318,15 @@ CREATE TABLE patients (
 
     CONSTRAINT patients_source_check CHECK (source IN ('whatsapp_agent', 'manual')),
     CONSTRAINT patients_status_check CHECK (status IN ('active', 'inactive')),
-    CONSTRAINT patients_portal_access_code_unique UNIQUE (portal_access_code)
+    CONSTRAINT patients_portal_access_code_unique UNIQUE (portal_access_code),
     -- Globally unique so patients can log in with just the code.
+    CONSTRAINT patients_document_type_check CHECK (document_type IN ('cpf', 'rg')),
+    CONSTRAINT patients_document_both_or_neither_check CHECK (
+        (document IS NULL AND document_type IS NULL)
+        OR
+        (document IS NOT NULL AND document_type IS NOT NULL)
+    )
+    -- Garante consistência: ou ambos preenchidos ou ambos NULL.
 );
 
 -- Index: phone lookup within tenant (agent's primary patient resolution)
@@ -320,14 +341,14 @@ CREATE INDEX idx_patients_portal_access_code ON patients (portal_access_code)
 -- Index: tenant-scoped patient listing
 CREATE INDEX idx_patients_tenant_id ON patients (tenant_id);
 
--- Index: CPF lookup within tenant (for deduplication if CPF is provided)
-CREATE INDEX idx_patients_tenant_cpf ON patients (tenant_id, cpf)
-    WHERE cpf IS NOT NULL;
+-- Nota: idx_patients_tenant_cpf removido em 018_patients_document_pgcrypto.
+-- Índice sobre ciphertext (bytea) é inútil para buscas por igualdade.
 
 COMMENT ON TABLE patients IS 'Patient records. Primarily created by WhatsApp agent. Portal activated after first completed appointment.';
 COMMENT ON COLUMN patients.phone IS 'Primary identifier for WhatsApp. Brazilian format: +5511999999999. Unique per tenant.';
 COMMENT ON COLUMN patients.portal_access_code IS 'Globally unique code for patient portal login. NULL until portal activation.';
-COMMENT ON COLUMN patients.cpf IS 'Brazilian tax ID. Optional. Format: 123.456.789-00 or bare digits.';
+COMMENT ON COLUMN patients.document IS 'Documento de identificação criptografado via pgcrypto (AES-256). Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.';
+COMMENT ON COLUMN patients.document_type IS 'Tipo do documento: cpf ou rg. Escolha do paciente no momento do cadastro.';
 
 
 -- =============================================================================
@@ -410,11 +431,10 @@ CREATE TABLE clinical_notes (
     tenant_id       UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     patient_id      UUID         NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     appointment_id  UUID         NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-    content         TEXT         NOT NULL,
-    -- The clinical note content. Free-form text written by the doctor.
-    -- Shared with the agent for follow-up context.
-    -- IMPORTANT: This is medical data. Encryption at rest should be
-    -- configured at the database/storage level.
+    content         BYTEA        NOT NULL,
+    -- Nota clínica criptografada via pgcrypto (AES-256).
+    -- Decrypt com pgp_sym_decrypt(content, DOCUMENT_ENCRYPTION_KEY).
+    -- LGPD Fase 0 — migration 019.
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
     -- No explicit created_by column needed: clinical notes are always
@@ -432,7 +452,7 @@ CREATE INDEX idx_clinical_notes_patient_id ON clinical_notes (patient_id);
 CREATE INDEX idx_clinical_notes_tenant_id ON clinical_notes (tenant_id);
 
 COMMENT ON TABLE clinical_notes IS 'Doctor clinical notes per appointment. Shared with agent for follow-up context. Medical data - ensure encryption at rest.';
-COMMENT ON COLUMN clinical_notes.content IS 'Free-form clinical note. Always authored by the doctor.';
+COMMENT ON COLUMN clinical_notes.content IS 'Nota clínica criptografada via pgcrypto (AES-256). Decrypt com a chave DOCUMENT_ENCRYPTION_KEY do env. LGPD Fase 0.';
 
 
 -- =============================================================================

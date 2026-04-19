@@ -38,6 +38,18 @@ const envSchema = z.object({
   EVOLUTION_API_URL: z.string().url(),
   EVOLUTION_API_KEY: z.string().min(1),
   EVOLUTION_WEBHOOK_TOKEN: z.string().min(1),
+  // URL pública do backend acessível pela Evolution API (pra webhook callback)
+  // Em dev: http://localhost:3000, em prod: https://app.nocrato.com
+  WEBHOOK_BASE_URL: z.string().url().default('http://localhost:3000'),
+
+  // Meta WhatsApp Cloud API — todas opcionais enquanto Evolution API for o provider ativo.
+  // Obrigatórias quando CLOUD_API_CONNECTION_PROVIDER estiver em uso.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().min(16).optional(),
+  META_SYSTEM_USER_TOKEN: z.string().min(16).optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(16).optional(),
+  META_GRAPH_API_VERSION: z.string().default('v19.0'),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
 
   // Frontend
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
@@ -47,6 +59,16 @@ const envSchema = z.object({
 
   // E2E — bypass de ThrottlerGuard em NODE_ENV=test (ver TD-29 + E2eAwareThrottlerGuard)
   E2E_THROTTLE_BYPASS_SECRET: z.string().min(16).optional(),
+
+  // Bugsink (Sentry-compatible) — error tracking self-hosted.
+  // Em dev: opcional — se vazio, Sentry.init é pulado e nenhum erro é capturado.
+  // Em prod: obrigatório — refine abaixo bloqueia o boot se NODE_ENV=production e DSN ausente.
+  SENTRY_DSN: z.string().url().optional(),
+
+  // LGPD — chave simétrica AES-256 para pgp_sym_encrypt/decrypt (64 hex chars = 32 bytes)
+  // Usada para patients.document, clinical_notes.content e outros dados sensíveis em repouso.
+  // Obrigatória em TODOS os ambientes (inclusive dev/test).
+  DOCUMENT_ENCRYPTION_KEY: z.string().length(64, 'DOCUMENT_ENCRYPTION_KEY deve ter 64 hex chars (32 bytes). Gerar com: openssl rand -hex 32'),
 }).refine(
   (data) => data.NODE_ENV !== 'test' || !!data.E2E_THROTTLE_BYPASS_SECRET,
   {
@@ -54,6 +76,14 @@ const envSchema = z.object({
       'E2E_THROTTLE_BYPASS_SECRET é obrigatório quando NODE_ENV=test — ' +
       'defina em .env.test (veja .env.test.example).',
     path: ['E2E_THROTTLE_BYPASS_SECRET'],
+  },
+).refine(
+  (data) => data.NODE_ENV !== 'production' || !!data.SENTRY_DSN,
+  {
+    message:
+      'SENTRY_DSN é obrigatório quando NODE_ENV=production — ' +
+      'configure o Bugsink e preencha em .env (veja .env.example).',
+    path: ['SENTRY_DSN'],
   },
 )
 

@@ -89,14 +89,22 @@ Professional profile and authentication credentials for the doctor behind a tena
 ### 5. agent_settings
 WhatsApp AI agent configuration for a tenant. Stores the welcome message, personality instructions, FAQ content, scheduling rules as natural language text, and the `booking_mode` column (`'link' | 'chat' | 'both'`) that controls how the agent offers appointment scheduling. O agente interno le essas configuracoes no inicio de cada conversa para personalizar as respostas. 1:1 with tenant.
 
+Suporta dois providers WhatsApp (coexistem): `evolution_instance_name` (Evolution API — QR code) e `whatsapp_phone_number_id` + `whatsapp_waba_id` + `whatsapp_display_phone_number` + `whatsapp_verified_name` (Meta Cloud API — Embedded Signup OAuth). Cloud API tem precedência quando ambos configurados. Migration 020.
+
 ### 6. patients
 Patient records created primarily by the WhatsApp agent. Identified by phone number within a tenant. After their first completed appointment, patients receive a globally unique portal access code for read-only portal access.
+
+Colunas de documento de identificação (LGPD Fase 0, migration 018):
+- `document BYTEA` — documento criptografado via `pgp_sym_encrypt` (pgcrypto AES-256). Descriptografar com `DOCUMENT_ENCRYPTION_KEY` do env. **Nunca expor o valor raw na API.**
+- `document_type VARCHAR(10)` — metadado não sensível: `'cpf'` ou `'rg'`. Pode aparecer nas respostas da API sem decrypt.
+
+Ambas as colunas são NULL ou ambas preenchidas (constraint `patients_document_both_or_neither_check`). O índice `idx_patients_tenant_cpf` foi removido pois índices sobre ciphertext bytea não servem para buscas por igualdade.
 
 ### 7. appointments
 Core scheduling entity with a multi-step status lifecycle: `scheduled` -> `waiting` -> `in_progress` -> `completed`. Also supports `cancelled`, `rescheduled`, and `no_show` terminal states. Links to the patient who booked and optionally chains to a rescheduled replacement via self-referencing FK.
 
 ### 8. clinical_notes
-Doctor-authored clinical notes tied to a specific appointment. Shared with the WhatsApp agent for post-appointment follow-up context. Contains sensitive medical data -- encryption at rest should be configured at the database/storage level.
+Doctor-authored clinical notes tied to a specific appointment. Shared with the WhatsApp agent for post-appointment follow-up context. `content` is stored as `BYTEA` encrypted via pgcrypto AES-256 (`pgp_sym_encrypt/pgp_sym_decrypt`) using `DOCUMENT_ENCRYPTION_KEY` from env. Decrypt at query time via `getClinicalNoteSelectFields()` helper. LGPD Fase 0 (migration 019).
 
 ### 9. documents
 Files uploaded by the doctor for a patient (prescriptions, certificates, exams). Stored in object storage with URL references. Optionally linked to a specific appointment. Viewable by patients in their read-only portal.

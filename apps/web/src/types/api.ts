@@ -149,7 +149,14 @@ export interface PatientListItem {
   email?: string
   source: 'manual' | 'agent'
   status: 'active' | 'inactive'
+  document_type?: 'cpf' | 'rg' | null
   created_at: string
+}
+
+// LGPD fase 0 — documento decriptado (retornado apenas pelo endpoint dedicado)
+export interface PatientDocumentResponse {
+  document_type: 'cpf' | 'rg'
+  document: string
 }
 
 export interface PatientAppointment {

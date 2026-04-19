@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Resend } from 'resend'
 import { env } from '@/config/env'
+import { redactPiiInString } from '@/common/logging/redact-pii'
 import { inviteMemberTemplate } from './templates/invite-member'
 import { inviteDoctorTemplate } from './templates/invite-doctor'
 import { passwordResetTemplate } from './templates/password-reset'
@@ -28,11 +29,13 @@ export class EmailService {
     })
 
     if (error) {
-      this.logger.error(`Falha ao enviar e-mail de convite para ${params.to}: ${error.message}`)
+      this.logger.error(
+        redactPiiInString(`Falha ao enviar e-mail de convite para ${params.to}: ${error.message}`),
+      )
       throw new Error(`Falha ao enviar e-mail de convite: ${error.message}`)
     }
 
-    this.logger.log(`E-mail de convite enviado para ${params.to}`)
+    this.logger.log(redactPiiInString(`E-mail de convite enviado para ${params.to}`))
   }
 
   async sendInviteDoctor(params: {
@@ -53,11 +56,15 @@ export class EmailService {
     })
 
     if (error) {
-      this.logger.error(`Falha ao enviar e-mail de convite para doutor ${params.to}: ${error.message}`)
+      this.logger.error(
+        redactPiiInString(
+          `Falha ao enviar e-mail de convite para doutor ${params.to}: ${error.message}`,
+        ),
+      )
       throw new Error(`Falha ao enviar e-mail de convite: ${error.message}`)
     }
 
-    this.logger.log(`E-mail de convite para doutor enviado para ${params.to}`)
+    this.logger.log(redactPiiInString(`E-mail de convite para doutor enviado para ${params.to}`))
   }
 
   async sendPasswordReset(params: {
@@ -76,10 +83,12 @@ export class EmailService {
     })
 
     if (error) {
-      this.logger.error(`Falha ao enviar e-mail de reset para ${params.to}: ${error.message}`)
+      this.logger.error(
+        redactPiiInString(`Falha ao enviar e-mail de reset para ${params.to}: ${error.message}`),
+      )
       throw new Error(`Falha ao enviar e-mail de reset: ${error.message}`)
     }
 
-    this.logger.log(`E-mail de redefinição de senha enviado para ${params.to}`)
+    this.logger.log(redactPiiInString(`E-mail de redefinição de senha enviado para ${params.to}`))
   }
 }

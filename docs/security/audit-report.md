@@ -229,21 +229,42 @@ O risco mais urgente é a ausência de `Content-Security-Policy` no Nginx (SEC-0
 
 ---
 
-#### SEC-11 — Logger expõe endereços de email (PII) em logs de nível INFO e ERROR
+#### SEC-11 — Logger expõe PII (email, telefone, CPF) — ✅ RESOLVIDO
 
-- **Severidade:** LOW
-- **Módulo:** `apps/api/src/modules/auth/agency-auth.service.ts:119,122`; `apps/api/src/modules/auth/doctor-auth.service.ts:333,336,135`
-- **Evidência:**
-  ```typescript
-  this.logger.error(
-    `Falha ao enviar e-mail de reset para ${email}: ${err.message}`,
-  );
-  this.logger.log(`Solicitação de reset de senha para agency member: ${email}`);
-  this.logger.log(`Doutor ${email} fez login no tenant ${tenant.slug}`);
-  ```
-- **Descrição:** Endereços de email de membros da agência e doutores são incluídos diretamente em mensagens de log. Logs frequentemente são coletados por sistemas externos (ELK, Datadog, Loki) e podem ser retidos por longos períodos com controles de acesso menos estritos que o banco de dados.
-- **Impacto:** Vazamento de PII em sistemas de log. Em caso de acesso indevido aos logs, emails de todos os usuários cadastrados ficam expostos, violando o princípio de minimização de dados da LGPD.
-- **Recomendação:** Substituir emails por IDs nos logs: `this.logger.log(`Solicitação de reset — memberId=${member.id}`)`. Dados identificáveis devem existir apenas no `event_log` estruturado no banco, que tem controles de acesso mais rígidos.
+- **Severidade original:** LOW (reclassificada como P0 no contexto LGPD antes de prod)
+- **Resolvido em:** branch `feat/fase0-lgpd-session-a` (Fase 0 LGPD, item 1)
+
+**Escopo real do fix (maior que o relatório original):**
+
+Auditoria completa via security agent encontrou **17 pontos de email em plaintext** + **2 pontos de telefone cru** (`agent.service.ts:138,180`) + **PII em `event_log.payload`** (`patient.portal_activated` com `patient_name`/`phone`, `appointment.cancelled` com `cancellation_reason` texto livre).
+
+**Solução aplicada:**
+
+1. **Utilitário de redação** em `apps/api/src/common/logging/redact-pii.ts`:
+   - `redactPii(value)` — recursivo, deep-redact por allowlist de chaves sensíveis (`email`, `phone`, `cpf`, `document`, `name`, `patient_name`, `portal_access_code`, `token`, `password`, `content`, `cancellation_reason`, `ip`, etc).
+   - `redactPiiInString(str)` — regex em strings livres, mascara email (`j***@***`), telefone BR formatado e puro 10-13 dígitos (`****XXXX`), CPF (`***.***.***-**`), JWT (`<jwt:redacted>`) e tokens hex 64 chars (`<token:redacted>`).
+   - Lookbehind/lookahead protege UUIDs contra falsos positivos.
+   - 22 testes unitários cobrindo todos os padrões (`redact-pii.spec.ts`).
+
+2. **Aplicado em todos os 19 pontos críticos**: 4 arquivos de log de stdout (`agent.service`, `email.service`, `doctor-auth.service`, `agency-auth.service`, `invite.service`) com `import { redactPiiInString }` + wrap em cada chamada `this.logger.log/error`.
+
+3. **event_log limpo de PII**: `patient.portal_activated` e `appointment.cancelled` perderam `patient_name`/`phone`/`cancellation_reason` do `payload`. Dados funcionais permanecem nas colunas originais (`patients.name`, `appointments.cancellation_reason`); apenas o log de auditoria foi anonimizado.
+
+**Comentado anteriormente — o que NÃO mudou:**
+
+- `HttpExceptionFilter` não loga requests (bom).
+- Knex sem `debug: true` (bom).
+- Nenhum `LoggingInterceptor` global dumpando headers/body (bom).
+- `WhatsAppService` já mascarava telefone (padrão de referência).
+
+**Validação:**
+- 687/687 unit tests (27 suítes, +22 novos do redact-pii, +3 ajustados por remoção de PII do event_log).
+- 67/67 Playwright E2E em paralelo (nenhum fluxo quebrado em runtime).
+- typecheck limpo.
+
+**Débito residual (fora do escopo imediato):**
+- Retenção `event_log` 90 dias com anonimização pós-expiração — virará job/cron na Sessão B.
+- Nenhum `LoggingInterceptor` no futuro deve logar `x-e2e-bypass` header sem redação (OBS do code-review anterior).
 
 ---
 

@@ -18,7 +18,7 @@ src/
 │   ├── knexfile.ts          # Config para o CLI do Knex (migrate/rollback)
 │   ├── migrate.ts           # Script standalone: pnpm migrate
 │   ├── seed.ts              # Script standalone: pnpm seed
-│   └── migrations/          # 14 migrations SQL (001 a 014)
+│   └── migrations/          # 20 migrations SQL (001 a 020)
 ├── common/                  # Guards, decorators, filters, pipes (Epic 0 - US-0.3)
 └── modules/
     ├── health/              # GET /health — verifica DB + retorna status

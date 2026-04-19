@@ -11,7 +11,7 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 - **Nocrato** (agência) gerencia doutores via portal interno
 - Cada **doutor** tem portal isolado (tenant) por slug (ex: `dr-silva`)
 - **Pacientes** criados pelo agente WhatsApp, portal read-only com código de acesso
-- **Agente WhatsApp** interno (NestJS + Evolution API + gpt-4o-mini) orquestra agendamento e notificações
+- **Agente WhatsApp** interno (NestJS + Evolution API/Meta Cloud API + gpt-4o-mini) orquestra agendamento e notificações
 - **Booking** público protegido por token temporário (24h)
 
 ---
@@ -20,13 +20,34 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 
 | Skill | Comando | Ativar quando |
 |---|---|---|
-| Resumo de Continuação | `/compact` | Contexto acima de 60-70% **ou** entrega concluída **ou** antes de trabalho novo complexo |
+| Resumo de Continuação | `/compact` | Hook `context-monitor` avisa em 45% (warning) e 30% (critical) **ou** entrega concluída **ou** antes de trabalho novo complexo |
 | Definition of Done | `/definition-of-done` | Ao final de **qualquer entrega de código** — antes do commit |
 | Health Check | `/health-check` | Após **qualquer entrega de código** — antes do commit |
 | Code Review | `/code-review` | **Ao criar ou atualizar qualquer PR** — obrigatório antes do merge |
 | Casos de Teste | `/test-cases` | **Ao iniciar epic novo**, antes da primeira US |
+| Assumptions | `/assumptions` | Antes de planejar US ambígua, bugfix sem causa raiz clara, migration destrutiva, refactor >3 módulos |
+| Plant Seed | `/seed` | Ao surgir ideia tangencial "legal, mas não agora" — captura em `docs/seeds/` sem sair do fluxo |
+| Verify Security Fix | `/verify-sec-fix` | Ao terminar implementação de um `SEC-NN` — antes de marcar `done` na auditoria |
+| Intel Refresh | `/intel-refresh` | Início de sessão longa, após epic grande, ou antes de doc que cite números |
+| Brainstorm | `/brainstorm` | Antes de features complexas (>3 arquivos ou design incerto) — explorar abordagens antes de codar |
+| Plan | `/plan` | Após brainstorm aprovado — plano detalhado TDD com file paths e code blocks |
+| TDD | `/tdd` | Durante implementação de qualquer feature ou bugfix — Red-Green-Refactor |
+| Finish Branch | `/finish-branch` | Quando implementação termina — opções estruturadas pra merge/PR/discard |
+| Writing Skills | `/writing-skills` | Ao criar ou editar skills — meta-skill de qualidade |
 
 > **"Qualquer entrega de código"** = US, bugfix, TD, melhoria, refactor, hotfix, config. Se mudou arquivo sob `apps/` ou `docker/`, DoD + Health Check são obrigatórios.
+
+### Hooks ativos (`.claude/hooks/`)
+
+Registrados em `.claude/settings.json` — advisory, nunca bloqueiam execução.
+
+| Hook | Evento | Função |
+|---|---|---|
+| `statusline-bridge.js` | Statusline | Grava `/tmp/claude-ctx-{session}.json` com métricas de contexto (sem renderizar statusline) |
+| `context-monitor.js` | PostToolUse | Lê bridge file e injeta warning quando remaining ≤ 45% (warning) ou ≤ 30% (critical) |
+| `prompt-guard.js` | PreToolUse Write/Edit | Scan por padrões de prompt injection em `.claude/**/*.md`, `CLAUDE.md`, `docs/architecture/decisions.md` |
+| `validate-commit.sh` | PreToolUse Bash | Valida Conventional Commits em `git commit -m` (advisory) |
+| `session-start.sh` | SessionStart | Injeta resumo de skills e protocolo no início de cada sessão |
 
 ---
 
@@ -46,7 +67,9 @@ Checklist rápido — isso afeta:
 - Arquitetura? → ADR em `docs/architecture/decisions.md`
 - Roadmap? → epic correspondente
 - Débito técnico? → `docs/tech-debt.md`
-- Agente? → `.claude/agents/{agente}.md`
+- Ideia tangencial sem trigger imediato? → `docs/seeds/` via `/seed` (possibilidade futura, não TD)
+- Estado quantitativo (contagens, métricas)? → `docs/intel/` via `/intel-refresh`
+- Agente? → `.claude/agents/{agente}.md` (ver também `.claude/agent-prompt-template.md` antes de delegar)
 
 ---
 
@@ -67,6 +90,8 @@ Checklist rápido — isso afeta:
 
 Regras adicionais:
 - **Primeira US de epic novo:** acionar `/test-cases` antes de começar
+- **US ambígua, migration destrutiva, bugfix sem causa raiz, refactor >3 módulos:** acionar `/assumptions` antes de planejar
+- **Trabalho relacionado a SEC-NN:** acionar `/verify-sec-fix` após implementar, antes de marcar done
 - Consultar agente em `.claude/agents/` para o domínio
 - Consultar `.claude/prompt-engineering.md` antes de acionar subagentes
 
@@ -89,32 +114,43 @@ Push direto na main é proibido. Padrões:
 ### Ciclo de vida
 
 ```
-0. Explore agent     → pré-carrega contexto
-1. Branch            → git checkout -b <tipo>/descricao
-2. Implementar       → agents em worktrees (quem escreve código)
-3. Tech-lead revisa  → aprova qualidade, padrões, segurança
-4. QA testa          → agent (backend) ou Playwright (frontend)
-5. /definition-of-done + /health-check
-6. Commit + Push + PR
-7. /code-review      → obrigatório em todo PR
-8. Merge + atualizar docs afetadas
+0. Explore agent       → pré-carrega contexto
+0a. /assumptions       → se US ambígua, migration destrutiva ou bugfix sem causa raiz (ver tabela)
+0b. /test-cases        → se primeira US de epic novo
+1. Branch              → git checkout -b <tipo>/descricao
+2. Implementar         → agents em worktrees (quem escreve código)
+3. Tech-lead revisa    → aprova qualidade, padrões, segurança
+4. QA testa            → agent (backend) ou Playwright (frontend)
+5. /verify-sec-fix     → se trabalho fechou item SEC-NN (antes do DoD)
+6. /definition-of-done + /health-check
+7. Commit + Push + PR
+8. /code-review        → obrigatório em todo PR
+9. Merge + atualizar docs afetadas
+9a. doc-verifier       → se mudou schema, migration, flow ou endpoint (valida docs vs código)
 ```
+
+**Hooks automáticos** (não precisam de ação manual — disparam sozinhos):
+- `context-monitor`: injeta warning em 45% e critical em 30% → você decide quando rodar `/compact`
+- `prompt-guard`: alerta se conteúdo suspeito for escrito em docs protegidos
+- `validate-commit`: advisory se commit message não seguir Conventional Commits
 
 ### Escala de rigor por tipo
 
-| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review |
-|------|---------|-----------|-----------|------------|---------------|--------|--------------|
-| User Story | completo | sim | sim | sim | se UI | sim | sim |
-| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim |
-| Bugfix backend | focado | sim | sim | sim | se afeta UI | sim | sim |
-| Bugfix frontend | focado | sim | sim | — | sim | sim | sim |
-| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim |
-| Melhoria UX | focado | sim | sim | — | sim | sim | sim |
-| Refactor | completo | sim | sim | sim | se UI | sim | sim |
-| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim |
-| Config / Env | — | — | revisão rápida | — | — | sim | sim |
-| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim |
-| Docs only | — | — | — | — | — | — | — |
+| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review | doc-verifier |
+|------|---------|-----------|-----------|------------|---------------|--------|--------------|--------------|
+| User Story | completo | sim | sim | sim | se UI | sim | sim | se schema/flow/endpoint |
+| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim | se schema/flow |
+| Bugfix backend (causa clara) | focado | sim | sim | sim | se afeta UI | sim | sim | — |
+| Bugfix backend (causa incerta) | focado | sim (`debugger` primeiro) | sim | sim | se afeta UI | sim | sim | — |
+| Bugfix frontend | focado | sim | sim | — | sim | sim | sim | — |
+| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim | — |
+| Melhoria UX | focado | sim | sim | — | sim | sim | sim | — |
+| Refactor | completo | sim | sim | sim | se UI | sim | sim | se renomeou módulo/endpoint |
+| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim | **sim** (obrigatório) |
+| Config / Env | — | — | revisão rápida | — | — | sim | sim | — |
+| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim | — |
+| Docs only | — | — | — | — | — | — | — | **sim** (valida o que mudou) |
+| **Fechamento de epic** | — | — | — | — | — | — | — | **sim** (audit completo) |
 
 ### Worktrees
 
@@ -132,6 +168,10 @@ Tech-lead e security sempre rodam no contexto principal (só leem).
 | End-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
 | Docker / infra | `devops` → `tech-lead` |
 | Decisão arquitetural | `architect` → ADR em `decisions.md` |
+| Bug não-trivial | `debugger` (método científico 5 fases) → fix via agent de domínio |
+| Auditoria de docs vs código | `doc-verifier` (read-only) |
+
+> **Antes de delegar a qualquer agent**: consultar `.claude/agent-prompt-template.md` para checklist de base-da-worktree, escopo, restrições e formato do relatório esperado.
 
 ### Tech Debt workflow
 
@@ -146,12 +186,26 @@ TDs seguem o mesmo ciclo de vida, com ajustes:
 
 TDs podem ser agrupados em batch quando são relacionados (ex: cluster de timezone TD-01/12/14/27).
 
+### Quando usar `debugger` vs agent de domínio direto
+
+| Situação | Usar |
+|----------|------|
+| Stack trace claro, causa óbvia (typo, null, import errado) | `backend` ou `frontend` direto |
+| Erro reproduzível mas causa incerta, múltiplos suspeitos | `debugger` → diagnóstico → depois `backend`/`frontend` para o fix |
+| Teste flaky, comportamento intermitente | `debugger` (obrigatório) |
+| Regressão sem commit óbvio | `debugger` (obrigatório) |
+
+O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao agent de domínio com o diagnóstico como input.
+
 ### Regras de ouro
 
 1. **QA é agente, não terminal** — invocar via Agent tool, não `npx jest` direto
 2. **Frontend só via agents** — `frontend` → `designer` → `tech-lead` → Playwright. Sem exceção por tamanho
 3. **CLAUDE.md em diretório novo** — criar antes do primeiro arquivo de código
 4. **DoCDD mid-implementation** — se escopo diverge do doc, parar e atualizar doc primeiro
+5. **Hooks são passivos** — não precisam de ação manual; disparam sozinhos via `settings.json`
+6. **Skills são ativas** — precisam ser invocadas no momento certo do ciclo de vida (ver tabela de gatilhos)
+7. **Evidence before claims** — nunca afirmar que testes passam, build compila, ou feature funciona sem rodar o comando e ver o output. "Deve funcionar" não é evidência.
 
 ---
 
@@ -205,7 +259,7 @@ nocrato-health-v2/
 │   ├── api/                   ← NestJS backend
 │   │   └── src/
 │   │       ├── common/        ← guards, decorators, filters, pipes
-│   │       ├── database/      ← Knex provider + 17 migrations
+│   │       ├── database/      ← Knex provider + 20 migrations
 │   │       └── modules/       ← 13 módulos de feature
 │   └── web/                   ← React frontend
 │       └── src/
@@ -215,8 +269,10 @@ nocrato-health-v2/
 ├── docker/                    ← compose dev + prod, Dockerfiles, nginx
 ├── docs/                      ← documentação completa
 └── .claude/
-    ├── agents/                ← 10 agentes especializados
-    └── skills/                ← compact, definition-of-done, health-check, code-review, test-cases
+    ├── agents/                ← 12 agentes (backend, frontend, dba, qa, tech-lead, designer, architect, pm, devops, security, debugger, doc-verifier)
+    ├── hooks/                 ← 5 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit, session-start)
+    ├── skills/                ← 14 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh, brainstorm, plan, tdd, finish-branch, writing-skills)
+    └── agent-prompt-template.md ← checklist canônico de delegação
 ```
 
 ## Pontos de entrada
@@ -227,7 +283,9 @@ nocrato-health-v2/
 | Doctor auth | `POST /api/v1/doctor/auth/login` | `routes/doctor/login.tsx` |
 | Booking | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx` |
 | Patient portal | `POST /api/v1/patient/portal/access` | `routes/patient/access.tsx` |
-| WhatsApp webhook | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Evolution) | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Cloud API) | `GET/POST /api/v1/agent/webhook/cloud` | — |
+| WhatsApp connection | `POST /api/v1/doctor/whatsapp/connect[-cloud]` | `routes/doctor/whatsapp.tsx` |
 
 ---
 
@@ -237,13 +295,18 @@ nocrato-health-v2/
 |-----------|----------|
 | `docs/guides/` | Setup dev, onboarding, VPS cheatsheet |
 | `docs/architecture/` | Stack, estrutura backend/frontend, 15 ADRs |
-| `docs/database/` | Schema DDL, ER diagram, 17 migrations |
+| `docs/database/` | Schema DDL, ER diagram, 20 migrations |
 | `docs/flows/` | Auth, booking, appointment lifecycle, patient portal, agent |
 | `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
 | `docs/security/` | Auditoria OWASP |
 | `docs/tech-debt.md` | Registro de TDs com prioridade P1/P2/P3 |
-| `.claude/agents/` | 10 agentes especializados |
+| `docs/seeds/` | Ideias tangenciais com trigger — via `/seed` |
+| `docs/intel/` | Snapshots quantitativos do estado do projeto — via `/intel-refresh` |
+| `.claude/agents/` | 12 agentes especializados |
+| `.claude/hooks/` | 4 hooks advisory (context, prompt-guard, statusline, commit-lint) |
+| `.claude/skills/` | 9 skills com gatilhos definidos na tabela acima |
 | `.claude/prompt-engineering.md` | Guia de PE — ler antes de editar agentes |
+| `.claude/agent-prompt-template.md` | Checklist de delegação a subagents |
 
 ---
 

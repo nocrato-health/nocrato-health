@@ -40,7 +40,7 @@ export class PatientController {
   @Get(':id')
   @ApiOperation({ summary: 'Perfil completo do paciente com histórico de consultas, notas clínicas e documentos' })
   @ApiParam({ name: 'id', description: 'UUID do paciente' })
-  @ApiResponse({ status: 200, description: 'Perfil completo do paciente (sem cpf e portal_access_code)' })
+  @ApiResponse({ status: 200, description: 'Perfil completo do paciente (sem document e portal_access_code)' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
   @ApiResponse({ status: 404, description: 'Paciente não encontrado' })
   getPatientProfile(
@@ -48,6 +48,20 @@ export class PatientController {
     @Param('id', new ZodValidationPipe(z.string().uuid())) patientId: string,
   ) {
     return this.patientService.getPatientProfile(tenantId, patientId)
+  }
+
+  // Endpoint para retornar documento sensível descriptografado (separado do perfil)
+  @Get(':id/document')
+  @ApiOperation({ summary: 'Retorna o documento (CPF/RG) descriptografado do paciente' })
+  @ApiParam({ name: 'id', description: 'UUID do paciente' })
+  @ApiResponse({ status: 200, description: 'Documento descriptografado ou null se não cadastrado' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  @ApiResponse({ status: 404, description: 'Paciente não encontrado' })
+  getDoctorPatientDocument(
+    @TenantId() tenantId: string,
+    @Param('id', new ZodValidationPipe(z.string().uuid())) patientId: string,
+  ) {
+    return this.patientService.getDoctorPatientDocument(tenantId, patientId)
   }
 
   // US-4.3: Criar paciente manualmente pelo doutor autenticado
@@ -60,7 +74,8 @@ export class PatientController {
       properties: {
         name: { type: 'string', example: 'Maria da Silva' },
         phone: { type: 'string', example: '11999990000', description: '10 ou 11 dígitos sem formatação' },
-        cpf: { type: 'string', example: '12345678901' },
+        document: { type: 'string', example: '12345678901', description: 'Número do documento (CPF ou RG — apenas dígitos ou formatado)' },
+        documentType: { type: 'string', enum: ['cpf', 'rg'], example: 'cpf' },
         email: { type: 'string', format: 'email', example: 'maria@email.com' },
         dateOfBirth: { type: 'string', format: 'date', example: '1985-05-20' },
       },
@@ -88,7 +103,8 @@ export class PatientController {
       properties: {
         name: { type: 'string', example: 'Maria da Silva Santos' },
         phone: { type: 'string', example: '11988880000' },
-        cpf: { type: 'string', example: '12345678901' },
+        document: { type: 'string', example: '12345678901', description: 'Número do documento (CPF ou RG — apenas dígitos ou formatado)' },
+        documentType: { type: 'string', enum: ['cpf', 'rg'], example: 'cpf' },
         email: { type: 'string', format: 'email' },
         status: { type: 'string', enum: ['active', 'inactive'] },
       },

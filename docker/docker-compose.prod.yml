@@ -9,10 +9,14 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Passado ao init script 01-bugsink.sh — só roda no primeiro boot
+      # (volume vazio). Em prod atual, criar manualmente — ver docker/CLAUDE.md.
+      BUGSINK_DB_PASSWORD: ${BUGSINK_DB_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     networks:
       - nocrato_net
     restart: unless-stopped
@@ -22,6 +26,38 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # ──────────────────────────────────────────
+  # Bugsink — Self-hosted error tracking (LGPD fase 0)
+  # Bind APENAS em 127.0.0.1 — acesso via SSH tunnel:
+  #   ssh -L 8000:localhost:8000 <user>@<vps>
+  # Nunca expor publicamente (sem entrada no nginx.conf).
+  # ──────────────────────────────────────────
+  bugsink:
+    image: bugsink/bugsink:2
+    container_name: nocrato_bugsink_prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      SECRET_KEY: ${BUGSINK_SECRET_KEY}
+      CREATE_SUPERUSER: ${BUGSINK_ADMIN_EMAIL}:${BUGSINK_ADMIN_PASSWORD}
+      PORT: 8000
+      DATABASE_URL: postgresql://bugsink:${BUGSINK_DB_PASSWORD}@postgres:5432/bugsink
+      BEHIND_HTTPS_PROXY: "false"
+      USE_X_FORWARDED_HOST: "false"
+      BASE_URL: ${BUGSINK_BASE_URL:-http://localhost:8000}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:8000/\").raise_for_status()' || exit 1"]
+      interval: 10s
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+    networks:
+      - nocrato_net
+    restart: unless-stopped
 
   # ──────────────────────────────────────────
   # Evolution API — gateway WhatsApp
