@@ -2,7 +2,7 @@
 
 ## O que este módulo faz
 
-Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 19 migrations SQL e os scripts de migrate/seed.
+Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 20 migrations SQL e os scripts de migrate/seed.
 
 ## Arquivos
 
@@ -55,6 +55,7 @@ export class MyService {
 | 017 | `017_add_refresh_token_version_to_users.ts` | ALTER `agency_members` + `doctors` (refresh_token_version) | 001, 004 |
 | 018 | `018_patients_document_pgcrypto.ts` | ALTER `patients`: drop cpf, add document bytea + document_type (LGPD fase 0) | 006 |
 | 019 | `019_encrypt_clinical_notes_content.ts` | ALTER `clinical_notes`: content TEXT → BYTEA (pgcrypto AES-256, destrutiva) | 008 |
+| 020 | `020_add_whatsapp_cloud_api_columns.ts` | ALTER `agent_settings`: 4 colunas Cloud API + unique partial index | 005 |
 
 ## Como rodar
 

@@ -11,7 +11,7 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 - **Nocrato** (agência) gerencia doutores via portal interno
 - Cada **doutor** tem portal isolado (tenant) por slug (ex: `dr-silva`)
 - **Pacientes** criados pelo agente WhatsApp, portal read-only com código de acesso
-- **Agente WhatsApp** interno (NestJS + Evolution API + gpt-4o-mini) orquestra agendamento e notificações
+- **Agente WhatsApp** interno (NestJS + Evolution API/Meta Cloud API + gpt-4o-mini) orquestra agendamento e notificações
 - **Booking** público protegido por token temporário (24h)
 
 ---
@@ -252,7 +252,7 @@ nocrato-health-v2/
 │   ├── api/                   ← NestJS backend
 │   │   └── src/
 │   │       ├── common/        ← guards, decorators, filters, pipes
-│   │       ├── database/      ← Knex provider + 19 migrations
+│   │       ├── database/      ← Knex provider + 20 migrations
 │   │       └── modules/       ← 13 módulos de feature
 │   └── web/                   ← React frontend
 │       └── src/
@@ -276,7 +276,9 @@ nocrato-health-v2/
 | Doctor auth | `POST /api/v1/doctor/auth/login` | `routes/doctor/login.tsx` |
 | Booking | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx` |
 | Patient portal | `POST /api/v1/patient/portal/access` | `routes/patient/access.tsx` |
-| WhatsApp webhook | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Evolution) | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Cloud API) | `GET/POST /api/v1/agent/webhook/cloud` | — |
+| WhatsApp connection | `POST /api/v1/doctor/whatsapp/connect[-cloud]` | `routes/doctor/whatsapp.tsx` |
 
 ---
 
@@ -286,7 +288,7 @@ nocrato-health-v2/
 |-----------|----------|
 | `docs/guides/` | Setup dev, onboarding, VPS cheatsheet |
 | `docs/architecture/` | Stack, estrutura backend/frontend, 15 ADRs |
-| `docs/database/` | Schema DDL, ER diagram, 19 migrations |
+| `docs/database/` | Schema DDL, ER diagram, 20 migrations |
 | `docs/flows/` | Auth, booking, appointment lifecycle, patient portal, agent |
 | `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
 | `docs/security/` | Auditoria OWASP |

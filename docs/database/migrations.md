@@ -7,7 +7,7 @@ type: database
 
 ## Migration Order
 
-The schema is split into 17 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
+The schema is split into 20 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
 
 | # | Migration File | Table/Object Created | FK Dependencies |
 |---|---------------|---------------------|-----------------|
@@ -30,6 +30,7 @@ The schema is split into 17 sequential migration files. The ordering strictly re
 | 017 | `017_add_refresh_token_version_to_users.ts` | `agency_members.refresh_token_version INTEGER NOT NULL DEFAULT 0`, `doctors.refresh_token_version INTEGER NOT NULL DEFAULT 0` (SEC-07) | `agency_members`, `doctors` |
 | 018 | `018_patients_document_pgcrypto.ts` | Drop `patients.cpf`, add `patients.document` (bytea pgcrypto) + `document_type` enum (cpf\|rg). LGPD fase 0. **⚠️ Destrutiva:** rollback recria `cpf` vazio — dados do `document` ciphertext são perdidos. Após deploy em prod, rollback NÃO é viável sem migração de compensação. | `patients` (006) |
 | 019 | `019_encrypt_clinical_notes_content.ts` | Drop `clinical_notes.content` (TEXT), add `clinical_notes.content` (BYTEA pgcrypto AES-256). LGPD fase 0. **⚠️ Destrutiva:** 12 notas em dev perdidas (confirmado OK), prod vazio. Mesma chave `DOCUMENT_ENCRYPTION_KEY` de 018. Rollback NÃO recupera ciphertext. | `clinical_notes` (008) |
+| 020 | `020_add_whatsapp_cloud_api_columns.ts` | ADD `agent_settings.whatsapp_phone_number_id` (VARCHAR 50), `whatsapp_waba_id` (VARCHAR 50), `whatsapp_display_phone_number` (VARCHAR 20), `whatsapp_verified_name` (VARCHAR 255). Unique partial index `idx_agent_settings_cloud_phone_number_id` WHERE NOT NULL. | `agent_settings` (005) |
 
 ---
 
