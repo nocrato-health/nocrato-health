@@ -29,6 +29,11 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 | Plant Seed | `/seed` | Ao surgir ideia tangencial "legal, mas não agora" — captura em `docs/seeds/` sem sair do fluxo |
 | Verify Security Fix | `/verify-sec-fix` | Ao terminar implementação de um `SEC-NN` — antes de marcar `done` na auditoria |
 | Intel Refresh | `/intel-refresh` | Início de sessão longa, após epic grande, ou antes de doc que cite números |
+| Brainstorm | `/brainstorm` | Antes de features complexas (>3 arquivos ou design incerto) — explorar abordagens antes de codar |
+| Plan | `/plan` | Após brainstorm aprovado — plano detalhado TDD com file paths e code blocks |
+| TDD | `/tdd` | Durante implementação de qualquer feature ou bugfix — Red-Green-Refactor |
+| Finish Branch | `/finish-branch` | Quando implementação termina — opções estruturadas pra merge/PR/discard |
+| Writing Skills | `/writing-skills` | Ao criar ou editar skills — meta-skill de qualidade |
 
 > **"Qualquer entrega de código"** = US, bugfix, TD, melhoria, refactor, hotfix, config. Se mudou arquivo sob `apps/` ou `docker/`, DoD + Health Check são obrigatórios.
 
@@ -42,6 +47,7 @@ Registrados em `.claude/settings.json` — advisory, nunca bloqueiam execução.
 | `context-monitor.js` | PostToolUse | Lê bridge file e injeta warning quando remaining ≤ 45% (warning) ou ≤ 30% (critical) |
 | `prompt-guard.js` | PreToolUse Write/Edit | Scan por padrões de prompt injection em `.claude/**/*.md`, `CLAUDE.md`, `docs/architecture/decisions.md` |
 | `validate-commit.sh` | PreToolUse Bash | Valida Conventional Commits em `git commit -m` (advisory) |
+| `session-start.sh` | SessionStart | Injeta resumo de skills e protocolo no início de cada sessão |
 
 ---
 
@@ -199,6 +205,7 @@ O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao
 4. **DoCDD mid-implementation** — se escopo diverge do doc, parar e atualizar doc primeiro
 5. **Hooks são passivos** — não precisam de ação manual; disparam sozinhos via `settings.json`
 6. **Skills são ativas** — precisam ser invocadas no momento certo do ciclo de vida (ver tabela de gatilhos)
+7. **Evidence before claims** — nunca afirmar que testes passam, build compila, ou feature funciona sem rodar o comando e ver o output. "Deve funcionar" não é evidência.
 
 ---
 
@@ -263,8 +270,8 @@ nocrato-health-v2/
 ├── docs/                      ← documentação completa
 └── .claude/
     ├── agents/                ← 12 agentes (backend, frontend, dba, qa, tech-lead, designer, architect, pm, devops, security, debugger, doc-verifier)
-    ├── hooks/                 ← 4 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit)
-    ├── skills/                ← 9 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh)
+    ├── hooks/                 ← 5 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit, session-start)
+    ├── skills/                ← 14 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh, brainstorm, plan, tdd, finish-branch, writing-skills)
     └── agent-prompt-template.md ← checklist canônico de delegação
 ```
 
