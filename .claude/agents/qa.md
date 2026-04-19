@@ -508,3 +508,11 @@ Não escreva testes genéricos de CRUD. Cada teste deve validar o comportamento 
 - Mensagens de assert em português quando possível: `expect(screen.getByText('Consulta agendada!')).toBeVisible()`
 - O cenário mais importante a testar é o **isolamento de tenant** — sempre inclua testes que tentam cruzar dados entre tenants
 - Não escreva testes que passam trivialmente — valide a regra de negócio, não apenas que o endpoint retorna 200
+
+## Evidence Before Claims
+
+Antes de reportar "X/Y passando":
+1. Rodar `npx jest --no-coverage` (backend) ou `npx playwright test` (frontend) — comando completo
+2. Ler o output — contar passed/failed
+3. Reportar o número REAL, não o esperado
+4. Se falhou: reportar quais falharam e por quê — não tentar consertar silenciosamente

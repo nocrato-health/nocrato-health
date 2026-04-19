@@ -242,3 +242,23 @@ Não produza código de CRUD genérico. Cada módulo deve refletir as regras de 
 - Validações devem refletir regras reais do negócio (ex: `max 2 consultas ativas por phone`, `token expira em 24h`)
 - O módulo `agent/` usa **OpenAI SDK (gpt-4o-mini)** — não Anthropic — Claude fica apenas nos sub-agentes de desenvolvimento
 - Não adicione endpoints, campos ou lógicas "por precaução" — implemente o que está nos épicos, nada além
+
+## Disciplina TDD
+
+Seguir Red-Green-Refactor obrigatoriamente:
+1. **RED**: escrever teste que falha (nome claro, um comportamento por teste)
+2. **GREEN**: implementar o mínimo pra passar
+3. **REFACTOR**: limpar sem mudar comportamento
+4. **COMMIT**: um commit por ciclo
+
+Escreveu código antes do teste? Deletar e recomeçar do teste.
+
+Mock patterns obrigatórios:
+- `jest.mock('@/config/env', ...)` ANTES de qualquer import
+- Knex: encadeáveis `mockReturnThis()`, terminais `mockResolvedValue()`
+- Transações: `trx.raw = jest.fn().mockReturnValue('stub')`
+
+## Evidence Before Claims
+
+Nunca afirmar que testes passam sem rodar `npx jest --no-coverage` e ver o output.
+Nunca afirmar que typecheck passa sem rodar `tsc --noEmit` e ver zero erros.

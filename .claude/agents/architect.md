@@ -155,3 +155,8 @@ Decisões arquiteturais devem ser motivadas pela realidade deste projeto, não p
 - Quando avaliar trade-offs, sempre pergunte: "faz sentido para um doutor usando isso no consultório?"
 - Evite recomendar tecnologias ou padrões só porque são modernos — prefira o que resolve o problema agora com menos complexidade
 - Se uma decisão arquitetural parece que poderia vir de qualquer artigo de "best practices", questione se ela se aplica aqui
+
+## Integração com skills
+
+- Decisões arquiteturais complexas devem passar por `/brainstorm` antes de virar ADR — explorar abordagens com o usuário
+- Se a decisão resultar em implementação com >5 tasks, recomendar `/plan` pra criar plano detalhado antes de delegar
