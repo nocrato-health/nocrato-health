@@ -17,22 +17,6 @@ import { WhatsAppService } from './whatsapp.service'
 // Interfaces
 // ---------------------------------------------------------------------------
 
-export interface EvolutionWebhookPayload {
-  event: string
-  instance: string
-  data: {
-    key: {
-      remoteJid: string
-      fromMe: boolean
-    }
-    message?: {
-      conversation?: string
-      extendedTextMessage?: { text?: string }
-    }
-    pushName?: string
-  }
-}
-
 interface AgentContext {
   doctorName: string
   specialty: string | null
@@ -41,7 +25,6 @@ interface AgentContext {
   faq: string | null
   bookingMode: 'link' | 'chat' | 'both'
   welcomeMessage: string | null
-  instanceName: string
 }
 
 // ---------------------------------------------------------------------------
@@ -71,66 +54,40 @@ export class AgentService {
   }
 
   // ---------------------------------------------------------------------------
-  // handleMessage — ponto de entrada para cada mensagem recebida via webhook
+  // handleMessageFromCloud — entrypoint para Cloud API (Meta)
+  // O tenant já vem resolvido pelo controller (via phone_number_id → agent_settings).
   // ---------------------------------------------------------------------------
 
-  async handleMessage(payload: EvolutionWebhookPayload): Promise<void> {
-    // 1. Extrair dados da mensagem
-    const remoteJid = payload.data.key.remoteJid // "5511999999999@s.whatsapp.net"
-    const phone = remoteJid.replace('@s.whatsapp.net', '')
-    const messageText =
-      payload.data.message?.conversation ??
-      payload.data.message?.extendedTextMessage?.text ??
-      ''
-
-    if (!messageText.trim()) {
-      return // ignora mensagens sem texto (imagens, áudios, etc.)
-    }
-
-    // 2. Resolver tenant pela instância Evolution que recebeu a mensagem
-    const tenantId = await this.resolveTenantFromInstance(payload.instance)
-    if (!tenantId) {
-      this.logger.warn(
-        `[AgentService] Instância Evolution "${payload.instance}" não mapeada para nenhum tenant ativo`,
-      )
-      return
-    }
-
-    await this.processMessage(tenantId, phone, messageText)
-  }
-
-  /**
-   * Entrypoint para mensagens recebidas via Cloud API (Meta).
-   * O tenant já vem resolvido pelo controller (via phone_number_id → agent_settings).
-   */
   async handleMessageFromCloud(tenantId: string, phone: string, messageText: string): Promise<void> {
     if (!messageText.trim()) return
     await this.processMessage(tenantId, phone, messageText)
   }
 
   /**
-   * Lógica core de processamento de mensagem — agnóstica de provider (Evolution ou Cloud).
-   */
-  /**
-   * Registra que o doutor mandou uma mensagem (fromMe=true) → ativa modo 'human'.
+   * Registra que o doutor enviou uma mensagem → ativa modo 'human' (handoff).
+   * Chamado pelo controller quando `statuses[].status === 'sent'` aparece no webhook Cloud.
    */
   async handleDoctorMessage(tenantId: string, phone: string): Promise<void> {
     await this.conversationService.activateHumanMode(tenantId, phone)
     this.logger.log(`[AgentService] Handoff → human mode ativado para phone=${phone} tenant=${tenantId}`)
   }
 
+  // ---------------------------------------------------------------------------
+  // processMessage — core do agente, agnóstico de provider
+  // ---------------------------------------------------------------------------
+
   private async processMessage(tenantId: string, phone: string, messageText: string): Promise<void> {
-    // 2b. Checar se o agente deve responder (handoff doutor↔agente)
+    // 1. Checar se o agente deve responder (handoff doutor↔agente)
     const shouldRespond = await this.conversationService.shouldAgentRespond(tenantId, phone)
     if (!shouldRespond) {
       this.logger.log(`[AgentService] Modo 'human' ativo para phone=${phone} — agente não responde`)
       return
     }
 
-    // 3. Buscar contexto do paciente (pode não existir ainda)
+    // 2. Buscar contexto do paciente (pode não existir ainda)
     const patient = await this.patientService.findByPhone(tenantId, phone)
 
-    // 3b. LGPD: verificar se é primeira interação (sem consentimento registrado)
+    // 2b. LGPD: verificar se é primeira interação (sem consentimento registrado)
     let isFirstInteraction = true
     if (patient) {
       const hasConsent = await this.consentService.hasConsent(tenantId, patient.id, 'privacy_policy')
@@ -145,22 +102,21 @@ export class AgentService {
         isFirstInteraction = false
       }
     }
-    // Se patient não existe ainda, é primeira interação por definição
 
-    // 4. Carregar configurações do agente e dados do doutor
+    // 3. Carregar configurações do agente e dados do doutor
     const agentCtx = await this.loadAgentContext(tenantId)
     if (!agentCtx) {
       this.logger.warn(`[AgentService] Configurações do agente não encontradas para tenant ${tenantId}`)
       return
     }
 
-    // 5. Buscar ou criar conversa para este phone
+    // 4. Buscar ou criar conversa para este phone
     const conversation = await this.conversationService.getOrCreate(tenantId, phone)
 
-    // 6. Montar system prompt
+    // 5. Montar system prompt
     const systemPrompt = this.buildSystemPrompt(agentCtx, patient)
 
-    // 7. Montar messages para OpenAI (histórico + nova mensagem do usuário)
+    // 6. Montar messages para OpenAI (histórico + nova mensagem do usuário)
     const historyMessages = conversation.messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({
@@ -173,7 +129,7 @@ export class AgentService {
       { role: 'user', content: messageText },
     ]
 
-    // 7b. LGPD: na primeira interação, injetar instrução para incluir link da política
+    // 6b. LGPD: na primeira interação, injetar instrução para incluir link da política
     if (isFirstInteraction) {
       openaiMessages.push({
         role: 'system',
@@ -181,7 +137,7 @@ export class AgentService {
       })
     }
 
-    // 8. Chamar OpenAI com tools
+    // 7. Chamar OpenAI com tools
     let response: OpenAI.Chat.Completions.ChatCompletion
     let iterations = 0
 
@@ -201,18 +157,15 @@ export class AgentService {
       return
     }
 
-    // 9. Loop de execução de tools (máx MAX_TOOL_ITERATIONS para evitar loop infinito)
+    // 8. Loop de execução de tools (máx MAX_TOOL_ITERATIONS para evitar loop infinito)
     const toolMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
 
     while (response.choices[0].message.tool_calls?.length && iterations < MAX_TOOL_ITERATIONS) {
       iterations++
       const assistantMsg = response.choices[0].message
 
-      // Adicionar mensagem do assistente com tool_calls ao contexto
       toolMessages.push(assistantMsg)
 
-      // Executar todas as tool_calls em paralelo
-      // Filtra apenas function tool calls (type guard contra ChatCompletionMessageCustomToolCall)
       const functionToolCalls = (assistantMsg.tool_calls ?? []).filter(
         (tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
           tc.type === 'function',
@@ -224,7 +177,6 @@ export class AgentService {
       )
       toolMessages.push(...toolResultMessages)
 
-      // Nova chamada ao LLM com os resultados das tools
       try {
         response = await this.openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -246,44 +198,20 @@ export class AgentService {
       }
     }
 
-    // 10. Extrair resposta final
+    // 9. Extrair resposta final
     const responseText =
       response.choices[0].message.content ??
       'Desculpe, não consegui processar sua mensagem no momento.'
 
-    // 11. Persistir mensagens no histórico
+    // 10. Persistir mensagens no histórico
     const newMessages: ConversationMessage[] = [
       { role: 'user', content: messageText, timestamp: new Date().toISOString() },
       { role: 'assistant', content: responseText, timestamp: new Date().toISOString() },
     ]
     await this.conversationService.appendMessages(conversation.id, newMessages)
 
-    // 12. Enviar resposta via WhatsApp (Cloud ou Evolution, baseado em agent_settings)
-    await this.sendWhatsAppMessage(tenantId, phone, responseText, agentCtx)
-  }
-
-  /**
-   * Envia mensagem via Cloud API se whatsapp_phone_number_id estiver configurado,
-   * caso contrário fallback pra Evolution API.
-   */
-  private async sendWhatsAppMessage(
-    tenantId: string,
-    phone: string,
-    text: string,
-    ctx: AgentContext,
-  ): Promise<void> {
-    const cloudRow = await this.knex('agent_settings')
-      .select('whatsapp_phone_number_id')
-      .where({ tenant_id: tenantId })
-      .first()
-
-    const phoneNumberId = cloudRow?.whatsapp_phone_number_id as string | null
-
-    if (phoneNumberId) {
-      await this.whatsappService.sendViaCloud(phoneNumberId, phone, text)
-    } else {
-      await this.whatsappService.sendText(phone, text, ctx.instanceName)
-    }
+    // 11. Enviar resposta via Cloud API
+    await this.sendWhatsAppMessage(tenantId, phone, responseText)
   }
 
   // ---------------------------------------------------------------------------
@@ -291,40 +219,32 @@ export class AgentService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Retorna o evolution_instance_name configurado para o tenant.
+   * Retorna o whatsapp_phone_number_id configurado para o tenant.
    * Usado pelos handlers @OnEvent para enviar notificações via WhatsApp.
-   * Retorna null se o agente não estiver habilitado ou se o instanceName não estiver configurado.
+   * Retorna null se o agente não estiver habilitado ou se phone_number_id não estiver configurado.
    */
-  private async getInstanceName(tenantId: string): Promise<string | null> {
+  private async getPhoneNumberId(tenantId: string): Promise<string | null> {
     const row = await this.knex('agent_settings')
       .where({ tenant_id: tenantId, enabled: true })
-      .select('evolution_instance_name')
+      .select('whatsapp_phone_number_id')
       .first()
-    return (row?.evolution_instance_name as string | undefined) ?? null
+    return (row?.whatsapp_phone_number_id as string | undefined) ?? null
   }
 
   /**
-   * Resolve o tenant_id a partir do nome da instância Evolution que recebeu a mensagem.
-   *
-   * Cada doutor configura seu próprio `evolution_instance_name` em agent_settings.
-   * A resolução filtra por `enabled=true AND evolution_instance_name=instanceName`,
-   * garantindo isolamento de tenant: mensagens de uma instância nunca são processadas
-   * com o contexto de outro tenant.
-   *
-   * Retorna null (sem lançar exceção) se nenhum tenant ativo for encontrado para a instância,
-   * permitindo que o webhook handler retorne 200 silenciosamente (não quebra o fluxo).
+   * Envia mensagem via Cloud API buscando o phone_number_id do tenant.
    */
-  private async resolveTenantFromInstance(instanceName: string): Promise<string | null> {
-    if (!instanceName) {
-      return null
+  private async sendWhatsAppMessage(
+    tenantId: string,
+    phone: string,
+    text: string,
+  ): Promise<void> {
+    const phoneNumberId = await this.getPhoneNumberId(tenantId)
+    if (!phoneNumberId) {
+      this.logger.warn(`[AgentService] whatsapp_phone_number_id não configurado para tenant ${tenantId} — mensagem não enviada`)
+      return
     }
-
-    const row = await this.knex('agent_settings')
-      .where({ enabled: true, evolution_instance_name: instanceName })
-      .select('tenant_id')
-      .first()
-
-    return (row?.tenant_id as string | undefined) ?? null
+    await this.whatsappService.sendViaCloud(phoneNumberId, phone, text)
   }
 
   /**
@@ -341,7 +261,6 @@ export class AgentService {
           'booking_mode',
           'welcome_message',
           'enabled',
-          'evolution_instance_name',
         )
         .first(),
       this.knex('doctors')
@@ -362,7 +281,6 @@ export class AgentService {
       faq: (agentSettings.faq as string | null | undefined) ?? null,
       bookingMode: (agentSettings.booking_mode as 'link' | 'chat' | 'both') ?? 'both',
       welcomeMessage: (agentSettings.welcome_message as string | null | undefined) ?? null,
-      instanceName: (agentSettings.evolution_instance_name as string | null | undefined) ?? '',
     }
   }
 
@@ -388,7 +306,6 @@ export class AgentService {
       lines.push(`\n== Perguntas frequentes ==\n${ctx.faq}`)
     }
 
-    // Instruções sobre booking_mode
     if (ctx.bookingMode === 'link') {
       lines.push(
         `\n== Modo de agendamento ==\nSempre gere um link de agendamento ao invés de agendar diretamente no chat. Use a tool generate_booking_link.`,
@@ -403,7 +320,6 @@ export class AgentService {
       )
     }
 
-    // Contexto do paciente (se já cadastrado)
     if (patient) {
       lines.push(`\n== Paciente identificado ==`)
       lines.push(`Nome: ${patient.name}`)
@@ -428,7 +344,6 @@ export class AgentService {
 
   /**
    * Retorna as tools disponíveis para o LLM, filtradas pelo booking_mode.
-   * Usamos ChatCompletionFunctionTool (subset do union) para acessar .function.name com segurança.
    */
   private getTools(
     bookingMode: 'link' | 'chat' | 'both',
@@ -512,8 +427,6 @@ export class AgentService {
       },
     ]
 
-    // Filtrar tools por booking_mode
-    // allTools é ChatCompletionFunctionTool[] — .function.name é seguro aqui
     const linkNames = new Set(['list_slots', 'generate_booking_link', 'cancel_appointment'])
     const chatNames = new Set(['list_slots', 'book_appointment', 'cancel_appointment'])
 
@@ -525,7 +438,6 @@ export class AgentService {
       return allTools.filter((t) => chatNames.has(t.function.name))
     }
 
-    // 'both': todas as tools disponíveis
     return allTools
   }
 
@@ -543,9 +455,9 @@ export class AgentService {
     dateTime: string
     patientName: string
   }): Promise<void> {
-    const instanceName = await this.getInstanceName(payload.tenantId)
-    if (!instanceName) {
-      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+    const phoneNumberId = await this.getPhoneNumberId(payload.tenantId)
+    if (!phoneNumberId) {
+      this.logger.warn(`[AgentService] whatsapp_phone_number_id não configurado para tenant ${payload.tenantId}`)
       return
     }
 
@@ -555,7 +467,7 @@ export class AgentService {
       timeStyle: 'short',
     })
     const message = `Olá ${payload.patientName}! Sua consulta foi agendada para ${formatted}. Aguardamos você!`
-    await this.whatsappService.sendText(payload.phone, message, instanceName)
+    await this.whatsappService.sendViaCloud(phoneNumberId, payload.phone, message)
   }
 
   @OnEvent('appointment.cancelled')
@@ -567,9 +479,9 @@ export class AgentService {
     dateTime: string
     reason?: string
   }): Promise<void> {
-    const instanceName = await this.getInstanceName(payload.tenantId)
-    if (!instanceName) {
-      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+    const phoneNumberId = await this.getPhoneNumberId(payload.tenantId)
+    if (!phoneNumberId) {
+      this.logger.warn(`[AgentService] whatsapp_phone_number_id não configurado para tenant ${payload.tenantId}`)
       return
     }
 
@@ -593,7 +505,7 @@ export class AgentService {
     })
     const motivo = payload.reason ? ` Motivo: ${payload.reason}` : ''
     const message = `Olá! Sua consulta marcada para ${formatted} foi cancelada.${motivo} Em caso de dúvidas, entre em contato.`
-    await this.whatsappService.sendText(row.phone as string, message, instanceName)
+    await this.whatsappService.sendViaCloud(phoneNumberId, row.phone as string, message)
   }
 
   @OnEvent('appointment.status_changed')
@@ -610,9 +522,9 @@ export class AgentService {
       return
     }
 
-    const instanceName = await this.getInstanceName(payload.tenantId)
-    if (!instanceName) {
-      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+    const phoneNumberId = await this.getPhoneNumberId(payload.tenantId)
+    if (!phoneNumberId) {
+      this.logger.warn(`[AgentService] whatsapp_phone_number_id não configurado para tenant ${payload.tenantId}`)
       return
     }
 
@@ -630,7 +542,7 @@ export class AgentService {
     }
 
     const message = `Olá! O consultório está pronto para te receber. Por favor, dirija-se à recepção.`
-    await this.whatsappService.sendText(row.phone as string, message, instanceName)
+    await this.whatsappService.sendViaCloud(phoneNumberId, row.phone as string, message)
   }
 
   @OnEvent('patient.portal_activated')
@@ -641,9 +553,9 @@ export class AgentService {
     phone: string | undefined
     portalAccessCode: string
   }): Promise<void> {
-    const instanceName = await this.getInstanceName(payload.tenantId)
-    if (!instanceName) {
-      this.logger.warn(`[AgentService] Instância Evolution não configurada para tenant ${payload.tenantId}`)
+    const phoneNumberId = await this.getPhoneNumberId(payload.tenantId)
+    if (!phoneNumberId) {
+      this.logger.warn(`[AgentService] whatsapp_phone_number_id não configurado para tenant ${payload.tenantId}`)
       return
     }
 
@@ -654,16 +566,13 @@ export class AgentService {
       return
     }
     const message = `Seu portal de saúde está pronto! Acesse ${env.FRONTEND_URL}/patient e use o código: ${payload.portalAccessCode}`
-    await this.whatsappService.sendText(payload.phone, message, instanceName)
+    await this.whatsappService.sendViaCloud(phoneNumberId, payload.phone, message)
   }
 
   // ---------------------------------------------------------------------------
-  // executeTool — helper privado do handleMessage
+  // executeTool — helper privado de processMessage
   // ---------------------------------------------------------------------------
 
-  /**
-   * Executa uma tool call e retorna a mensagem de resultado no formato OpenAI.
-   */
   private async executeTool(
     toolCall: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall,
     tenantId: string,
@@ -715,7 +624,6 @@ export class AgentService {
         }
       }
     } catch (error: unknown) {
-      // Erros das tools são retornados como resultado de erro — não devem quebrar o fluxo
       const message =
         error instanceof Error ? error.message : 'Erro ao executar a ação solicitada'
       this.logger.error(
