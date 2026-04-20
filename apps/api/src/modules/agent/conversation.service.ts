@@ -63,15 +63,22 @@ export class ConversationService {
 
   /**
    * Marca a conversa como 'human' (doutor assumiu) e registra o timestamp.
-   * Chamado quando o webhook recebe fromMe=true.
+   * Chamado quando o webhook detecta mensagem enviada pelo doutor.
+   *
+   * Usa INSERT ... ON CONFLICT pra cobrir o caso onde o doutor escreve
+   * PRIMEIRO (sem o paciente ter iniciado conversa) — nesse cenario a row
+   * nao existe ainda e um UPDATE puro nao afetaria nada.
    */
   async activateHumanMode(tenantId: string, phone: string): Promise<void> {
-    await this.knex('conversations')
-      .where({ tenant_id: tenantId, phone })
-      .update({
-        mode: 'human',
-        last_fromme_at: this.knex.fn.now(),
-      })
+    await this.knex.raw(
+      `
+      INSERT INTO conversations (tenant_id, phone, messages, mode, last_fromme_at, last_message_at, created_at, updated_at)
+      VALUES (:tenantId, :phone, '[]'::jsonb, 'human', now(), now(), now(), now())
+      ON CONFLICT (tenant_id, phone)
+      DO UPDATE SET mode = 'human', last_fromme_at = now(), updated_at = now()
+      `,
+      { tenantId, phone },
+    )
   }
 
   /**
