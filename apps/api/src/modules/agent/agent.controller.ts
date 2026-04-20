@@ -10,13 +10,36 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common'
-import { ApiBody, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Knex } from 'knex'
-import { AgentService, EvolutionWebhookPayload } from './agent.service'
+import { AgentService } from './agent.service'
 import { KNEX } from '@/database/knex.provider'
 import { env } from '@/config/env'
 import { Public } from '@/common/decorators/public.decorator'
+
+// ---------------------------------------------------------------------------
+// Tipos do payload Cloud API
+// ---------------------------------------------------------------------------
+
+interface CloudStatus {
+  id: string
+  status: 'sent' | 'delivered' | 'read' | 'failed'
+  recipient_id: string
+  timestamp: string
+}
+
+interface CloudWebhookPayload {
+  entry?: Array<{
+    changes?: Array<{
+      value?: {
+        metadata?: { phone_number_id?: string }
+        messages?: Array<{ from?: string; text?: { body?: string }; type?: string }>
+        statuses?: CloudStatus[]
+      }
+    }>
+  }>
+}
 
 @ApiTags('WhatsApp Agent')
 @Public()
@@ -28,109 +51,6 @@ export class AgentController {
     private readonly agentService: AgentService,
     @Inject(KNEX) private readonly knex: Knex,
   ) {}
-
-  @Post('webhook')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Webhook da Evolution API — recebe mensagens WhatsApp e dispara o agente IA' })
-  @ApiHeader({
-    name: 'apikey',
-    description: 'Token de autenticação do webhook (EVOLUTION_WEBHOOK_TOKEN)',
-    required: true,
-  })
-  @ApiBody({
-    description: 'Payload da Evolution API (event messages.upsert)',
-    schema: {
-      type: 'object',
-      properties: {
-        event: { type: 'string', example: 'messages.upsert' },
-        instance: { type: 'string', description: 'Nome da instância Evolution — identifica o tenant' },
-        data: {
-          type: 'object',
-          properties: {
-            key: {
-              type: 'object',
-              properties: {
-                remoteJid: { type: 'string', example: '5511999990000@s.whatsapp.net' },
-                fromMe: { type: 'boolean', example: false },
-              },
-            },
-            message: {
-              type: 'object',
-              properties: {
-                conversation: { type: 'string', example: 'Olá, gostaria de agendar uma consulta' },
-              },
-            },
-            pushName: { type: 'string', example: 'Maria Silva' },
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Payload processado (ou ignorado se fromMe=true ou evento não suportado)' })
-  @ApiResponse({ status: 401, description: 'apikey inválida ou ausente' })
-  async handleWebhook(
-    @Headers('apikey') apikey: string | undefined,
-    @Body() body: unknown,
-  ): Promise<void> {
-    if (!apikey || apikey !== env.EVOLUTION_WEBHOOK_TOKEN) {
-      throw new UnauthorizedException('Token inválido')
-    }
-
-    if (
-      typeof body !== 'object' ||
-      body === null ||
-      !('event' in body) ||
-      !('data' in body)
-    ) {
-      return
-    }
-
-    const payload = body as EvolutionWebhookPayload
-
-    if (payload.event !== 'messages.upsert') {
-      return
-    }
-
-    // Validar campos obrigatórios antes de delegar ao service (payload mal-formado)
-    if (!payload.instance) {
-      return
-    }
-
-    // TD-18: validar remoteJid antes de delegar ao service (payload mal-formado)
-    if (!payload.data?.key?.remoteJid) {
-      return
-    }
-
-    // fromMe=true → doutor mandou mensagem → ativar modo 'human' (handoff)
-    if (payload.data.key.fromMe === true) {
-      try {
-        const remoteJid = payload.data.key.remoteJid
-        const phone = remoteJid.replace('@s.whatsapp.net', '')
-        const tenantId = await this.knex('agent_settings')
-          .where({ enabled: true, evolution_instance_name: payload.instance })
-          .select('tenant_id')
-          .first()
-          .then((row) => (row?.tenant_id as string | undefined) ?? null)
-        if (tenantId) {
-          await this.agentService.handleDoctorMessage(tenantId, phone)
-        }
-      } catch (err) {
-        this.logger.error(
-          `[AgentController] Erro ao ativar handoff — instance=${payload.instance}: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }
-      return
-    }
-
-    try {
-      await this.agentService.handleMessage(payload)
-    } catch (err) {
-      // Nunca retornar 5xx para a Evolution API — webhook deve sempre receber 200
-      this.logger.error(
-        `[AgentController] Erro inesperado ao processar webhook — instance=${payload.instance}: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  }
 
   /**
    * Webhook Verification (handshake inicial) — Meta envia GET pra confirmar
@@ -151,12 +71,17 @@ export class AgentController {
   }
 
   /**
-   * Webhook Cloud API — Meta envia mensagens recebidas pelos números dos doutores.
+   * Webhook Cloud API — Meta envia mensagens recebidas e statuses de envio.
    * Validação por HMAC-SHA256 com META_APP_SECRET.
+   *
+   * - `messages` → paciente enviou mensagem → dispara agente IA
+   * - `statuses[].status === 'sent'` → business account enviou mensagem (doutor respondeu) → ativa handoff human
    */
   @Post('webhook/cloud')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Meta Cloud API webhook — mensagens WhatsApp recebidas' })
+  @ApiOperation({ summary: 'Meta Cloud API webhook — mensagens e statuses WhatsApp' })
+  @ApiResponse({ status: 200, description: 'Payload processado' })
+  @ApiResponse({ status: 401, description: 'Assinatura HMAC inválida ou ausente' })
   async handleCloudWebhook(
     @Headers('x-hub-signature-256') signature: string | undefined,
     @Body() body: unknown,
@@ -190,21 +115,12 @@ export class AgentController {
       return
     }
 
-    const payload = body as {
-      entry?: Array<{
-        changes?: Array<{
-          value?: {
-            metadata?: { phone_number_id?: string }
-            messages?: Array<{ from?: string; text?: { body?: string }; type?: string }>
-          }
-        }>
-      }>
-    }
+    const payload = body as CloudWebhookPayload
 
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value
-        if (!value?.metadata?.phone_number_id || !value.messages) continue
+        if (!value?.metadata?.phone_number_id) continue
 
         const phoneNumberId = value.metadata.phone_number_id
 
@@ -223,7 +139,8 @@ export class AgentController {
 
         const tenantId = settings.tenant_id as string
 
-        for (const msg of value.messages) {
+        // Processar mensagens recebidas (paciente → agente IA)
+        for (const msg of value.messages ?? []) {
           if (msg.type !== 'text' || !msg.from || !msg.text?.body) continue
           try {
             await this.agentService.handleMessageFromCloud(tenantId, msg.from, msg.text.body)
@@ -231,6 +148,20 @@ export class AgentController {
             this.logger.error(
               `[Cloud webhook] Erro ao processar mensagem para tenant ${tenantId}: ${err instanceof Error ? err.message : String(err)}`,
             )
+          }
+        }
+
+        // Processar statuses: 'sent' indica que a business account enviou mensagem
+        // (o doutor respondeu via WhatsApp Business) → ativar modo human (handoff)
+        for (const status of value.statuses ?? []) {
+          if (status.status === 'sent' && status.recipient_id) {
+            try {
+              await this.agentService.handleDoctorMessage(tenantId, status.recipient_id)
+            } catch (err) {
+              this.logger.error(
+                `[Cloud webhook] Erro ao ativar handoff para tenant ${tenantId} phone=${status.recipient_id}: ${err instanceof Error ? err.message : String(err)}`,
+              )
+            }
           }
         }
       }
