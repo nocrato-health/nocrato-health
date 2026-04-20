@@ -48,7 +48,7 @@ Referência técnica completa para devs que vão trabalhar no Nocrato Health V2.
 | API Backend | `http://localhost:3000` |
 | Swagger | `http://localhost:3000/api/docs` |
 | PostgreSQL | `localhost:5432` |
-| Evolution API | `http://localhost:8080` |
+| Webhook WhatsApp (Meta Cloud API) | expor publicamente via tunnel (ngrok/cloudflared) se for testar ponta a ponta |
 
 ### Portais por Perfil
 
@@ -468,19 +468,21 @@ Documento: test-doc.pdf (tipo: prescription)
 ```
 Mensagem WhatsApp
   ↓
-Evolution API
-  ↓ webhook POST /api/v1/agent/webhook
-  ↓ Header: apikey: {EVOLUTION_WEBHOOK_TOKEN}
+Meta Cloud API (WhatsApp Business Platform)
+  ↓ webhook POST /api/v1/agent/webhook/cloud
+  ↓ Header: X-Hub-Signature-256 (HMAC-SHA256 com META_APP_SECRET)
 AgentController
-  ↓ valida payload + apikey
+  ↓ valida assinatura HMAC
+  ↓ roteia por tipo: messages[] → handleMessage | statuses[] sent → handleDoctorMessage
 AgentService.handleMessage()
-  ├─ Resolve tenant pela instância Evolution
+  ├─ Resolve tenant pelo phone_number_id
+  ├─ Checa mode da conversa (human vs agent)
   ├─ Busca/cria paciente pelo telefone
   ├─ Carrega/cria conversa (histórico dos últimos 20 msgs)
   ├─ Chama OpenAI gpt-4o-mini com tools disponíveis
   ├─ Executa tool_calls (até 5 iterações)
   ├─ Atualiza histórico da conversa
-  └─ Envia resposta via Evolution API
+  └─ Envia resposta via Meta Graph API
 ```
 
 ### 8.2 Ferramentas do Agente (LLM Tools)
@@ -795,7 +797,7 @@ cd nocrato-health-v2
 # 2. Instalar dependências
 pnpm install
 
-# 3. Subir PostgreSQL + Evolution API
+# 3. Subir PostgreSQL (único container de infraestrutura — Evolution API foi removida, ver ADR-018)
 docker compose -f docker/docker-compose.dev.yml up -d
 
 # 4. Configurar variáveis de ambiente
@@ -822,9 +824,11 @@ RESEND_API_KEY=re_xxxx
 # OpenAI (necessário apenas para agente)
 OPENAI_API_KEY=sk-xxxx
 
-# Evolution API (necessário apenas para agente)
-EVOLUTION_API_URL=http://localhost:8080
-EVOLUTION_WEBHOOK_TOKEN=seu_token_aqui
+# Meta Cloud API / WhatsApp Business Platform (necessário apenas para agente)
+META_CLOUD_API_TOKEN=EAAG...
+META_APP_SECRET=...
+META_WEBHOOK_VERIFY_TOKEN=...
+META_APP_ID=...
 ```
 
 ### Rodar o Projeto
@@ -933,6 +937,6 @@ docker compose -f docker/docker-compose.prod.yml restart api
 | ID | Prioridade | Descrição |
 |----|-----------|-----------|
 | TD-01 | P2 | Slots de booking assumem timezone UTC fixo |
-| TD-20 | P2 | Multitenancy no agente: resolve pelo único tenant ativo |
+| ~~TD-20~~ | — | Não-aplicável após ADR-018 (Evolution removida) — resolução agora via `whatsapp_phone_number_id` |
 | TD-21 | P2 | Erros OpenAI sem try/catch com contexto adequado |
 | TD-23 | P2 | ErrorBoundary não invalida cache TanStack Query no retry |

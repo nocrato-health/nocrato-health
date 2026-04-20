@@ -8,6 +8,8 @@ type: test-cases
 > Epic doc: [docs/roadmap/epic-9-events.md](../roadmap/epic-9-events.md)
 > Gerado em: 2026-03-07
 
+> **Nota histórica (2026-04-20)**: os CTs abaixo foram executados contra a implementação original com **Evolution API** (header `apikey`, `EVOLUTION_WEBHOOK_TOKEN`, `payload.instance`, CT-93-07 com instância Evolution). Em 2026-04-20, via ADR-018, o projeto migrou exclusivamente para a **Meta Cloud API** — webhook em `POST /api/v1/agent/webhook/cloud` validado por HMAC-SHA256 (`X-Hub-Signature-256` + `META_APP_SECRET`), resolução de tenant via `whatsapp_phone_number_id`. Os resultados são preservados como evidência da entrega original; para testes contra o estado atual, ver os `.spec.ts` do módulo `agent/` e `docs/flows/agent.md`.
+
 ---
 
 ## US-9.1 — Registrar eventos internos e reagir a eles

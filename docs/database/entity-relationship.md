@@ -120,7 +120,7 @@ Temporary tokens (24h expiry) for securing the public booking page. Generated pe
 WhatsApp conversation state per patient phone number, scoped to tenant. Stores up to the last 20 messages as JSONB for LLM context window. Used exclusively by the `agent/` module (`conversation.service.ts`). Identified by the composite unique key `(tenant_id, phone)` — the phone number is the session identifier (no JWT required).
 
 Colunas de handoff doutor↔agente (migration 022):
-- `mode VARCHAR(20) DEFAULT 'agent'` — `'agent'` (IA responde) ou `'human'` (doutor assumiu). Auto-detectado quando o webhook recebe `fromMe=true`.
+- `mode VARCHAR(20) DEFAULT 'agent'` — `'agent'` (IA responde) ou `'human'` (doutor assumiu). Auto-detectado via webhook `statuses[].status='sent'` da Meta Cloud API (msg enviada pela business account indica que o doutor respondeu).
 - `last_fromme_at TIMESTAMPTZ` — timestamp da última msg do doutor. Auto-revert para `'agent'` após 30min sem atividade do doutor.
 
 ### 13. patient_consents

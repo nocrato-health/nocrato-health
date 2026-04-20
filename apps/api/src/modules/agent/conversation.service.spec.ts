@@ -23,10 +23,6 @@
 jest.mock('@/config/env', () => ({
   env: {
     OPENAI_API_KEY: 'sk-test-key',
-    EVOLUTION_API_URL: 'http://evolution.test',
-    EVOLUTION_API_KEY: 'api-key-secreta',
-    EVOLUTION_INSTANCE: 'instancia-teste',
-    EVOLUTION_WEBHOOK_TOKEN: 'webhook-token-teste',
     FRONTEND_URL: 'http://localhost:5173',
     DB_HOST: 'localhost',
     DB_PORT: 5432,

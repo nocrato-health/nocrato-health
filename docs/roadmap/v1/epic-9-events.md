@@ -10,7 +10,7 @@ status: completed
 |-------|-------|
 | **Epic** | 9 |
 | **Name** | Agente WhatsApp (Modulo Interno NestJS) |
-| **Description** | Implementacao do agente WhatsApp como modulo NestJS usando Evolution API + OpenAI SDK (gpt-4o-mini). Sem N8N. |
+| **Description** | Implementacao do agente WhatsApp como modulo NestJS usando Evolution API + OpenAI SDK (gpt-4o-mini). Sem N8N. *Nota 2026-04-20: provider Evolution foi substituído pela Meta Cloud API — ver ADR-018.* |
 | **Dependencies** | EPIC 7 (Agendamento Publico), EPIC 8 (Configuracoes & Agente) |
 | **User Stories** | 4 |
 
@@ -34,9 +34,9 @@ status: completed
 
 **Agentes:** `backend` → `tech-lead` → `qa`
 
-- [x] `whatsapp.service.ts` → HTTP client para Evolution API (envio de mensagens)
-- [x] `agent.controller.ts` → `POST /api/v1/agent/webhook` (recebe payload da Evolution API)
-- [x] Valida token da Evolution API via header `apikey`
+- [x] `whatsapp.service.ts` → HTTP client para Evolution API (envio de mensagens) — *nota 2026-04-20: substituído por client Meta Graph API*
+- [x] `agent.controller.ts` → `POST /api/v1/agent/webhook` (recebe payload da Evolution API) — *nota 2026-04-20: endpoint removido; ativo apenas `POST /api/v1/agent/webhook/cloud` (Meta Cloud API)*
+- [x] Valida token da Evolution API via header `apikey` — *nota 2026-04-20: validação atual usa HMAC-SHA256 via header `X-Hub-Signature-256`*
 - [x] Ignora mensagens `fromMe=true`
 - [x] Chama `agentService.handleMessage(payload)`
 - [x] **Criterio:** Mensagens do WhatsApp chegam ao NestJS e sao processadas

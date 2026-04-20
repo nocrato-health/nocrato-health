@@ -110,16 +110,15 @@ async function runSeed() {
 
     await db.raw(
       `INSERT INTO agent_settings
-         (tenant_id, enabled, booking_mode, welcome_message, evolution_instance_name,
+         (tenant_id, enabled, booking_mode, welcome_message,
           personality, appointment_rules, faq)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (tenant_id) DO NOTHING`,
       [
         anaTenantId,
         true,
         'both',
         'Olá! Sou a assistente da Dra. Ana Silva. Como posso ajudar?',
-        'dr-ana-silva-instance',
         'Atenciosa, empática e profissional. Use linguagem acessível e evite termos técnicos desnecessários.',
         'Consultas de 30 minutos. Sem atendimento às sextas-feiras à tarde. Chegue 10 minutos antes do horário.',
         'P: Preciso de encaminhamento?\nR: Consulte a doutora — ela pode emitir encaminhamentos se necessário.\n\nP: Atende convênio?\nR: No momento apenas particular.',
@@ -437,7 +436,6 @@ async function runSeed() {
     console.log('\nCodigos de acesso portal paciente: SEED01 a SEED05')
     console.log('\nBooking token (valido 24h):')
     console.log('  /book/dr-ana-silva?token=seed-booking-token-0000000000000000000000000000000000000')
-    console.log('\nEvolution instance da Dra. Ana: dr-ana-silva-instance')
   } finally {
     await db.destroy()
   }

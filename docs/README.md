@@ -30,7 +30,7 @@ docs/
 │   ├── booking-flow.md                # Fluxo de agendamento (link + in-chat)
 │   ├── appointment-lifecycle.md       # Status transitions de consultas
 │   ├── patient-portal.md              # Portal do paciente (acesso + funcionalidades)
-│   └── agent.md                       # Integracao do agente WhatsApp (Evolution API)
+│   └── agent.md                       # Integracao do agente WhatsApp (Meta Cloud API)
 ├── roadmap/
 │   └── v1/                            # Entrega inicial (MVP — epics 0-11)
 │       ├── epics-overview.md          # Visao geral dos 12 epicos
@@ -71,7 +71,7 @@ NOCRATO (SaaS)
 ├── PACIENTE (portal read-only, vinculado a um doutor)
 │
 └── AGENTE (modulo NestJS interno)
-    └── Orquestra: WhatsApp (Evolution API) <-> Portal <-> Consultas <-> Pacientes
+    └── Orquestra: WhatsApp (Meta Cloud API) <-> Portal <-> Consultas <-> Pacientes
 ```
 
 ## MVP Scope

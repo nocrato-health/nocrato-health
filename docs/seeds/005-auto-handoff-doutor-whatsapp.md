@@ -18,35 +18,29 @@ Hoje todo message recebido no webhook vai pro `processMessage()` → OpenAI → 
 
 O doutor não vai abrir o portal pra clicar "Assumir conversa" antes de responder pelo celular. Ele simplesmente manda a mensagem.
 
-## Proposta
+## Proposta (implementada em 2026-04-20)
 
-Detecção automática baseada em `fromMe: true` (já recebido no webhook, hoje ignorado):
+Detecção automática do lado do WhatsApp Business:
 
-1. Adicionar `conversations.mode` (`'agent' | 'human'`, default `'agent'`)
-2. Quando webhook recebe msg `fromMe: true` → marcar `mode = 'human'` + gravar timestamp
-3. No `processMessage()`: se `mode = 'human'` → skip (não chamar OpenAI, não responder)
-4. Timeout: se `last_fromme_at > 30min` sem nova msg do doutor → reverter pra `mode = 'agent'`
-5. O timeout pode ser checado inline no `processMessage()` (sem cron):
-   ```
-   if (mode === 'human' && now - lastFromMeAt > 30min) → mode = 'agent'
-   ```
-6. Opcionalmente: botão "Devolver ao agente" no portal do doutor (atalho manual)
-7. Opcionalmente: notificar o paciente quando o agente retomar ("O assistente virtual está de volta")
+1. ✅ Adicionar `conversations.mode` (`'agent' | 'human'`, default `'agent'`) — migration 022
+2. ✅ Adicionar `conversations.last_fromme_at TIMESTAMPTZ NULL` — migration 022
+3. ✅ Webhook da Meta Cloud API recebe evento `statuses[].status === 'sent'` com `recipient_id` quando o doutor envia uma mensagem pelo WhatsApp Business app → `agentService.handleDoctorMessage()` → `conversationService.activateHumanMode()` → marca `mode='human'` + `last_fromme_at=now()` (usando `INSERT ... ON CONFLICT` pra cobrir caso onde o doutor escreve primeiro)
+4. ✅ `processMessage()` chama `conversationService.shouldAgentRespond()` antes de invocar OpenAI — se `mode='human'`, retorna early sem responder
+5. ✅ Auto-revert inline: se `mode='human'` e `last_fromme_at > 30min atrás`, o próprio `shouldAgentRespond()` atualiza `mode='agent'` e retorna `true` (agente volta a responder)
+6. ✅ Endpoint manual `PATCH /api/v1/doctor/whatsapp/conversations/:phone/mode` — doutor pode forçar retorno ao agente pelo portal
 
-Migration: `ALTER TABLE conversations ADD COLUMN mode VARCHAR(20) DEFAULT 'agent'` + `last_fromme_at TIMESTAMPTZ NULL`.
+**Nota histórica**: a proposta original usava `fromMe=true` da Evolution API. Em 2026-04-20 o projeto migrou pra Meta Cloud API exclusivamente (risco de ban do WhatsApp Business com providers não-oficiais). A detecção foi reimplementada via webhook `statuses` que o Meta envia quando a business account envia mensagens — equivalente funcional com fonte oficial.
 
-## Custo estimado
+## Custo estimado (realizado)
 
-1-2 dias. Migration simples, lógica no `processMessage()` e no handler de webhook (`fromMe` processing). Sem frontend obrigatório (botão no portal é nice-to-have).
+~1 dia. Migration + lógica no webhook Cloud + testes unitários.
 
 ## Riscos de NÃO fazer
 
-- Doutor manda msg pro paciente, agente responde por cima → experiência confusa, parece bug
-- Doutor perde confiança no sistema e desliga o agente completamente
-- Risco real a partir do primeiro doutor ativo com pacientes reais
+Eliminados pela implementação.
 
 ## Alternativas consideradas
 
-- **Botão manual no portal**: descartado como requisito — doutor não vai lembrar de clicar antes de responder pelo celular
-- **Análise de conteúdo da msg**: complexo e frágil — detecção automática por `fromMe` é determinística
+- **Botão manual no portal**: descartado como requisito, mas implementado como atalho (`PATCH conversations/:phone/mode`)
+- **Análise de conteúdo da msg**: complexo e frágil — detecção determinística via evento Meta é superior
 - **Desligar agente durante horário comercial**: muito restritivo, doutor pode querer que o agente responda fora do horário

@@ -5,7 +5,9 @@ type: flow
 
 # Agente WhatsApp (Modulo Interno NestJS)
 
-O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `agent/`. Ele se comunica com a Evolution API via webhook (recebe) e HTTP client (envia). Nao ha ferramenta externa de orquestracao (sem N8N).
+O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `agent/`. Ele se comunica com a **Meta Cloud API** (WhatsApp Business Platform oficial) via webhook (recebe) e Graph API HTTP client (envia). Nao ha ferramenta externa de orquestracao (sem N8N).
+
+> **ADR-018 (2026-04-20)**: a Evolution API foi completamente removida do projeto. O único provider ativo é a Meta Cloud API. Referências históricas a Evolution nos roadmaps/test-cases são preservadas como registro de entrega, mas não refletem o estado atual.
 
 ---
 
@@ -13,7 +15,7 @@ O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `ag
 
 1. [Visao Geral da Arquitetura](#1-visao-geral-da-arquitetura)
 2. [Modulo Agent (Estrutura)](#2-modulo-agent-estrutura)
-3. [Webhook da Evolution API](#3-webhook-da-evolution-api)
+3. [Webhook da Meta Cloud API](#3-webhook-da-meta-cloud-api)
 4. [Fluxo de uma Mensagem](#4-fluxo-de-uma-mensagem)
 5. [Estado de Conversa](#5-estado-de-conversa)
 6. [Eventos Internos (EventEmitter2)](#6-eventos-internos-eventemitter2)
@@ -24,7 +26,7 @@ O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `ag
 
 ## 1. Visao Geral da Arquitetura
 
-O módulo suporta **dois providers** que coexistem. O roteamento é automático:
+O módulo usa **exclusivamente a Meta Cloud API** (WhatsApp Business Platform):
 
 ```
 Paciente (WhatsApp)
@@ -32,46 +34,39 @@ Paciente (WhatsApp)
       | mensagem
       v
 ┌─────────────────────────────────────┐
-│  Evolution API        Meta Cloud API│
-│  POST /agent/webhook  POST /agent/  │
-│                       webhook/cloud │
-└──────────┬────────────────┬─────────┘
-           v                v
-      agent.controller.ts
-      (valida apikey)   (valida HMAC-SHA256)
-           │                │
-           └───────┬────────┘
-                   v
-        agent.service.ts
-        processMessage(tenantId, phone, text)
-                   │
-           ┌───────┴───────┐
-           v               v
+│         Meta Cloud API              │
+│         POST /agent/webhook/cloud   │
+└────────────────┬────────────────────┘
+                 v
+         agent.controller.ts
+         (valida HMAC-SHA256 X-Hub-Signature-256)
+                 v
+         agent.service.ts
+         processMessage(tenantId, phone, text)
+                 │
+         ┌───────┴───────┐
+         v               v
   conversation.service   OpenAI SDK
   (PostgreSQL)           gpt-4o-mini + tools
                                │
                                v
-                  sendWhatsAppMessage()
-                   │               │
-                   v               v
-             sendViaCloud()   sendText()
-             (Meta Graph)    (Evolution)
-                   │               │
-                   v               v
-            Paciente (WhatsApp)
+                     whatsapp.service.ts
+                     (Meta Graph API)
+                               │
+                               v
+                      Paciente (WhatsApp)
 ```
 
-**Tenant resolution:**
-- Evolution: `agent_settings.evolution_instance_name` → tenant_id
-- Cloud API: `agent_settings.whatsapp_phone_number_id` → tenant_id
+**Tenant resolution**: `agent_settings.whatsapp_phone_number_id` → `tenant_id`.
 
-**Prioridade:** se `whatsapp_phone_number_id` preenchido → usa Cloud API. Senão → Evolution.
+O webhook da Meta entrega `entry[].changes[].value.metadata.phone_number_id`, que é usado para localizar o tenant correspondente em `agent_settings`. Doutores sem `whatsapp_phone_number_id` configurado não recebem mensagens (o controller ignora silenciosamente).
 
 **Principios:**
 - Tudo TypeScript, no mesmo processo NestJS
 - Zero latencia de polling (webhook direto)
 - Estado da conversa persistido no PostgreSQL
 - Eventos internos via `EventEmitter2` (sem polling)
+- Apenas provider oficial Meta — sem Evolution API (ADR-018)
 
 ---
 
@@ -80,11 +75,13 @@ Paciente (WhatsApp)
 ```
 apps/api/src/modules/agent/
 ├── agent.module.ts
-├── agent.controller.ts        # POST /api/v1/agent/webhook (Evolution API)
+├── agent.controller.ts        # POST /api/v1/agent/webhook/cloud (Meta Cloud API)
+│                              # GET /api/v1/agent/webhook/cloud (verify token handshake)
 ├── agent.service.ts           # Orquestracao: intent → acao → resposta
 │                              # @OnEvent() handlers para eventos internos
-├── conversation.service.ts    # CRUD da tabela conversations
-├── whatsapp.service.ts        # HTTP client para Evolution API (send message)
+├── conversation.service.ts    # CRUD da tabela conversations (mode='agent'|'human')
+├── whatsapp.service.ts        # HTTP client para Meta Graph API (send message)
+├── whatsapp-connection.controller.ts  # Embedded Signup OAuth (Cloud API)
 └── dto/
     └── whatsapp-webhook.dto.ts
 ```
@@ -109,52 +106,105 @@ export class AgentModule {}
 
 ---
 
-## 3. Webhook da Evolution API
+## 3. Webhook da Meta Cloud API
 
-A Evolution API envia um POST para o NestJS sempre que uma mensagem chega no WhatsApp.
+A Meta Cloud API envia um POST para o NestJS sempre que uma mensagem chega no WhatsApp — ou quando o status de uma mensagem enviada pela business account muda (`sent`, `delivered`, `read`).
 
-### Endpoint
+### Endpoints
 
 ```
-POST /api/v1/agent/webhook
+GET  /api/v1/agent/webhook/cloud   # handshake de verificação (Meta challenge)
+POST /api/v1/agent/webhook/cloud   # recebe eventos (mensagens + statuses)
 Content-Type: application/json
 
-Headers enviados pela Evolution API:
-  apikey: {EVOLUTION_WEBHOOK_TOKEN}   # validado no controller
+Header enviado pela Meta:
+  X-Hub-Signature-256: sha256=<hex>   # HMAC-SHA256 do body cru com META_APP_SECRET
 ```
 
-### Payload (exemplo de mensagem de texto)
+O `GET` responde ao `hub.verify_token` (comparado com `META_WEBHOOK_VERIFY_TOKEN`) retornando o `hub.challenge` em plain text.
+
+### Payload de mensagem de texto
 
 ```json
 {
-  "event": "messages.upsert",
-  "instance": "dr-marcos-instance",
-  "data": {
-    "key": {
-      "remoteJid": "5511999999999@s.whatsapp.net",
-      "fromMe": false,
-      "id": "3EB0..."
-    },
-    "message": {
-      "conversation": "Quero agendar uma consulta"
-    },
-    "messageTimestamp": "1705312200",
-    "pushName": "Joao Santos"
-  }
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "WABA_ID",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {
+          "display_phone_number": "5511999999999",
+          "phone_number_id": "PHONE_NUMBER_ID"
+        },
+        "contacts": [{ "profile": { "name": "Joao Santos" }, "wa_id": "5511988887777" }],
+        "messages": [{
+          "from": "5511988887777",
+          "id": "wamid...",
+          "timestamp": "1705312200",
+          "type": "text",
+          "text": { "body": "Quero agendar uma consulta" }
+        }]
+      }
+    }]
+  }]
 }
 ```
+
+### Payload de status (doutor enviou mensagem manualmente pelo WhatsApp Business)
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "metadata": { "phone_number_id": "PHONE_NUMBER_ID" },
+        "statuses": [{
+          "id": "wamid...",
+          "recipient_id": "5511988887777",
+          "status": "sent",
+          "timestamp": "1705312201"
+        }]
+      }
+    }]
+  }]
+}
+```
+
+Este payload dispara `agentService.handleDoctorMessage()` → `conversationService.activateHumanMode()` (ver seed 005: handoff doutor↔agente).
 
 ### Validacao no Controller
 
 ```typescript
-@Post('webhook')
-async handleWebhook(@Headers('apikey') apiKey: string, @Body() body: WhatsappWebhookDto) {
-  if (apiKey !== env.EVOLUTION_WEBHOOK_TOKEN) throw new UnauthorizedException('Token inválido');
-  if (body.event !== 'messages.upsert') return;
-  if (!body.instance) return;             // campo obrigatório para resolução do tenant
-  if (!body.data?.key?.remoteJid) return; // TD-18
-  if (body.data.key.fromMe === true) return; // anti-loop
-  await this.agentService.handleMessage(body);
+@Post('webhook/cloud')
+async handleCloudWebhook(
+  @Headers('x-hub-signature-256') signature: string,
+  @RawBody() rawBody: Buffer,
+  @Body() body: CloudWebhookDto,
+) {
+  if (!verifyHmac(rawBody, signature, env.META_APP_SECRET)) {
+    throw new UnauthorizedException('Assinatura inválida');
+  }
+  const change = body.entry?.[0]?.changes?.[0]?.value;
+  if (!change) return;
+  const phoneNumberId = change.metadata?.phone_number_id;
+  if (!phoneNumberId) return;
+
+  // Mensagens de texto → processamento pelo LLM
+  const message = change.messages?.[0];
+  if (message?.type === 'text') {
+    await this.agentService.handleMessage({ phoneNumberId, message, contacts: change.contacts });
+    return;
+  }
+
+  // Mensagens enviadas pelo doutor via WhatsApp Business → handoff para modo humano
+  const sentStatus = change.statuses?.find((s) => s.status === 'sent');
+  if (sentStatus) {
+    await this.agentService.handleDoctorMessage({ phoneNumberId, recipientId: sentStatus.recipient_id });
+  }
 }
 ```
 
@@ -163,48 +213,54 @@ async handleWebhook(@Headers('apikey') apiKey: string, @Body() body: WhatsappWeb
 ## 4. Fluxo de uma Mensagem
 
 ```
-1. Evolution API envia POST /api/v1/agent/webhook
+1. Meta Cloud API envia POST /api/v1/agent/webhook/cloud
 
 2. agent.controller.ts:
-   - Valida apikey header
-   - Ignora mensagens fromMe=true
-   - Chama agentService.handleMessage(payload)
+   - Valida HMAC-SHA256 (X-Hub-Signature-256 vs META_APP_SECRET)
+   - Extrai entry[0].changes[0].value
+   - Se messages[0].type === 'text' → agentService.handleMessage()
+   - Se statuses[].status === 'sent' → agentService.handleDoctorMessage() (handoff humano)
 
 3. agent.service.ts → handleMessage():
-   a. Extrai: phone = remoteJid sem @s.whatsapp.net
-              text = message.conversation
-              pushName = nome do WhatsApp
+   a. Extrai: phone = messages[0].from
+              text  = messages[0].text.body
+              pushName = contacts[0].profile.name (quando enviado)
+              phoneNumberId = metadata.phone_number_id
 
-   b. Resolve tenant pelo nome da instancia Evolution (payload.instance):
-      agent_settings WHERE enabled=true AND evolution_instance_name=payload.instance
-      → NotFoundException silenciosa (log + early return) se não encontrar
+   b. Resolve tenant pelo phone_number_id:
+      agent_settings WHERE enabled=true AND whatsapp_phone_number_id=phoneNumberId
+      → early return silencioso (log) se não encontrar
 
-   c. Busca contexto do paciente:
+   c. Verifica modo da conversa:
+      conversationService.shouldAgentRespond(tenantId, phone)
+      → se mode='human' e last_fromme_at < 30min → early return (doutor está conduzindo)
+
+   d. Busca contexto do paciente:
       patientService.findByPhone(tenantId, phone)
       → retorna patient + appointments + notes (se existir)
 
-   d. Busca/cria estado da conversa:
+   e. Busca/cria estado da conversa:
       conversationService.getOrCreate(tenantId, phone)
 
-   e. Chama LLM com contexto:
+   f. Chama LLM com contexto:
       - system prompt: personalidade do agente + dados do doutor
       - historico: ultimas N mensagens da conversa
       - mensagem atual: text
       - contexto: patient data (se existir)
 
-   f. LLM retorna: texto de resposta + tool_calls (se necessario)
+   g. LLM retorna: texto de resposta + tool_calls (se necessario)
 
-   g. Executa tool_calls (se houver):
+   h. Executa tool_calls (se houver):
       - list_slots: bookingService.getSlots(tenantId, date)
       - book_appointment: bookingService.bookInChat(...)
       - generate_booking_link: bookingService.generateToken(...)
       - cancel_appointment: appointmentService.cancel(...)
 
-   h. Atualiza historico da conversa:
+   i. Atualiza historico da conversa:
       conversationService.appendMessages(conversationId, [userMsg, assistantMsg])
 
-   i. Envia resposta:
-      whatsappService.sendText(phone, responseText)
+   j. Envia resposta via Graph API:
+      whatsappService.sendText(phoneNumberId, phone, responseText)
 ```
 
 ---
@@ -469,15 +525,15 @@ agent.service.ts @OnEvent('appointment.cancelled'):
 ## Configuracao de Ambiente
 
 ```env
-# Evolution API
-EVOLUTION_API_URL=http://localhost:8080
-EVOLUTION_API_KEY=your-evolution-api-key
-EVOLUTION_INSTANCE=nocrato-instance
-EVOLUTION_WEBHOOK_TOKEN=your-webhook-validation-token
+# Meta Cloud API (WhatsApp Business Platform)
+META_CLOUD_API_TOKEN=EAAG...            # token de acesso da App do Meta
+META_APP_SECRET=...                     # usado pro HMAC-SHA256 do webhook
+META_WEBHOOK_VERIFY_TOKEN=...           # usado no handshake GET do webhook
+META_APP_ID=...                         # usado no Embedded Signup OAuth
 
 # LLM (OpenAI — usado apenas no modulo agent/ para o chatbot WhatsApp)
 OPENAI_API_KEY=sk-...
 AGENT_MODEL=gpt-4o-mini   # barato, rapido, excelente tool calling para PT-BR
 ```
 
-> **Nota**: Cada doutor configura seu proprio `evolution_instance_name` em `agent_settings`. O campo `payload.instance` do webhook é usado para resolver o `tenant_id` sem ambiguidade, garantindo isolamento total entre tenants. Doutores sem `evolution_instance_name` configurado não recebem mensagens do agente (resolveTenantFromInstance retorna null silenciosamente).
+> **Nota**: Cada doutor faz Embedded Signup e obtém seu proprio `whatsapp_phone_number_id` (armazenado em `agent_settings`, ver migration 020). O campo `entry[].changes[].value.metadata.phone_number_id` do webhook é usado para resolver o `tenant_id` sem ambiguidade, garantindo isolamento total entre tenants. Doutores sem `whatsapp_phone_number_id` configurado não recebem mensagens do agente (resolução retorna null silenciosamente).
