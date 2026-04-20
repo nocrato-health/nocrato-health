@@ -68,10 +68,12 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { BookingService } from './booking.service'
 import { EventLogService } from '@/modules/event-log/event-log.service'
+import { ConsentService } from '@/modules/consent/consent.service'
 import { KNEX } from '@/database/knex.provider'
 
 const mockEventEmitter = { emit: jest.fn() }
 const mockEventLogService = { append: jest.fn().mockResolvedValue(undefined) }
+const mockConsentService = { registerConsent: jest.fn().mockResolvedValue(undefined), hasConsent: jest.fn().mockResolvedValue(false), listConsents: jest.fn().mockResolvedValue([]) }
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -137,6 +139,7 @@ describe('BookingService — generateToken', () => {
         { provide: KNEX, useValue: mockKnex },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EventLogService, useValue: mockEventLogService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
 
@@ -324,6 +327,7 @@ describe('BookingService — validateToken', () => {
         { provide: KNEX, useValue: mockKnex },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EventLogService, useValue: mockEventLogService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
     return moduleRef.get<BookingService>(BookingService)
@@ -476,6 +480,7 @@ describe('BookingService — getSlots', () => {
         { provide: KNEX, useValue: mockKnex },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EventLogService, useValue: mockEventLogService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
     return moduleRef.get<BookingService>(BookingService)
@@ -654,6 +659,7 @@ describe('BookingService — bookAppointment', () => {
         { provide: KNEX, useValue: mockKnex },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EventLogService, useValue: mockEventLogService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
     return moduleRef.get<BookingService>(BookingService)
@@ -670,6 +676,7 @@ describe('BookingService — bookAppointment', () => {
     name: 'João Silva',
     phone: '+5511988887777',
     dateTime: DATE_TIME,
+    consentAccepted: true,
   }
 
   const TENANT_ROW = { id: TENANT_ID, name: 'Clínica Silva' }
@@ -1087,6 +1094,7 @@ describe('BookingService — getSlotsInternal + bookInChat (US-7.4)', () => {
         { provide: KNEX, useValue: mockKnex },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EventLogService, useValue: mockEventLogService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
     return moduleRef.get<BookingService>(BookingService)

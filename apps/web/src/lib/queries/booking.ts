@@ -54,6 +54,7 @@ export interface BookAppointmentPayload {
   name: string
   phone: string
   dateTime: string
+  consentAccepted: boolean
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -85,12 +86,13 @@ export const availableSlotsQueryOptions = (slug: string, token: string, date: st
 
 export function useBookAppointment() {
   return useMutation({
-    mutationFn: ({ slug, token, name, phone, dateTime }: BookAppointmentPayload) =>
+    mutationFn: ({ slug, token, name, phone, dateTime, consentAccepted }: BookAppointmentPayload) =>
       api.post<BookResponse>(`/api/v1/public/booking/${slug}/book`, {
         token,
         name,
         phone,
         dateTime,
+        consentAccepted,
       }),
   })
 }

@@ -101,7 +101,24 @@ export class AgentController {
       return
     }
 
+    // fromMe=true → doutor mandou mensagem → ativar modo 'human' (handoff)
     if (payload.data.key.fromMe === true) {
+      try {
+        const remoteJid = payload.data.key.remoteJid
+        const phone = remoteJid.replace('@s.whatsapp.net', '')
+        const tenantId = await this.knex('agent_settings')
+          .where({ enabled: true, evolution_instance_name: payload.instance })
+          .select('tenant_id')
+          .first()
+          .then((row) => (row?.tenant_id as string | undefined) ?? null)
+        if (tenantId) {
+          await this.agentService.handleDoctorMessage(tenantId, phone)
+        }
+      } catch (err) {
+        this.logger.error(
+          `[AgentController] Erro ao ativar handoff — instance=${payload.instance}: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
       return
     }
 

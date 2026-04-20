@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { LogOut, Download, FileText, Calendar, User, Stethoscope } from 'lucide-react'
+import { LogOut, Download, FileText, Calendar, User, Stethoscope, Trash2, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import {
   loadPatientSession,
   clearPatientSession,
   buildDocumentDownloadUrl,
+  usePatientDeleteRequest,
 } from '@/lib/queries/patient-portal'
 import type {
   PatientPortalSession,
@@ -14,6 +15,10 @@ import type {
   DocumentType,
 } from '@/lib/queries/patient-portal'
 import { Button } from '@/components/ui/button'
+
+// ─── Constante: URL da política de privacidade ────────────────────────────────
+
+const PRIVACY_POLICY_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/api/v1/politica-de-privacidade`
 
 // ─── Helpers de formatação ────────────────────────────────────────────────────
 
@@ -137,6 +142,10 @@ export function PatientPortalPage() {
   const navigate = useNavigate()
   const [session, setSession] = React.useState<PatientPortalSession | null>(null)
   const [ready, setReady] = React.useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
+  const [deleteStatus, setDeleteStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
+  const [deleteError, setDeleteError] = React.useState<string | null>(null)
+  const deleteRequest = usePatientDeleteRequest()
 
   // Ao montar: ler sessão do sessionStorage
   React.useEffect(() => {
@@ -351,6 +360,100 @@ export function PatientPortalPage() {
               ))}
             </div>
           )}
+        </section>
+
+        {/* ─── Seção: Privacidade e exclusão de dados ──────────────────────── */}
+        <section>
+          <div className="bg-white rounded-xl border border-[#e8dfc8] p-5 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-dark uppercase tracking-wide font-heading">
+                Seus Direitos (LGPD)
+              </h2>
+              <p className="text-xs text-amber-mid mt-1 leading-relaxed">
+                Você pode solicitar a exclusão dos seus dados a qualquer momento. Consulte nossa{' '}
+                <a
+                  href={PRIVACY_POLICY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors"
+                >
+                  Política de Privacidade
+                </a>{' '}
+                para saber mais sobre o tratamento dos seus dados.
+              </p>
+            </div>
+
+            {deleteStatus === 'success' ? (
+              <div className="rounded-lg border border-amber-bright/40 bg-amber-bright/10 p-3 text-sm text-amber-dark">
+                Sua solicitação de exclusão foi registrada. Entraremos em contato em breve.
+              </div>
+            ) : (
+              <>
+                {deleteStatus === 'error' && deleteError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-start gap-2 text-sm text-red-700">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+
+                {!showDeleteConfirm ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Solicitar exclusão dos meus dados
+                  </Button>
+                ) : (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+                    <p className="text-sm text-red-700 font-medium">
+                      Tem certeza que deseja solicitar a exclusão dos seus dados?
+                    </p>
+                    <p className="text-xs text-red-600 leading-relaxed">
+                      Esta ação não pode ser desfeita. Todos os seus dados serão removidos do sistema após a confirmação pela clínica.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          setDeleteError(null)
+                          try {
+                            await deleteRequest.mutateAsync(session.code)
+                            setShowDeleteConfirm(false)
+                            setDeleteStatus('success')
+                          } catch (err: unknown) {
+                            const error = err as Error & { data?: { message?: string } }
+                            setDeleteError(
+                              error.data?.message ?? error.message ?? 'Erro ao solicitar exclusão. Tente novamente.',
+                            )
+                            setDeleteStatus('error')
+                          }
+                        }}
+                        loading={deleteRequest.isPending}
+                        className="bg-red-600 hover:bg-red-700 text-white border-0"
+                      >
+                        Sim, solicitar exclusão
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowDeleteConfirm(false)
+                          setDeleteStatus('idle')
+                          setDeleteError(null)
+                        }}
+                        disabled={deleteRequest.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </section>
 
         {/* ─── Rodapé ──────────────────────────────────────────────────────── */}

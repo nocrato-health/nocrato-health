@@ -62,6 +62,7 @@ import { BookingService } from '@/modules/booking/booking.service'
 import { AppointmentService } from '@/modules/appointment/appointment.service'
 import { ConversationService } from './conversation.service'
 import { WhatsAppService } from './whatsapp.service'
+import { ConsentService } from '@/modules/consent/consent.service'
 import { KNEX } from '@/database/knex.provider'
 
 // ---------------------------------------------------------------------------
@@ -197,6 +198,9 @@ const mockPatientService = {
 const mockConversationService = {
   getOrCreate: jest.fn(),
   appendMessages: jest.fn().mockResolvedValue(undefined),
+  shouldAgentRespond: jest.fn().mockResolvedValue(true),
+  activateHumanMode: jest.fn().mockResolvedValue(undefined),
+  setMode: jest.fn().mockResolvedValue(undefined),
 }
 
 const mockBookingService = {
@@ -211,6 +215,11 @@ const mockAppointmentService = {
 
 const mockWhatsAppService = {
   sendText: jest.fn().mockResolvedValue(undefined),
+}
+
+const mockConsentService = {
+  registerConsent: jest.fn().mockResolvedValue(undefined),
+  hasConsent: jest.fn().mockResolvedValue(false),
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +253,7 @@ describe('AgentService', () => {
         { provide: AppointmentService, useValue: mockAppointmentService },
         { provide: ConversationService, useValue: mockConversationService },
         { provide: WhatsAppService, useValue: mockWhatsAppService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
 
@@ -604,6 +614,7 @@ describe('AgentService — @OnEvent handlers', () => {
         { provide: AppointmentService, useValue: mockAppointmentService },
         { provide: ConversationService, useValue: mockConversationService },
         { provide: WhatsAppService, useValue: mockWhatsAppService },
+        { provide: ConsentService, useValue: mockConsentService },
       ],
     }).compile()
 

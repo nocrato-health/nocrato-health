@@ -9,6 +9,7 @@ import { env } from '@/config/env'
 import { PatientService, type PatientPublicRow } from '@/modules/patient/patient.service'
 import { BookingService } from '@/modules/booking/booking.service'
 import { AppointmentService } from '@/modules/appointment/appointment.service'
+import { ConsentService } from '@/modules/consent/consent.service'
 import { ConversationService, type ConversationMessage } from './conversation.service'
 import { WhatsAppService } from './whatsapp.service'
 
@@ -64,6 +65,7 @@ export class AgentService {
     private readonly appointmentService: AppointmentService,
     private readonly conversationService: ConversationService,
     private readonly whatsappService: WhatsAppService,
+    private readonly consentService: ConsentService,
   ) {
     this.openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
   }
@@ -109,9 +111,41 @@ export class AgentService {
   /**
    * Lógica core de processamento de mensagem — agnóstica de provider (Evolution ou Cloud).
    */
+  /**
+   * Registra que o doutor mandou uma mensagem (fromMe=true) → ativa modo 'human'.
+   */
+  async handleDoctorMessage(tenantId: string, phone: string): Promise<void> {
+    await this.conversationService.activateHumanMode(tenantId, phone)
+    this.logger.log(`[AgentService] Handoff → human mode ativado para phone=${phone} tenant=${tenantId}`)
+  }
+
   private async processMessage(tenantId: string, phone: string, messageText: string): Promise<void> {
+    // 2b. Checar se o agente deve responder (handoff doutor↔agente)
+    const shouldRespond = await this.conversationService.shouldAgentRespond(tenantId, phone)
+    if (!shouldRespond) {
+      this.logger.log(`[AgentService] Modo 'human' ativo para phone=${phone} — agente não responde`)
+      return
+    }
+
     // 3. Buscar contexto do paciente (pode não existir ainda)
     const patient = await this.patientService.findByPhone(tenantId, phone)
+
+    // 3b. LGPD: verificar se é primeira interação (sem consentimento registrado)
+    let isFirstInteraction = true
+    if (patient) {
+      const hasConsent = await this.consentService.hasConsent(tenantId, patient.id, 'privacy_policy')
+      if (!hasConsent) {
+        await this.consentService.registerConsent({
+          tenantId,
+          patientId: patient.id,
+          consentType: 'privacy_policy',
+          source: 'whatsapp_agent',
+        })
+      } else {
+        isFirstInteraction = false
+      }
+    }
+    // Se patient não existe ainda, é primeira interação por definição
 
     // 4. Carregar configurações do agente e dados do doutor
     const agentCtx = await this.loadAgentContext(tenantId)
@@ -138,6 +172,14 @@ export class AgentService {
       ...historyMessages,
       { role: 'user', content: messageText },
     ]
+
+    // 7b. LGPD: na primeira interação, injetar instrução para incluir link da política
+    if (isFirstInteraction) {
+      openaiMessages.push({
+        role: 'system',
+        content: `IMPORTANTE: Esta é a primeira interação deste paciente. Inclua na sua resposta: "Ao continuar esta conversa, você concorda com nossa política de privacidade: ${env.FRONTEND_URL}/politica-de-privacidade. Se desejar parar, envie SAIR."`,
+      })
+    }
 
     // 8. Chamar OpenAI com tools
     let response: OpenAI.Chat.Completions.ChatCompletion

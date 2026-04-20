@@ -14,11 +14,15 @@ export interface ConversationMessage {
   timestamp: string // ISO 8601
 }
 
+export type ConversationMode = 'agent' | 'human'
+
 export interface Conversation {
   id: string
   tenantId: string
   phone: string
   messages: ConversationMessage[]
+  mode: ConversationMode
+  lastFrommeAt: Date | null
   lastMessageAt: Date
   createdAt: Date
   updatedAt: Date
@@ -26,6 +30,9 @@ export interface Conversation {
 
 // Máximo de mensagens mantidas no histórico JSONB
 const MAX_HISTORY_MESSAGES = 20
+
+// Timeout para auto-revert de 'human' → 'agent' (30 minutos)
+const HANDOFF_TIMEOUT_MS = 30 * 60 * 1000
 
 // ---------------------------------------------------------------------------
 // Service
@@ -52,6 +59,57 @@ export class ConversationService {
     ).then((result) => result.rows)
 
     return mapRow(row)
+  }
+
+  /**
+   * Marca a conversa como 'human' (doutor assumiu) e registra o timestamp.
+   * Chamado quando o webhook recebe fromMe=true.
+   */
+  async activateHumanMode(tenantId: string, phone: string): Promise<void> {
+    await this.knex('conversations')
+      .where({ tenant_id: tenantId, phone })
+      .update({
+        mode: 'human',
+        last_fromme_at: this.knex.fn.now(),
+      })
+  }
+
+  /**
+   * Verifica se o agente deve processar a mensagem.
+   * Retorna true se mode='agent' ou se o timeout de 30min expirou (auto-revert).
+   */
+  async shouldAgentRespond(tenantId: string, phone: string): Promise<boolean> {
+    const row = await this.knex('conversations')
+      .where({ tenant_id: tenantId, phone })
+      .select(['mode', 'last_fromme_at'])
+      .first()
+
+    if (!row) return true // conversa nova → agente responde
+
+    if (row.mode === 'agent') return true
+
+    // mode === 'human' — checar timeout
+    if (row.last_fromme_at) {
+      const elapsed = Date.now() - new Date(row.last_fromme_at as string).getTime()
+      if (elapsed > HANDOFF_TIMEOUT_MS) {
+        // Auto-revert para 'agent'
+        await this.knex('conversations')
+          .where({ tenant_id: tenantId, phone })
+          .update({ mode: 'agent' })
+        return true
+      }
+    }
+
+    return false // doutor ativo, agente não responde
+  }
+
+  /**
+   * Seta o modo manualmente (endpoint do doutor).
+   */
+  async setMode(tenantId: string, phone: string, mode: ConversationMode): Promise<void> {
+    await this.knex('conversations')
+      .where({ tenant_id: tenantId, phone })
+      .update({ mode })
   }
 
   /**
@@ -92,6 +150,8 @@ interface ConversationRow {
   tenant_id: string
   phone: string
   messages: ConversationMessage[]
+  mode: ConversationMode
+  last_fromme_at: Date | string | null
   last_message_at: Date | string
   created_at: Date | string
   updated_at: Date | string
@@ -103,6 +163,8 @@ function mapRow(row: ConversationRow): Conversation {
     tenantId: row.tenant_id,
     phone: row.phone,
     messages: row.messages ?? [],
+    mode: row.mode ?? 'agent',
+    lastFrommeAt: row.last_fromme_at ? new Date(row.last_fromme_at) : null,
     lastMessageAt: new Date(row.last_message_at),
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
