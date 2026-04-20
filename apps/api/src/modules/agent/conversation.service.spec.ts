@@ -9,6 +9,15 @@
  *  CS-05: appendMessages — conversa não encontrada (retorna sem erro)
  *  CS-06: Isolamento — getOrCreate passa tenant_id para a query raw
  *  CS-07: appendMessages — usa conversationId (não tenant_id) para buscar e atualizar
+ *  CS-08: activateHumanMode — chama knex.raw com INSERT…ON CONFLICT e bindings corretos
+ *  CS-09: activateHumanMode — idempotente (segunda chamada não lança exceção)
+ *  CS-10: shouldAgentRespond — conversa não existe → retorna true
+ *  CS-11: shouldAgentRespond — mode='agent' → retorna true
+ *  CS-12: shouldAgentRespond — mode='human', last_fromme_at dentro do timeout → retorna false
+ *  CS-13: shouldAgentRespond — mode='human', last_fromme_at expirado → auto-revert e retorna true
+ *  CS-14: shouldAgentRespond — mode='human', last_fromme_at=null → retorna false (conservador)
+ *  CS-15: setMode — mode='agent' → chama update({ mode: 'agent' }) com where correto
+ *  CS-16: setMode — mode='human' → chama update({ mode: 'human' })
  */
 
 jest.mock('@/config/env', () => ({
@@ -209,5 +218,121 @@ describe('ConversationService', () => {
     await service.appendMessages('conv-especifica-123', [makeMsg('user', 'Teste')])
 
     expect(mockWhere).toHaveBeenCalledWith({ id: 'conv-especifica-123' })
+  })
+
+  // ---------------------------------------------------------------------------
+  // activateHumanMode
+  // ---------------------------------------------------------------------------
+
+  // CS-08: chama knex.raw com INSERT…ON CONFLICT e bindings corretos
+  it('CS-08: activateHumanMode — chama knex.raw com SQL de upsert e bindings corretos', async () => {
+    mockRaw.mockResolvedValue(undefined)
+
+    await service.activateHumanMode(TENANT_ID, PHONE)
+
+    expect(mockRaw).toHaveBeenCalledTimes(1)
+    expect(mockRaw).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO conversations'),
+      expect.objectContaining({ tenantId: TENANT_ID, phone: PHONE }),
+    )
+    expect(mockRaw).toHaveBeenCalledWith(
+      expect.stringContaining('ON CONFLICT'),
+      expect.anything(),
+    )
+    expect(mockRaw).toHaveBeenCalledWith(
+      expect.stringContaining("mode = 'human'"),
+      expect.anything(),
+    )
+  })
+
+  // CS-09: idempotente — segunda chamada não lança exceção
+  it('CS-09: activateHumanMode — idempotente (segunda chamada não lança)', async () => {
+    mockRaw.mockResolvedValue(undefined)
+
+    await expect(service.activateHumanMode(TENANT_ID, PHONE)).resolves.toBeUndefined()
+    await expect(service.activateHumanMode(TENANT_ID, PHONE)).resolves.toBeUndefined()
+
+    expect(mockRaw).toHaveBeenCalledTimes(2)
+  })
+
+  // ---------------------------------------------------------------------------
+  // shouldAgentRespond
+  // ---------------------------------------------------------------------------
+
+  // CS-10: conversa não existe → retorna true (agente responde à primeira mensagem)
+  it('CS-10: shouldAgentRespond — conversa inexistente → retorna true', async () => {
+    mockFirst.mockResolvedValue(undefined)
+
+    const result = await service.shouldAgentRespond(TENANT_ID, PHONE)
+
+    expect(result).toBe(true)
+    expect(mockWhere).toHaveBeenCalledWith({ tenant_id: TENANT_ID, phone: PHONE })
+  })
+
+  // CS-11: mode='agent' → retorna true
+  it('CS-11: shouldAgentRespond — mode=agent → retorna true', async () => {
+    mockFirst.mockResolvedValue({ mode: 'agent', last_fromme_at: null })
+
+    const result = await service.shouldAgentRespond(TENANT_ID, PHONE)
+
+    expect(result).toBe(true)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  // CS-12: mode='human', last_fromme_at dentro do timeout (5 min atrás) → retorna false
+  it('CS-12: shouldAgentRespond — mode=human, timeout não expirado → retorna false', async () => {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    mockFirst.mockResolvedValue({ mode: 'human', last_fromme_at: fiveMinutesAgo })
+
+    const result = await service.shouldAgentRespond(TENANT_ID, PHONE)
+
+    expect(result).toBe(false)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  // CS-13: mode='human', last_fromme_at expirado (35 min atrás) → auto-revert e retorna true
+  it('CS-13: shouldAgentRespond — mode=human, timeout expirado → auto-revert para agent e retorna true', async () => {
+    const thirtyFiveMinutesAgo = new Date(Date.now() - 35 * 60 * 1000).toISOString()
+    mockFirst.mockResolvedValue({ mode: 'human', last_fromme_at: thirtyFiveMinutesAgo })
+    mockUpdate.mockResolvedValue(1)
+
+    const result = await service.shouldAgentRespond(TENANT_ID, PHONE)
+
+    expect(result).toBe(true)
+    expect(mockUpdate).toHaveBeenCalledWith({ mode: 'agent' })
+  })
+
+  // CS-14: mode='human', last_fromme_at=null → retorna false (conservador)
+  it('CS-14: shouldAgentRespond — mode=human, last_fromme_at=null → retorna false (conservador)', async () => {
+    mockFirst.mockResolvedValue({ mode: 'human', last_fromme_at: null })
+
+    const result = await service.shouldAgentRespond(TENANT_ID, PHONE)
+
+    expect(result).toBe(false)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  // ---------------------------------------------------------------------------
+  // setMode
+  // ---------------------------------------------------------------------------
+
+  // CS-15: setMode('agent') → chama update({ mode: 'agent' }) com where correto
+  it('CS-15: setMode — mode=agent → chama update com where tenant_id+phone', async () => {
+    mockUpdate.mockResolvedValue(1)
+
+    await service.setMode(TENANT_ID, PHONE, 'agent')
+
+    expect(mockWhere).toHaveBeenCalledWith({ tenant_id: TENANT_ID, phone: PHONE })
+    expect(mockUpdate).toHaveBeenCalledWith({ mode: 'agent' })
+  })
+
+  // CS-16: setMode('human') → chama update({ mode: 'human' })
+  it('CS-16: setMode — mode=human → chama update com mode=human', async () => {
+    mockUpdate.mockResolvedValue(1)
+
+    await service.setMode(TENANT_ID, PHONE, 'human')
+
+    expect(mockWhere).toHaveBeenCalledWith({ tenant_id: TENANT_ID, phone: PHONE })
+    expect(mockUpdate).toHaveBeenCalledWith({ mode: 'human' })
   })
 })
