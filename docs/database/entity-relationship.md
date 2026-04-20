@@ -90,7 +90,7 @@ Professional profile and authentication credentials for the doctor behind a tena
 ### 5. agent_settings
 WhatsApp AI agent configuration for a tenant. Stores the welcome message, personality instructions, FAQ content, scheduling rules as natural language text, and the `booking_mode` column (`'link' | 'chat' | 'both'`) that controls how the agent offers appointment scheduling. O agente interno le essas configuracoes no inicio de cada conversa para personalizar as respostas. 1:1 with tenant.
 
-Suporta dois providers WhatsApp (coexistem): `evolution_instance_name` (Evolution API — QR code) e `whatsapp_phone_number_id` + `whatsapp_waba_id` + `whatsapp_display_phone_number` + `whatsapp_verified_name` (Meta Cloud API — Embedded Signup OAuth). Cloud API tem precedência quando ambos configurados. Migration 020.
+Provider WhatsApp: Meta Cloud API — `whatsapp_phone_number_id` + `whatsapp_waba_id` + `whatsapp_display_phone_number` + `whatsapp_verified_name`. Preenchidos via Embedded Signup OAuth. Migration 020. O provider Evolution API (coluna `evolution_instance_name`) foi removido na migration 023.
 
 ### 6. patients
 Patient records created primarily by the WhatsApp agent. Identified by phone number within a tenant. After their first completed appointment, patients receive a globally unique portal access code for read-only portal access.
