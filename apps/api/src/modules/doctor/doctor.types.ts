@@ -12,7 +12,6 @@ export interface AgentSettingsRow {
   personality: string | null
   faq: string | null
   appointment_rules: string | null
-  evolution_instance_name: string | null
   created_at: string | Date
   updated_at: string | Date
 }

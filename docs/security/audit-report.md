@@ -473,10 +473,12 @@ Os itens a seguir foram verificados e considerados adequados:
 
 **Webhook WhatsApp:**
 
-- Validação de `apikey` vs `EVOLUTION_WEBHOOK_TOKEN` antes de qualquer processamento (`agent.controller.ts:56`)
-- `payload.data?.key?.remoteJid` validado antes de processar (TD-18 resolvido, linha 81)
-- `fromMe === true` filtrado silenciosamente (linha 85)
-- Erros nunca retornam 5xx — try/catch adequado com log (linha 89-96)
+> **Atualização 2026-04-20 (ADR-018)**: a validação via `apikey` contra `EVOLUTION_WEBHOOK_TOKEN` não é mais aplicável — a Evolution API foi removida. O webhook ativo é `POST /api/v1/agent/webhook/cloud` (Meta Cloud API). Findings históricos baseados em `fromMe=true` e `payload.data.key.remoteJid` referem-se a código removido.
+
+- Validação de **HMAC-SHA256** via header `X-Hub-Signature-256` (assinatura do body cru com `META_APP_SECRET`) antes de qualquer processamento (`agent.controller.ts` — webhook/cloud)
+- Estrutura `entry[0].changes[0].value` e `metadata.phone_number_id` validadas antes de processar
+- Mensagens enviadas pelo doutor são detectadas via `statuses[].status === 'sent'` (handoff humano) — não há mais loop `fromMe=true`
+- Erros nunca retornam 5xx — try/catch adequado com log
 - Rate limiting via Nginx: zona `webhook: 60r/m` com burst de 20
 
 **Upload de Arquivos:**
@@ -500,12 +502,12 @@ Os itens a seguir foram verificados e considerados adequados:
 
 - `.env` e `.env.production` no `.gitignore` — verificado com `git ls-files`: apenas `.env.example` e `apps/web/.env.example` estão commitados
 - Nenhum secret hardcoded encontrado no código-fonte
-- Todas as variáveis sensíveis (JWT_SECRET, DB_PASSWORD, EVOLUTION_API_KEY, OPENAI_API_KEY) são obrigatórias e validadas no startup via Zod com `process.exit(1)` em caso de falha
+- Todas as variáveis sensíveis (JWT_SECRET, DB_PASSWORD, META_CLOUD_API_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, OPENAI_API_KEY) são obrigatórias e validadas no startup via Zod com `process.exit(1)` em caso de falha (as variáveis `EVOLUTION_*` foram removidas em 2026-04-20, ADR-018)
 
 **Docker / Infraestrutura:**
 
 - PostgreSQL não exposto publicamente — apenas na `nocrato_net` network interna
-- Evolution API não exposta na porta pública
+- ~~Evolution API não exposta na porta pública~~ — container removido em 2026-04-20 (ADR-018); o provider atual (Meta Cloud API) é SaaS externo e se comunica via HTTPS outbound com a Graph API da Meta
 - Volumes de desenvolvimento não montados no `docker-compose.prod.yml`
 
 **LGPD — Proteção de Dados Sensíveis:**

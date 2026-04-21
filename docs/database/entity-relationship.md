@@ -90,7 +90,7 @@ Professional profile and authentication credentials for the doctor behind a tena
 ### 5. agent_settings
 WhatsApp AI agent configuration for a tenant. Stores the welcome message, personality instructions, FAQ content, scheduling rules as natural language text, and the `booking_mode` column (`'link' | 'chat' | 'both'`) that controls how the agent offers appointment scheduling. O agente interno le essas configuracoes no inicio de cada conversa para personalizar as respostas. 1:1 with tenant.
 
-Suporta dois providers WhatsApp (coexistem): `evolution_instance_name` (Evolution API — QR code) e `whatsapp_phone_number_id` + `whatsapp_waba_id` + `whatsapp_display_phone_number` + `whatsapp_verified_name` (Meta Cloud API — Embedded Signup OAuth). Cloud API tem precedência quando ambos configurados. Migration 020.
+Provider WhatsApp: Meta Cloud API — `whatsapp_phone_number_id` + `whatsapp_waba_id` + `whatsapp_display_phone_number` + `whatsapp_verified_name`. Preenchidos via Embedded Signup OAuth. Migration 020. O provider Evolution API (coluna `evolution_instance_name`) foi removido na migration 023.
 
 ### 6. patients
 Patient records created primarily by the WhatsApp agent. Identified by phone number within a tenant. After their first completed appointment, patients receive a globally unique portal access code for read-only portal access.
@@ -120,7 +120,7 @@ Temporary tokens (24h expiry) for securing the public booking page. Generated pe
 WhatsApp conversation state per patient phone number, scoped to tenant. Stores up to the last 20 messages as JSONB for LLM context window. Used exclusively by the `agent/` module (`conversation.service.ts`). Identified by the composite unique key `(tenant_id, phone)` — the phone number is the session identifier (no JWT required).
 
 Colunas de handoff doutor↔agente (migration 022):
-- `mode VARCHAR(20) DEFAULT 'agent'` — `'agent'` (IA responde) ou `'human'` (doutor assumiu). Auto-detectado quando o webhook recebe `fromMe=true`.
+- `mode VARCHAR(20) DEFAULT 'agent'` — `'agent'` (IA responde) ou `'human'` (doutor assumiu). Auto-detectado via webhook `statuses[].status='sent'` da Meta Cloud API (msg enviada pela business account indica que o doutor respondeu).
 - `last_fromme_at TIMESTAMPTZ` — timestamp da última msg do doutor. Auto-revert para `'agent'` após 30min sem atividade do doutor.
 
 ### 13. patient_consents

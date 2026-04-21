@@ -18,7 +18,7 @@ type: moc
 | 6 | [[epic-6-clinical\|Notas Clinicas & Documentos]] | Registros medicos vinculados a consultas e pacientes | 5 |
 | 7 | [[epic-7-booking\|Agendamento Publico (Booking)]] | Pagina de agendamento para pacientes + booking in-chat via agente interno | 5 |
 | 8 | [[epic-8-settings\|Configuracoes & Agente]] | Config do agente WhatsApp e settings do portal | 3 |
-| 9 | [[epic-9-events\|Agente WhatsApp (Modulo Interno)]] | Modulo NestJS com Evolution API + OpenAI SDK (gpt-4o-mini) + EventEmitter2 | 4 |
+| 9 | [[epic-9-events\|Agente WhatsApp (Modulo Interno)]] | Modulo NestJS com Evolution API + OpenAI SDK (gpt-4o-mini) + EventEmitter2 (provider atualizado para Meta Cloud API em 2026-04-20 via ADR-018) | 4 |
 | 10 | [[epic-10-patient-portal\|Portal do Paciente]] | Portal read-only para pacientes acessarem suas informacoes | 3 |
 | 11 | [[epic-11-deploy\|Polish & Deploy]] | Acabamento final e deploy em producao | 4 |
 

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common'
+import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import type { AgentSettingsResponseDto } from './dto/agent-settings-response.dto'
@@ -14,7 +14,6 @@ const AGENT_SETTINGS_FIELDS = [
   'personality',
   'faq',
   'appointment_rules',
-  'evolution_instance_name',
   'created_at',
   'updated_at',
 ] as const
@@ -107,26 +106,17 @@ export class AgentSettingsService {
       updateData.appointment_rules = dto.appointmentRules
     }
 
-    // SEC-TD20-02: tratar erro 23505 (unique violation) para evolution_instance_name
-    try {
-      const rows = await this.knex('agent_settings')
-        .where({ tenant_id: tenantId })
-        .update(updateData)
-        .returning([...AGENT_SETTINGS_FIELDS])
+    const rows = await this.knex('agent_settings')
+      .where({ tenant_id: tenantId })
+      .update(updateData)
+      .returning([...AGENT_SETTINGS_FIELDS])
 
-      const updated = rows[0] as AgentSettingsRow | undefined
+    const updated = rows[0] as AgentSettingsRow | undefined
 
-      if (!updated) {
-        throw new NotFoundException('Configurações do agente não encontradas')
-      }
-
-      return mapRow(updated)
-    } catch (err: unknown) {
-      // Tratar erro de unique constraint violation para evolution_instance_name
-      if (err && typeof err === 'object' && 'code' in err && err.code === '23505') {
-        throw new ConflictException('Nome de instância já está em uso por outro consultório')
-      }
-      throw err
+    if (!updated) {
+      throw new NotFoundException('Configurações do agente não encontradas')
     }
+
+    return mapRow(updated)
   }
 }

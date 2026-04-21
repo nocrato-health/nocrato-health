@@ -9,7 +9,7 @@ Contém os arquivos Docker Compose, Dockerfiles e config do Nginx para desenvolv
 | Arquivo | Propósito |
 |---|---|
 | `docker-compose.dev.yml` | Ambiente de desenvolvimento local — PostgreSQL 16 apenas |
-| `docker-compose.prod.yml` | Ambiente de produção — todos os serviços (PostgreSQL, Evolution, API, Web, Nginx) |
+| `docker-compose.prod.yml` | Ambiente de produção — todos os serviços (PostgreSQL, Bugsink, API, Web, Nginx) |
 | `Dockerfile.api` | Build multi-stage da API NestJS (`@nocrato/api`) |
 | `Dockerfile.web` | Build multi-stage do frontend React (`@nocrato/web`) + nginx interno para SPA |
 | `nginx.conf` | Config do Nginx reverse proxy + SSL termination para app.nocrato.com |
@@ -27,8 +27,7 @@ Contém os arquivos Docker Compose, Dockerfiles e config do Nginx para desenvolv
 |---|---|---|---|
 | `postgres` | `postgres:16-alpine` | `5432` | Banco de dados principal (hospeda também o DB do Bugsink) |
 | `bugsink` | `bugsink/bugsink:2` | `127.0.0.1:8000` | Error tracking self-hosted. Acesso via SSH tunnel (nunca público) |
-| `evolution` | `atendai/evolution-api:v2.2.3` | `8080` | Gateway WhatsApp |
-| `api` | build local | `3000` | NestJS backend |
+| `api` | build local | `3000` | NestJS backend (WhatsApp via Meta Cloud API — sem gateway intermediário) |
 | `web` | build local | `80` | React SPA (nginx estático) |
 | `nginx` | `nginx:alpine` | `80`, `443` | Reverse proxy público + SSL |
 
@@ -116,10 +115,9 @@ docker compose -f docker/docker-compose.prod.yml run --rm -e NODE_ENV=production
 - O volume `nocrato_postgres_data` persiste os dados entre restarts — nunca usar `-v` em produção
 - As credenciais do dev (`nocrato_secret`) são fixas e não-secretas — apenas para ambiente local
 - Em produção, todas as credenciais vêm do `.env` na raiz do monorepo — nunca commitado
-- Evolution API entra apenas no compose prod — em dev, rodar separado se necessário
 - O volume `uploads_data` é compartilhado entre `api` (escrita) e `nginx` (leitura read-only)
 - Certificados Let's Encrypt são bind-mounted de `/etc/letsencrypt` do host (não volume nomeado) — o Certbot no host escreve lá, o nginx lê read-only
-- A versão da Evolution API é pinada (`v2.2.3`) — atualizar conscientemente ao testar compatibilidade
+- WhatsApp roda via Meta Cloud API — **sem gateway intermediário**. Webhook público em `/api/v1/agent/webhook/cloud` (validado por HMAC-SHA256)
 
 ## O que NÃO pertence aqui
 

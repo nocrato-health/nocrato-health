@@ -56,7 +56,7 @@ status: completed
 **Agentes:** `devops` → `tech-lead`
 
 - [x] Hostinger VPS (Ubuntu 22.04 LTS)
-- [x] Docker Compose producao (PostgreSQL, Evolution API)
+- [x] Docker Compose producao (PostgreSQL, Evolution API) — *nota 2026-04-20: container Evolution removido via ADR-018; produção atual tem apenas PostgreSQL + API + Web + Nginx*
 - [x] Nginx reverse proxy + SSL (Let's Encrypt)
 - [x] NestJS build + serve producao
 - [x] React build → servido pelo Nginx

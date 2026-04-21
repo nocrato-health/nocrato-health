@@ -60,23 +60,6 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────
-  # Evolution API — gateway WhatsApp
-  # ──────────────────────────────────────────
-  evolution:
-    image: atendai/evolution-api:v2.2.3
-    container_name: nocrato_evolution_prod
-    environment:
-      SERVER_URL: ${EVOLUTION_API_URL}
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
-      # Persiste as instâncias WhatsApp conectadas entre restarts
-      DATABASE_ENABLED: "false"
-    volumes:
-      - evolution_data:/evolution/instances
-    networks:
-      - nocrato_net
-    restart: unless-stopped
-
-  # ──────────────────────────────────────────
   # API NestJS — backend
   # Contexto de build: raiz do monorepo (para acessar pnpm-workspace.yaml)
   # ──────────────────────────────────────────
@@ -91,8 +74,6 @@ services:
       NODE_ENV: production
       # Sobrescreve DB_HOST para o nome do serviço no compose
       DB_HOST: postgres
-      # Evolution API rodando no mesmo compose network
-      EVOLUTION_API_URL: http://evolution:8080
     volumes:
       # uploads_data: somente o container api escreve/lê (SEC-10 — nginx não acessa mais)
       - uploads_data:/app/uploads
@@ -101,8 +82,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      evolution:
-        condition: service_started
     restart: unless-stopped
 
   # ──────────────────────────────────────────
@@ -155,8 +134,6 @@ services:
 volumes:
   postgres_data:
     name: nocrato_postgres_prod
-  evolution_data:
-    name: nocrato_evolution_prod
   uploads_data:
     name: nocrato_uploads_prod
 

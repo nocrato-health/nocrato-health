@@ -26,7 +26,7 @@ status: completed
 - [x] docker/docker-compose.dev.yml (PostgreSQL 16, named network, healthcheck)
 - [x] docker/CLAUDE.md (documentação do módulo)
 - [x] `docker compose up -d` → banco rodando (PostgreSQL 16.11, healthy)
-- [x] Tech-lead aprovado (após correções: EVOLUTION_WEBHOOK_TOKEN, moduleResolution, network)
+- [x] Tech-lead aprovado (após correções: EVOLUTION_WEBHOOK_TOKEN, moduleResolution, network) — *nota 2026-04-20: `EVOLUTION_WEBHOOK_TOKEN` foi removida na migração para Meta Cloud API, ver ADR-018*
 
 ---
 
@@ -34,7 +34,7 @@ status: completed
 
 - [x] Scaffold apps/api (NestJS 11 + TypeScript)
 - [x] package.json com deps (@nestjs/core, @nestjs/common, knex, pg, zod, bcrypt, dotenv, etc.)
-- [x] config/env.ts (Zod validation: DB_*, JWT_*, RESEND_API_KEY, EVOLUTION_*, OPENAI_API_KEY)
+- [x] config/env.ts (Zod validation: DB_*, JWT_*, RESEND_API_KEY, EVOLUTION_*, OPENAI_API_KEY) — *nota 2026-04-20: `EVOLUTION_*` substituídas por `META_*` após ADR-018*
 - [x] database/knex.provider.ts (Symbol KNEX + useFactory) + database.module.ts (@Global)
 - [x] database/knexfile.ts, migrate.ts, seed.ts
 - [x] 14 migration files TypeScript com knex.raw() (001 a 014, ordem de FK)

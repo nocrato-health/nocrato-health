@@ -7,7 +7,7 @@ type: database
 
 ## Migration Order
 
-The schema is split into 22 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
+The schema is split into 23 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
 
 | # | Migration File | Table/Object Created | FK Dependencies |
 |---|---------------|---------------------|-----------------|
@@ -33,6 +33,7 @@ The schema is split into 22 sequential migration files. The ordering strictly re
 | 020 | `020_add_whatsapp_cloud_api_columns.ts` | ADD `agent_settings.whatsapp_phone_number_id` (VARCHAR 50), `whatsapp_waba_id` (VARCHAR 50), `whatsapp_display_phone_number` (VARCHAR 20), `whatsapp_verified_name` (VARCHAR 255). Unique partial index `idx_agent_settings_cloud_phone_number_id` WHERE NOT NULL. | `agent_settings` (005) |
 | 021 | `021_create_patient_consents.ts` | CREATE `patient_consents` (LGPD Art. 7º — consent records). ADD `patients.deletion_requested_at` (LGPD Art. 18, V). Indexes: `idx_patient_consents_tenant_patient`, `idx_patient_consents_type_version`. | `tenants` (003), `patients` (006) |
 | 022 | `022_add_handoff_to_conversations.ts` | ADD `conversations.mode` (VARCHAR 20, DEFAULT 'agent', CHECK agent\|human) + `conversations.last_fromme_at` (TIMESTAMPTZ NULL). Auto-handoff doutor↔agente. | `conversations` (013) |
+| 023 | `023_drop_evolution_instance_from_agent_settings.ts` | DROP `agent_settings.evolution_instance_name VARCHAR(100) NULL` + DROP INDEX `idx_agent_settings_evolution_instance`. Remoção do provider Evolution API — projeto migrou para Meta Cloud API exclusivamente. | `agent_settings` (005) |
 
 ---
 
@@ -86,6 +87,8 @@ The dependency ordering can be visualized as a directed acyclic graph (DAG). An 
  +---> 021 create patient_consents + alter patients (add deletion_requested_at; LGPD sessão B)
  |
  +---> 022 alter conversations (add mode + last_fromme_at; auto-handoff doutor↔agente)
+ |
+ +---> 023 alter agent_settings (drop evolution_instance_name + index; remove Evolution API)
 ```
 
 ### Critical Ordering Constraints

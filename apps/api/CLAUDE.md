@@ -35,7 +35,7 @@ src/
     ├── agent-settings/      # Config do agente WhatsApp (Epic 8)
     ├── event-log/           # Audit trail append-only (Epic 9)
     ├── upload/              # Upload multipart para disco local (Epic 6)
-    └── agent/               # Módulo agente WhatsApp + Evolution API (Epic 9)
+    └── agent/               # Módulo agente WhatsApp + Meta Cloud API (Epic 9)
 ```
 
 ## Regras críticas
@@ -55,7 +55,7 @@ src/
 | `/api/v1/doctor/*` | JWT + doctor role | Portal doutor |
 | `/api/v1/public/booking/*` | Token-based | Booking público |
 | `/api/v1/patient/portal/*` | Access code | Portal paciente |
-| `/api/v1/agent/webhook` | Evolution API payload | Webhook WhatsApp |
+| `/api/v1/agent/webhook/cloud` | Meta Cloud API (HMAC-SHA256) | Webhook WhatsApp |
 | `/health` | Public | Health check |
 
 ## Como rodar

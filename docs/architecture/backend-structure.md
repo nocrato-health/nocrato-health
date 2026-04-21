@@ -124,9 +124,9 @@ apps/api/src/
 │       ├── agent.service.ts        # Orquestracao: processa mensagem → LLM → resposta
 │       │                           # @OnEvent handlers para eventos internos (EventEmitter2)
 │       ├── conversation.service.ts # Gerencia estado da conversa por phone (tabela conversations)
-│       ├── whatsapp.service.ts     # Envia mensagens via Evolution API HTTP client
+│       ├── whatsapp.service.ts     # Envia mensagens via Meta Cloud API (Graph API)
 │       └── dto/
-│           └── whatsapp-webhook.dto.ts  # Payload do webhook da Evolution API
+│           └── whatsapp-webhook.dto.ts  # Payload do webhook da Meta Cloud API
 └── email/
     ├── email.module.ts
     ├── email.service.ts            # Resend client
@@ -143,7 +143,7 @@ apps/api/src/
 
 | Module | Purpose |
 |--------|---------|
-| `config/` | Environment variable validation using Zod schemas. Validates DB_*, JWT_SECRET, RESEND_API_KEY, EVOLUTION_API_URL, OPENAI_API_KEY at startup. |
+| `config/` | Environment variable validation using Zod schemas. Validates DB_*, JWT_SECRET, RESEND_API_KEY, META_CLOUD_API_TOKEN, META_WEBHOOK_VERIFY_TOKEN, META_APP_SECRET, OPENAI_API_KEY at startup. |
 | `database/` | Knex provider with connection pooling. Exposes a global `KnexModule` that all feature modules can inject. Migrations are raw SQL for full control. |
 | `common/` | Shared decorators, guards, filters, interceptors, and pipes used across all modules. |
 | `email/` | Resend email client with HTML templates for invite and password reset flows. |
@@ -163,7 +163,7 @@ apps/api/src/
 | `agent-settings` | Doctor | WhatsApp agent configuration (welcome message, personality, FAQ, booking mode). |
 | `event-log` | System | Audit trail append-only. Registra todas as acoes relevantes para debugging e historico. Nao exposto externamente. |
 | `booking` | Public (token) | Public appointment booking with temporary tokens and rate limiting. Tambem expoe `generateToken()` para o modulo `agent`. |
-| `agent` | Evolution API (webhook) | Modulo do agente WhatsApp. Recebe webhooks da Evolution API, gerencia estado de conversa, chama LLM, e envia respostas. Subscreve eventos internos via `EventEmitter2`. |
+| `agent` | Meta Cloud API (webhook) | Modulo do agente WhatsApp. Recebe webhooks da Meta Cloud API em `/api/v1/agent/webhook/cloud` (com validação HMAC-SHA256), gerencia estado de conversa, chama LLM, e envia respostas via Graph API. Subscreve eventos internos via `EventEmitter2`. |
 
 ---
 
@@ -260,13 +260,13 @@ Request
   │     │
   │     └── (Route handler executes)
   │
-  └── (Agent webhook: validacao por instanceId no payload da Evolution API)
+  └── (Agent webhook: validacao HMAC-SHA256 do header X-Hub-Signature-256 da Meta Cloud API)
 ```
 
 - **JwtAuthGuard**: Used for all authenticated routes (agency and doctor portals).
 - **RolesGuard**: Used in combination with `@Roles()` decorator to enforce role-based access.
 - **TenantGuard**: Used on doctor-side routes to ensure tenant isolation.
-- **ApiKeyGuard**: Removido. O endpoint do agente (`/api/v1/agent/webhook`) valida o payload via `instanceId` da Evolution API configurado no `.env`, sem guard separado.
+- **ApiKeyGuard**: Removido. O endpoint do agente (`/api/v1/agent/webhook/cloud`) valida o payload via HMAC-SHA256 (`X-Hub-Signature-256`) usando `META_APP_SECRET`, sem guard separado.
 
 ---
 
@@ -280,5 +280,5 @@ Request
 | `/api/v1/doctor/*` | JWT + doctor role | Doctor portal endpoints |
 | `/api/v1/public/booking/*` | Token-based | Public booking page endpoints |
 | `/api/v1/patient/portal/*` | Access code | Patient portal (no JWT) |
-| `/api/v1/agent/webhook` | Evolution API payload | Recebe eventos do WhatsApp (mensagens, status) |
+| `/api/v1/agent/webhook/cloud` | Meta Cloud API (HMAC-SHA256) | Recebe eventos do WhatsApp (mensagens, status) |
 | `/health` | Public | Health check |

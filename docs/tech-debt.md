@@ -204,10 +204,12 @@ A tabela `event_log` recebe uma linha por evento de negócio (appointments, docu
 
 ---
 
-### ~~TD-20 — resolveTenantFromInstance não suportava múltiplos tenants ativos~~ ✅ RESOLVIDO
+### ~~TD-20 — resolveTenantFromInstance não suportava múltiplos tenants ativos~~ ✅ RESOLVIDO → ⚠️ NÃO-APLICÁVEL (2026-04-20)
 **Módulo:** `agent`
 **Identificado em:** US-9.3 (OBS-TL-4 tech-lead)
 **Resolvido em:** TD-20 fix — migration `016_add_evolution_instance_to_agent_settings.ts` adicionou coluna `evolution_instance_name VARCHAR(100) NULL` em `agent_settings`. `resolveTenantFromInstance(instanceName)` agora filtra `WHERE enabled=true AND evolution_instance_name=instanceName`. Controller extrai `payload.instance` e valida sua presença antes de chamar `handleMessage`. Isolamento de tenant garantido por instância.
+
+**Nota 2026-04-20 (ADR-018)**: Com a remoção completa da Evolution API, `evolution_instance_name` foi dropada via migration `023_drop_evolution_instance_from_agent_settings.ts`. A resolução multitenant do agente agora usa `agent_settings.whatsapp_phone_number_id` (migration 020) pareando com `entry[].changes[].value.metadata.phone_number_id` do webhook da Meta Cloud API — mesmo princípio (identificador por-doutor), provider oficial. O TD fica preservado como histórico de entrega.
 
 ---
 
