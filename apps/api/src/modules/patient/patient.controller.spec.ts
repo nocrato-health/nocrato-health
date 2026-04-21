@@ -21,6 +21,7 @@ jest.mock('@/config/env', () => ({
     DB_NAME: 'nocrato_test',
     DB_USER: 'postgres',
     DB_PASSWORD: 'postgres',
+    DOCUMENT_ENCRYPTION_KEY: 'a'.repeat(64),
   },
 }))
 
@@ -104,6 +105,7 @@ describe('PatientController', () => {
     const mockService: jest.Mocked<Partial<PatientService>> = {
       listPatients: jest.fn(),
       getPatientProfile: jest.fn(),
+      getDoctorPatientDocument: jest.fn(),
       createPatient: jest.fn(),
       updatePatient: jest.fn(),
     }
@@ -342,6 +344,42 @@ describe('PatientController', () => {
       await expect(
         controller.updatePatient(TENANT_ID, UPDATE_PATIENT_ID, makeUpdateDto({ phone: '11999990000' })),
       ).rejects.toThrow(ConflictException)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /doctor/patients/:id/document — getDoctorPatientDocument
+  // -------------------------------------------------------------------------
+
+  describe('getDoctorPatientDocument', () => {
+    const DOC_PATIENT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567892'
+
+    it('should call getDoctorPatientDocument with tenantId and patientId', async () => {
+      const expected = { document_type: 'cpf' as const, document: '12345678901' }
+      service.getDoctorPatientDocument!.mockResolvedValue(expected)
+
+      const result = await controller.getDoctorPatientDocument(TENANT_ID, DOC_PATIENT_ID)
+
+      expect(service.getDoctorPatientDocument).toHaveBeenCalledWith(TENANT_ID, DOC_PATIENT_ID)
+      expect(result).toEqual(expected)
+    })
+
+    it('should return null when patient has no document', async () => {
+      service.getDoctorPatientDocument!.mockResolvedValue(null)
+
+      const result = await controller.getDoctorPatientDocument(TENANT_ID, DOC_PATIENT_ID)
+
+      expect(result).toBeNull()
+    })
+
+    it('should propagate NotFoundException when patient not found', async () => {
+      service.getDoctorPatientDocument!.mockRejectedValue(
+        new NotFoundException('Paciente não encontrado'),
+      )
+
+      await expect(
+        controller.getDoctorPatientDocument(TENANT_ID, DOC_PATIENT_ID),
+      ).rejects.toThrow(NotFoundException)
     })
   })
 })

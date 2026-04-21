@@ -8,6 +8,7 @@ import { Users, Search, UserPlus } from 'lucide-react'
 
 import { patientsQueryOptions, useCreatePatient } from '@/lib/queries/patients'
 import { formatDate, formatPhone } from '@/lib/utils'
+import { maskCpf, unmaskDocument } from '@/lib/masks'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,11 +21,25 @@ import { PaginationControls } from '@/components/pagination-controls'
 
 // ─── Schema de criação ─────────────────────────────────────────────────────────
 
-const createPatientSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  phone: z.string().min(8, 'Telefone inválido'),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-})
+const createPatientSchema = z
+  .object({
+    name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+    phone: z.string().min(8, 'Telefone inválido'),
+    email: z.string().email('Email inválido').optional().or(z.literal('')),
+    documentType: z.enum(['cpf', 'rg', '']).optional(),
+    document: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const hasType = !!data.documentType
+      const hasDoc = !!data.document && data.document.trim() !== ''
+      return (!hasType && !hasDoc) || (hasType && hasDoc)
+    },
+    {
+      message: 'Informe o tipo E o número do documento, ou deixe ambos em branco',
+      path: ['document'],
+    },
+  )
 
 type CreatePatientForm = z.infer<typeof createPatientSchema>
 
@@ -54,13 +69,44 @@ function NewPatientDialog({ open, onOpenChange }: NewPatientDialogProps) {
     watch,
   } = useForm<CreatePatientForm>({
     resolver: zodResolver(createPatientSchema),
+    defaultValues: {
+      documentType: '',
+      document: '',
+    },
   })
 
+  const watchedDocType = watch('documentType')
+  const watchedDoc = watch('document') ?? ''
+
+  function docPlaceholder(): string {
+    if (watchedDocType === 'cpf') return '000.000.000-00'
+    if (watchedDocType === 'rg') return 'somente dígitos'
+    return '—'
+  }
+
+  function handleDocumentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value
+    if (watchedDocType === 'cpf') {
+      setValue('document', maskCpf(raw))
+    } else {
+      // RG: apenas dígitos, máx 14 caracteres
+      setValue('document', raw.replaceAll(/\D/g, '').slice(0, 14))
+    }
+  }
+
   function onSubmit(data: CreatePatientForm) {
+    const hasDocument = !!data.documentType && !!data.document
+
     const payload = {
       name: data.name,
       phone: data.phone,
       ...(data.email ? { email: data.email } : {}),
+      ...(hasDocument
+        ? {
+            documentType: data.documentType as 'cpf' | 'rg',
+            document: unmaskDocument(data.document ?? ''),
+          }
+        : {}),
     }
     createPatient.mutate(payload, {
       onSuccess: () => {
@@ -121,6 +167,55 @@ function NewPatientDialog({ open, onOpenChange }: NewPatientDialogProps) {
               error={!!errors.email}
             />
             {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+          </div>
+
+          {/* Documento (opcional) */}
+          <div className="rounded-lg border border-[#e8dfc8] bg-cream p-3 space-y-3">
+            <p className="text-xs font-medium text-amber-mid uppercase tracking-wide">
+              Documento de identificação (opcional)
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="np-doc-type">Tipo</Label>
+                <Select
+                  value={watchedDocType ?? ''}
+                  onValueChange={(val) => {
+                    setValue('documentType', val as 'cpf' | 'rg' | '')
+                    // Limpar o valor ao trocar de tipo
+                    setValue('document', '')
+                  }}
+                >
+                  <SelectTrigger id="np-doc-type" aria-label="Tipo de documento">
+                    <SelectValue placeholder="Não informar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Não informar</SelectItem>
+                    <SelectItem value="cpf">CPF</SelectItem>
+                    <SelectItem value="rg">RG</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="np-document">Número</Label>
+                <Input
+                  id="np-document"
+                  placeholder={docPlaceholder()}
+                  value={watchedDoc}
+                  onChange={handleDocumentChange}
+                  disabled={!watchedDocType}
+                  inputMode="numeric"
+                  maxLength={14}
+                  aria-label="Número do documento"
+                  error={!!errors.document}
+                />
+              </div>
+            </div>
+
+            {errors.document && (
+              <p className="text-xs text-red-500">{errors.document.message}</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

@@ -319,6 +319,119 @@ async onPortalActivated(payload: PortalActivatedEvent) {
 
 ---
 
+## ADR-016: Single Environment (Dev + Prod) Until Scale Justifies Staging
+
+**Status**: Accepted (2026-04-09)
+
+**Context**: Solo dev project with zero real users. Question raised: should we add a staging environment between dev and prod?
+
+**Decision**: Manter apenas dev local + prod até **5 doutores ativos** OU primeiro dev adicional ao projeto. Quando precisar de uma camada intermediária pra testar migrações destrutivas com dados realistas, usar **"prod paralela em subdomínio"** (`staging.nocrato.com`) no mesmo VPS via `docker-compose.staging.yml` separado, sem custo de infra adicional. Staging dedicado (VPS separado, pipeline CI/CD com gates) só após atingir escala que justifique R$60-100/mês de infra + complexidade operacional.
+
+**Consequences**:
+- Sem custo de infra adicional na fase MVP/piloto.
+- Toda mudança valida via suite Playwright E2E completa em dev local antes de mergear (já temos esse fluxo verde).
+- Backup diário criptografado em prod cobre o pior caso (rollback via `git revert` + `pg_restore`).
+- Quando o gatilho atingir (5+ doutores ou 2º dev), reavaliar e provavelmente adotar a versão "prod paralela em subdomínio" como passo intermediário antes do staging completo.
+- Risco aceito: bugs específicos de ambiente (config de prod) só aparecem em prod. Mitigação: smoke test manual após cada deploy + rollback rápido.
+
+---
+
+## ADR-017: LGPD Compliance — Decisões da Fase 0
+
+**Status**: Accepted (2026-04-09)
+
+**Context**: Plataforma médica multi-tenant que processa dados sensíveis (LGPD Art. 11): identificação, histórico de consultas, notas clínicas, documentos médicos. Antes do primeiro doutor real, decidimos como atender LGPD sem inviabilizar o produto.
+
+**Decisões agrupadas**:
+
+### 1. Identificação do paciente — CPF ou RG, criptografado
+
+Substituir `patients.cpf` (text plain) por `patients.document` (bytea criptografado via pgcrypto) + `patients.document_type` enum (`'cpf' | 'rg'`). Paciente escolhe o tipo no booking; doutor vê o documento decriptado apenas no perfil do paciente, nunca na listagem.
+
+**Razão**: clínicas precisam de documento pra prontuário e emissão de receita controlada (CFM). CPF é melhor que RG operacionalmente (formato fixo, validação matemática, único nacional), mas dar a opção reduz fricção LGPD pro paciente. Criptografar resolve vazamento via backup/log/admin do banco.
+
+**Implementação**: chave mestra `DOCUMENT_ENCRYPTION_KEY` (32 bytes random) em env var, nunca versionada. Encrypt no insert (`pgp_sym_encrypt`), decrypt sob demanda no service. Frontend nunca vê a chave. Rotação de chave fica como débito pós-MVP.
+
+### 2. Notas clínicas — criptografadas em repouso
+
+`clinical_notes.content` também migra pra bytea criptografado via pgcrypto, mesma chave mestra ou chave separada (decisão na implementação).
+
+**Razão**: notas clínicas são o dado mais sensível depois do documento. Vazamento via backup/admin/log = exposição completa do prontuário. Esforço aceito.
+
+### 3. Retenção de event_log — 90 dias com anonimização (não exclusão)
+
+Cron job diário marca registros com `created_at < NOW() - INTERVAL '90 days'` e substitui `payload` por `'{}'`, mantendo `event_type`, `actor_type`, `created_at`. Métricas agregadas preservadas; PII zerada.
+
+**Razão**: 90 dias é tempo razoável pra resposta a incidentes (LGPD Art. 48 — comunicação à ANPD em prazo). Anonimizar (vs deletar) preserva contagens históricas pra dashboards futuros sem manter PII identificável.
+
+### 4. Consentimento explícito do titular
+
+Nova tabela `patient_consents` com `consent_version`, `accepted_at`, `ip_address`, `user_agent`, `source`. Coletado em **dois pontos**:
+- **Booking público**: checkbox obrigatório antes de "Confirmar Agendamento"
+- **Portal do paciente**: checkbox na primeira entrada com o código de acesso
+
+Pacientes criados pelo agente WhatsApp recebem consentimento implícito (primeira mensagem do agente inclui link da política + opt-out via "SAIR") com formalização no primeiro acesso ao portal.
+
+**Razão**: LGPD Art. 7º exige base legal explícita pra tratamento de dados pessoais. Consentimento é a base mais simples pra aplicação saúde. Versionamento permite reaceite quando a política mudar.
+
+### 5. Direito de exclusão (Art. 18, V)
+
+Endpoint `POST /patient/portal/delete-request` cria entrada em `event_log` (`patient.deletion_requested`) e dispara email para o doutor. Marca `patients.deletion_requested_at`. Execução real fica **manual** nesta fase — doutor revisa caso a caso considerando obrigações de guarda CFM/CRM (que podem sobrepor direito LGPD em casos específicos).
+
+**Razão**: exclusão automática de prontuário viola obrigações de retenção médica do CFM. Manual + auditável é o caminho legalmente seguro.
+
+### 6. DPO (Data Protection Officer)
+
+Designado: o próprio fundador (Pedro Vidal). Contato público obrigatório na política de privacidade.
+
+**Razão**: empresa pequena, dev solo. LGPD não exige DPO formal pra todas as empresas, mas exige um ponto de contato. Centralizar no fundador é o mais simples.
+
+### 7. Bugsink self-hosted — error tracking LGPD-clean
+
+Escolhido **Bugsink** (Sentry-compatible, self-host, 1 container Django) rodando no mesmo VPS Hostinger. Integrado na API NestJS via `@sentry/node` SDK (DSN do Bugsink em vez do Sentry SaaS). Frontend fica sem instrumentação inicialmente.
+
+**Config aplicada:**
+- `sendDefaultPii: false` — não coleta headers, cookies, IP, user-agent
+- `beforeSend(redactPii)` — redação final do evento antes do envio (defense-in-depth sobre o SEC-11)
+- `beforeBreadcrumb(redactPii)` — redação de queries SQL e fetches
+- `tracesSampleRate: 0` — performance tracing desligado
+- Bind em `127.0.0.1:8000` — acesso **apenas via SSH tunnel**, nunca exposto publicamente
+- Postgres reusado do container existente (DB `bugsink` com user isolado)
+
+**Razão**: backend é onde os dados sensíveis transitam — error tracking lá é prioridade. Sentry SaaS foi descartado porque envia stack traces e breadcrumbs pra servidores de terceiros (mesmo com EU region tem caveat), contraditório com o resto da Fase 0 (criptografia em repouso, backup criptografado, logs sem PII). Bugsink mantém 100% dos dados no VPS.
+
+**Alternativas consideradas e rejeitadas:**
+- Sentry self-hosted — exige 16GB RAM mínimos + ~25 containers; inviável no VPS básico
+- GlitchTip — válido mas mais pesado (4 containers vs 1 do Bugsink)
+- Sentry SaaS EU region — free tier bom mas transferência internacional de dados
+- AppSignal — melhor SaaS LGPD-puro (servidores NL), $19/mês, plano B quando Bugsink não for suficiente
+- Datadog/New Relic — overkill + US-based
+
+**Plano de migração futura**: SDK é idêntico pro Sentry SaaS, AppSignal ou GlitchTip. Se Bugsink não atender (bug grave, manutenção ruim, features faltando), troca a DSN e reinstala um SDK específico. Zero lock-in.
+
+**Frontend errors**: são menos críticos pro MVP e adicionam complexidade de CSP. Reavaliar quando tiver tráfego real.
+
+### 8. Backup criptografado — pg_dump + GPG
+
+`pg_dump` diário via cron, output passado por `gpg --encrypt`, armazenado em pasta no VPS com retenção 7 dias daily + 4 weekly. Offsite (S3-like) fica como hardening pós-MVP.
+
+**Razão**: backup não-criptografado é cópia plaintext de tudo que está no banco. GPG simétrico com chave fora do VPS resolve risco de exfiltração via comprometimento do servidor.
+
+### 9. Nginx access logs — sem query strings
+
+Configuração: `log_format` customizado que registra apenas método + path (sem query string), removendo qualquer dado vazado por GET com parâmetros.
+
+**Razão**: defense-in-depth — mesmo que nenhum endpoint passe PII em GET hoje (TD-25 já moveu `resolve-email` pra POST), evita regressão acidental futura.
+
+**Consequences globais**:
+- ~17h de implementação distribuída em 2 sessões (A: dados em repouso + logs, B: consentimento + direitos do titular).
+- Schema do banco muda 3 tabelas (`patients`, `clinical_notes`, `event_log`) + 1 nova (`patient_consents`).
+- Perda mínima de funcionalidade: doutor continua vendo CPF/notas normalmente, decriptação é transparente no service.
+- Nova obrigação operacional: rotação manual da `DOCUMENT_ENCRYPTION_KEY` e backup separado da chave (perder a chave = perder o acesso aos dados criptografados — pior que perder o backup).
+- Política de privacidade publicada vincula a empresa legalmente — reaceite obrigatório quando mudar.
+
+---
+
 ## Decision Summary
 
 | # | Decision | Key Trade-off |
@@ -338,3 +451,6 @@ async onPortalActivated(payload: PortalActivatedEvent) {
 | 013 | Deactivation keeps existing appointments | Potential stale appointments vs patient continuity |
 | 014 | EventEmitter2 para comunicacao interna | Sem re-processamento em crash vs latencia zero + desacoplamento |
 | 015 | Patient portal without JWT | Code-based security vs zero friction |
+| 016 | Single environment (dev + prod) até 5 doutores | Custo zero vs sem camada intermediária pra mudanças arriscadas |
+| 017 | LGPD Fase 0 — criptografia, consentimento, retenção 90d | ~17h de impl + nova chave de criptografia vs conformidade legal pra dados sensíveis |
+| 017.7 | Bugsink self-hosted para error tracking | +1 container Django vs zero transferência internacional de dados + zero custo recorrente |

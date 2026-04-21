@@ -1,19 +1,31 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
+import { env } from '@/config/env'
 import { CreateClinicalNoteDto } from './dto/create-clinical-note.dto'
 import { ListClinicalNotesDto } from './dto/list-clinical-notes.dto'
 
-// Campos retornados em queries de notas clínicas
+// Campos base retornados em queries de notas clínicas (sem content — requer decrypt via raw)
 // Exclui tenant_id (interno) e updated_at (não relevante para o response)
 // Exportado para reutilização em appointment.service e patient.service (sem alias de tabela)
-const CLINICAL_NOTE_FIELDS = [
+const CLINICAL_NOTE_BASE_FIELDS = [
   'id',
   'appointment_id',
   'patient_id',
-  'content',
   'created_at',
 ] as const
+
+/**
+ * Retorna o array de campos para SELECT de notas clínicas, incluindo o decrypt de content.
+ * Deve ser usado em todo SELECT que precise do campo content.
+ * Recebe a instância knex (ou trx) para construir o raw com a chave de criptografia.
+ */
+export function getClinicalNoteSelectFields(knex: Knex): (string | Knex.Raw)[] {
+  return [
+    ...CLINICAL_NOTE_BASE_FIELDS,
+    knex.raw('pgp_sym_decrypt(content, ?) as content', [env.DOCUMENT_ENCRYPTION_KEY]),
+  ]
+}
 
 @Injectable()
 export class ClinicalNoteService {
@@ -48,15 +60,18 @@ export class ClinicalNoteService {
         throw new NotFoundException('Paciente não encontrado')
       }
 
-      // 3. Inserir a nota clínica
+      // 3. Inserir a nota clínica com content criptografado via pgcrypto
       const [note] = await trx('clinical_notes')
         .insert({
           tenant_id: tenantId,
           appointment_id: appointmentId,
           patient_id: patientId,
-          content,
+          content: trx.raw('pgp_sym_encrypt(?, ?)', [content, env.DOCUMENT_ENCRYPTION_KEY]),
         })
-        .returning([...CLINICAL_NOTE_FIELDS])
+        .returning([
+          ...CLINICAL_NOTE_BASE_FIELDS,
+          trx.raw('pgp_sym_decrypt(content, ?) as content', [env.DOCUMENT_ENCRYPTION_KEY]),
+        ])
 
       // 4. Registrar evento no event_log como audit trail
       await trx('event_log').insert({
@@ -92,7 +107,7 @@ export class ClinicalNoteService {
     const total = Number(countResult?.count ?? 0)
 
     const data = await builder
-      .select([...CLINICAL_NOTE_FIELDS])
+      .select(getClinicalNoteSelectFields(this.knex))
       .orderBy('created_at', 'desc')
       .offset((page - 1) * limit)
       .limit(limit)
@@ -109,5 +124,5 @@ export class ClinicalNoteService {
   }
 }
 
-// Exportar constante de campos para reutilização (ex: appointment detail)
-export { CLINICAL_NOTE_FIELDS }
+// Exportar constante base de campos para reutilização onde não é necessário o content
+export { CLINICAL_NOTE_BASE_FIELDS }

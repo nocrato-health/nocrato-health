@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') })
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -336,6 +336,10 @@ async function runSeed() {
       },
     ]
 
+    const encKey = process.env.DOCUMENT_ENCRYPTION_KEY
+    if (!encKey) {
+      throw new Error('DOCUMENT_ENCRYPTION_KEY is required to seed clinical_notes (content is BYTEA encrypted)')
+    }
     for (const note of notesData) {
       // Idempotência: verificar por (appointment_id, patient_id)
       const existingNote = await db('clinical_notes')
@@ -343,7 +347,12 @@ async function runSeed() {
         .first()
 
       if (!existingNote) {
-        await db('clinical_notes').insert(note)
+        await db('clinical_notes').insert({
+          tenant_id: note.tenant_id,
+          patient_id: note.patient_id,
+          appointment_id: note.appointment_id,
+          content: db.raw('pgp_sym_encrypt(?, ?)', [note.content, encKey]),
+        })
         counts.clinical_notes += 1
       }
     }

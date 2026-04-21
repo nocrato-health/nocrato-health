@@ -95,7 +95,7 @@ consulta segue: `scheduled → waiting → in_progress → completed` (com deriv
 - **Endpoint:** `GET /api/v1/doctor/appointments/:id`
 - **Busca:** `appointments WHERE { id, tenant_id }` → 404 `'Consulta não encontrada'` se null
 - **Paralelo:** `Promise.all([patient query, clinical_notes query])`
-- **Patient:** campos `APPOINTMENT_DETAIL_PATIENT_FIELDS` (exclui `cpf` e `portal_access_code`)
+- **Patient:** campos `APPOINTMENT_DETAIL_PATIENT_FIELDS` (exclui `document` e `portal_access_code`)
 - **Paciente deletado:** `patient = undefined` não lança 404 — retorna `patient: undefined` (comportamento MVP)
 - **Response:** `{ appointment, patient, clinicalNotes }`
 - **OBS-TL-1 (baixo risco MVP):** `APPOINTMENT_LIST_FIELDS` reutilizado no detalhe — acoplamento implícito aceitável

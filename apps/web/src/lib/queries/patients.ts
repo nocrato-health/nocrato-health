@@ -1,6 +1,6 @@
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
-import type { PatientListItem, PatientProfile, PaginatedResponse } from '@/types/api'
+import type { PatientListItem, PatientProfile, PatientDocumentResponse, PaginatedResponse } from '@/types/api'
 
 // ─── Tipos de payload ─────────────────────────────────────────────────────────
 
@@ -14,7 +14,8 @@ export interface PatientsQueryParams {
 export interface CreatePatientPayload {
   name: string
   phone: string
-  cpf?: string
+  document?: string
+  documentType?: 'cpf' | 'rg'
   email?: string
   dateOfBirth?: string
 }
@@ -22,7 +23,8 @@ export interface CreatePatientPayload {
 export interface UpdatePatientPayload {
   name?: string
   phone?: string
-  cpf?: string
+  document?: string
+  documentType?: 'cpf' | 'rg'
   email?: string
   status?: 'active' | 'inactive'
 }
@@ -51,6 +53,21 @@ export const patientProfileQueryOptions = (id: string) =>
     queryFn: () => api.get<PatientProfile>(`/api/v1/doctor/patients/${id}`),
     enabled: !!id,
   })
+
+// Dado sensível: enabled: false para nunca buscar automaticamente.
+// staleTime/gcTime: 0 para não cachear — limpar após navegação.
+export const patientDocumentQueryOptions = (id: string) =>
+  queryOptions<PatientDocumentResponse | null>({
+    queryKey: ['doctor', 'patients', id, 'document'],
+    queryFn: () => api.get<PatientDocumentResponse | null>(`/api/v1/doctor/patients/${id}/document`),
+    enabled: false,
+    staleTime: 0,
+    gcTime: 0,
+  })
+
+export function usePatientDocumentQuery(patientId: string) {
+  return useQuery(patientDocumentQueryOptions(patientId))
+}
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 

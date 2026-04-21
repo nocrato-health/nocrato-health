@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -8,6 +9,8 @@ import {
 import type { Knex } from 'knex'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { KNEX } from '@/database/knex.provider'
+import { env } from '@/config/env'
+import { getClinicalNoteSelectFields } from '@/modules/clinical-note/clinical-note.service'
 import { EventLogService } from '@/modules/event-log/event-log.service'
 import { ListPatientsQueryDto } from './dto/list-patients.dto'
 import { CreatePatientDto } from './dto/create-patient.dto'
@@ -24,7 +27,8 @@ export interface PatientPublicRow {
   created_at: Date | string
 }
 
-// Campos públicos retornados na listagem — cpf e portal_access_code nunca são expostos
+// Campos públicos retornados na listagem — document e portal_access_code nunca são expostos
+// document_type é metadado não sensível (indica se o paciente tem CPF ou RG)
 const PUBLIC_PATIENT_FIELDS = [
   'id',
   'name',
@@ -32,10 +36,12 @@ const PUBLIC_PATIENT_FIELDS = [
   'email',
   'source',
   'status',
+  'document_type',
   'created_at',
 ] as const
 
-// Campos do perfil completo do paciente — inclui portal_active, exclui cpf e portal_access_code
+// Campos do perfil completo do paciente — inclui portal_active, exclui document e portal_access_code
+// document_type é metadado não sensível, pode aparecer no perfil
 const PATIENT_PROFILE_FIELDS = [
   'id',
   'name',
@@ -44,6 +50,7 @@ const PATIENT_PROFILE_FIELDS = [
   'source',
   'status',
   'portal_active',
+  'document_type',
   'created_at',
 ] as const
 
@@ -56,13 +63,6 @@ const APPOINTMENT_FIELDS = [
   'completed_at',
 ] as const
 
-const CLINICAL_NOTE_FIELDS = [
-  'id',
-  'appointment_id',
-  'content',
-  'created_at',
-] as const
-
 const DOCUMENT_FIELDS = [
   'id',
   'file_name',
@@ -71,6 +71,25 @@ const DOCUMENT_FIELDS = [
   'mime_type',
   'created_at',
 ] as const
+
+// Normaliza documento para apenas dígitos antes do encrypt
+function normalizeDocumentDigits(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+// Valida formato do documento conforme o tipo
+function validateDocumentFormat(normalized: string, documentType: 'cpf' | 'rg'): void {
+  if (documentType === 'cpf') {
+    if (normalized.length !== 11) {
+      throw new BadRequestException('CPF deve ter 11 dígitos')
+    }
+  } else {
+    // RG: 7 a 14 dígitos (varia por estado)
+    if (normalized.length < 7 || normalized.length > 14) {
+      throw new BadRequestException('RG deve ter entre 7 e 14 dígitos')
+    }
+  }
+}
 
 @Injectable()
 export class PatientService {
@@ -146,7 +165,7 @@ export class PatientService {
         .orderBy('date_time', 'desc'),
       this.knex('clinical_notes')
         .where({ tenant_id: tenantId, patient_id: patientId })
-        .select(CLINICAL_NOTE_FIELDS)
+        .select(getClinicalNoteSelectFields(this.knex))
         .orderBy('created_at', 'desc'),
       this.knex('documents')
         .where({ tenant_id: tenantId, patient_id: patientId })
@@ -159,6 +178,36 @@ export class PatientService {
       appointments,
       clinicalNotes,
       documents,
+    }
+  }
+
+  // Retorna o documento descriptografado do paciente (endpoint separado — dado sensível)
+  async getDoctorPatientDocument(
+    tenantId: string,
+    patientId: string,
+  ): Promise<{ document_type: 'cpf' | 'rg'; document: string } | null> {
+    const result = await this.knex
+      .select([
+        'document_type',
+        this.knex.raw(`pgp_sym_decrypt(document, ?) AS document`, [env.DOCUMENT_ENCRYPTION_KEY]),
+      ])
+      .from('patients')
+      .where({ id: patientId, tenant_id: tenantId })
+      .first()
+
+    // Paciente não encontrado (ou pertence a outro tenant — isolamento)
+    if (result === undefined || result === null) {
+      throw new NotFoundException('Paciente não encontrado')
+    }
+
+    // Paciente sem documento cadastrado
+    if (result.document_type === null || result.document_type === undefined) {
+      return null
+    }
+
+    return {
+      document_type: result.document_type as 'cpf' | 'rg',
+      document: result.document as string,
     }
   }
 
@@ -178,9 +227,17 @@ export class PatientService {
     const updateData: Record<string, unknown> = {}
     if (dto.name !== undefined) updateData.name = dto.name
     if (dto.phone !== undefined) updateData.phone = dto.phone
-    if (dto.cpf !== undefined) updateData.cpf = dto.cpf
     if (dto.email !== undefined) updateData.email = dto.email
     if (dto.status !== undefined) updateData.status = dto.status
+
+    // Documento: normalizar, validar formato, encriptar (ambos presentes ou nenhum — garantido pelo DTO)
+    if (dto.document !== undefined && dto.documentType !== undefined) {
+      const normalized = normalizeDocumentDigits(dto.document)
+      validateDocumentFormat(normalized, dto.documentType)
+      updateData.document = this.knex.raw('pgp_sym_encrypt(?, ?)', [normalized, env.DOCUMENT_ENCRYPTION_KEY])
+      updateData.document_type = dto.documentType
+    }
+
     updateData.updated_at = this.knex.fn.now()
 
     try {
@@ -207,7 +264,18 @@ export class PatientService {
 
   // US-4.3: Criação manual de paciente pelo doutor
   async createPatient(tenantId: string, dto: CreatePatientDto) {
-    const { name, phone, cpf, email, dateOfBirth } = dto
+    const { name, phone, document, documentType, email, dateOfBirth } = dto
+
+    // Preparar dados do documento se fornecidos
+    let documentValue: ReturnType<Knex['raw']> | null = null
+    let documentTypeValue: string | null = null
+
+    if (document !== undefined && documentType !== undefined) {
+      const normalized = normalizeDocumentDigits(document)
+      validateDocumentFormat(normalized, documentType)
+      documentValue = this.knex.raw('pgp_sym_encrypt(?, ?)', [normalized, env.DOCUMENT_ENCRYPTION_KEY])
+      documentTypeValue = documentType
+    }
 
     try {
       const [patient] = await this.knex('patients')
@@ -215,7 +283,8 @@ export class PatientService {
           tenant_id: tenantId,
           name,
           phone,
-          cpf: cpf ?? null,
+          document: documentValue,
+          document_type: documentTypeValue,
           email: email ?? null,
           date_of_birth: dateOfBirth ?? null,
           source: 'manual',
@@ -410,12 +479,13 @@ export class PatientService {
       .update({ portal_active: true })
 
     // 4. Registrar no event_log via EventLogService
+    // LGPD SEC-11: payload sem PII — telefone pode ser recuperado via patients join.
     await this.eventLogService.append(
       tenantId,
       'patient.portal_activated',
       'system',
       null,
-      { patientId, phone: patient.phone },
+      { patientId },
     )
 
     // 5. Emitir evento via EventEmitter2 (fire-and-forget)

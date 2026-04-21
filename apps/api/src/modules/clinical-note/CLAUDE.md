@@ -35,9 +35,9 @@ Notas clínicas são registros internos do médico — nunca expostas ao portal 
 
 ## Campos retornados (US-6.1 e US-6.2)
 
-`id`, `appointment_id`, `patient_id`, `content`, `created_at`
+`id`, `appointment_id`, `patient_id`, `content` (descriptografado via pgp_sym_decrypt), `created_at`
 
-Constante `CLINICAL_NOTE_FIELDS` exportada de `clinical-note.service.ts` para reutilização em `appointment.service` e `patient.service` (sem alias de tabela).
+Constante `CLINICAL_NOTE_BASE_FIELDS` (sem content) + helper `getClinicalNoteSelectFields(knex)` exportados de `clinical-note.service.ts`. O helper adiciona `pgp_sym_decrypt(content, ?) as content` ao SELECT. Usado em `appointment.service`, `patient.service` e internamente na listagem.
 
 ## Regras de negócio
 
