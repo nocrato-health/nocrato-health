@@ -7,7 +7,7 @@ type: database
 
 ## Migration Order
 
-The schema is split into 20 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
+The schema is split into 22 sequential migration files. The ordering strictly respects foreign key dependencies: each migration only references tables created in earlier migrations.
 
 | # | Migration File | Table/Object Created | FK Dependencies |
 |---|---------------|---------------------|-----------------|
@@ -31,6 +31,8 @@ The schema is split into 20 sequential migration files. The ordering strictly re
 | 018 | `018_patients_document_pgcrypto.ts` | Drop `patients.cpf`, add `patients.document` (bytea pgcrypto) + `document_type` enum (cpf\|rg). LGPD fase 0. **⚠️ Destrutiva:** rollback recria `cpf` vazio — dados do `document` ciphertext são perdidos. Após deploy em prod, rollback NÃO é viável sem migração de compensação. | `patients` (006) |
 | 019 | `019_encrypt_clinical_notes_content.ts` | Drop `clinical_notes.content` (TEXT), add `clinical_notes.content` (BYTEA pgcrypto AES-256). LGPD fase 0. **⚠️ Destrutiva:** 12 notas em dev perdidas (confirmado OK), prod vazio. Mesma chave `DOCUMENT_ENCRYPTION_KEY` de 018. Rollback NÃO recupera ciphertext. | `clinical_notes` (008) |
 | 020 | `020_add_whatsapp_cloud_api_columns.ts` | ADD `agent_settings.whatsapp_phone_number_id` (VARCHAR 50), `whatsapp_waba_id` (VARCHAR 50), `whatsapp_display_phone_number` (VARCHAR 20), `whatsapp_verified_name` (VARCHAR 255). Unique partial index `idx_agent_settings_cloud_phone_number_id` WHERE NOT NULL. | `agent_settings` (005) |
+| 021 | `021_create_patient_consents.ts` | CREATE `patient_consents` (LGPD Art. 7º — consent records). ADD `patients.deletion_requested_at` (LGPD Art. 18, V). Indexes: `idx_patient_consents_tenant_patient`, `idx_patient_consents_type_version`. | `tenants` (003), `patients` (006) |
+| 022 | `022_add_handoff_to_conversations.ts` | ADD `conversations.mode` (VARCHAR 20, DEFAULT 'agent', CHECK agent\|human) + `conversations.last_fromme_at` (TIMESTAMPTZ NULL). Auto-handoff doutor↔agente. | `conversations` (013) |
 
 ---
 
@@ -76,6 +78,14 @@ The dependency ordering can be visualized as a directed acyclic graph (DAG). An 
  +---> 017 alter agency_members + doctors (add refresh_token_version column)
  |
  +---> 018 alter patients (drop cpf; add document bytea + document_type; LGPD fase 0)
+ |
+ +---> 019 alter clinical_notes (content TEXT → BYTEA pgcrypto; LGPD fase 0)
+ |
+ +---> 020 alter agent_settings (add whatsapp Cloud API columns)
+ |
+ +---> 021 create patient_consents + alter patients (add deletion_requested_at; LGPD sessão B)
+ |
+ +---> 022 alter conversations (add mode + last_fromme_at; auto-handoff doutor↔agente)
 ```
 
 ### Critical Ordering Constraints
@@ -203,6 +213,8 @@ Migration 012 (triggers) additionally contains:
 | booking_tokens | `idx_booking_tokens_expires_at` | B-tree | Cleanup of expired tokens |
 | conversations | `idx_conversations_tenant_phone` | Unique Composite | getOrCreate by tenant + phone |
 | conversations | `idx_conversations_last_message_at` | B-tree | Cleanup of stale sessions |
+| patient_consents | `idx_patient_consents_tenant_patient` | Composite B-tree | Patient consent lookup within tenant |
+| patient_consents | `idx_patient_consents_type_version` | Composite B-tree | Audit: who accepted version X? |
 
 ### Index Design Principles
 

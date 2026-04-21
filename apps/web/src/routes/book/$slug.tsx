@@ -67,11 +67,18 @@ function localToIso(date: string, time: string, timezone: string): string {
   return new Date(naive.getTime() + offsetMs).toISOString()
 }
 
+// ─── Constante: URL da política de privacidade ────────────────────────────────
+
+const PRIVACY_POLICY_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/api/v1/politica-de-privacidade`
+
 // ─── Schema do formulário de confirmação ──────────────────────────────────────
 
 const confirmSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   phone: z.string().min(8, 'Telefone inválido'),
+  consentAccepted: z.literal(true, {
+    errorMap: () => ({ message: 'Você deve aceitar a Política de Privacidade para continuar.' }),
+  }),
 })
 
 type ConfirmForm = z.infer<typeof confirmSchema>
@@ -316,13 +323,17 @@ function Step3ConfirmForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ConfirmForm>({
     resolver: zodResolver(confirmSchema),
     defaultValues: {
       phone: prefillPhone ?? '',
+      consentAccepted: undefined,
     },
   })
+
+  const consentChecked = watch('consentAccepted')
 
   function onSubmit(data: ConfirmForm) {
     setMutationError(null)
@@ -333,6 +344,7 @@ function Step3ConfirmForm({
         name: data.name,
         phone: data.phone,
         dateTime: localToIso(selectedDate, selectedSlot.start, timezone),
+        consentAccepted: data.consentAccepted,
       },
       {
         onSuccess: (result) => {
@@ -418,10 +430,35 @@ function Step3ConfirmForm({
           )}
         </div>
 
+        <div className="space-y-1.5">
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              {...register('consentAccepted', { setValueAs: (v) => v === true || v === 'true' ? true as const : undefined as unknown as true })}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#e8dfc8] accent-amber-500 cursor-pointer"
+            />
+            <span className="text-sm text-amber-mid leading-snug">
+              Li e aceito a{' '}
+              <a
+                href={PRIVACY_POLICY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-steel underline underline-offset-2 hover:text-amber-dark transition-colors"
+              >
+                Política de Privacidade
+              </a>
+            </span>
+          </label>
+          {errors.consentAccepted && (
+            <p className="text-xs text-red-500">{errors.consentAccepted.message}</p>
+          )}
+        </div>
+
         <Button
           type="submit"
           className="w-full"
           size="lg"
+          disabled={!consentChecked}
           loading={isSubmitting || bookAppointment.isPending}
         >
           Confirmar agendamento

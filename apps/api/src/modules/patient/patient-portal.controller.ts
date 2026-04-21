@@ -47,6 +47,31 @@ export class PatientPortalController {
   }
 
   /**
+   * POST /api/v1/patient/portal/delete-request
+   *
+   * LGPD Art. 18, V: Solicita exclusão dos dados pessoais.
+   * Registra a solicitação e notifica o doutor. Execução manual.
+   */
+  @Post('delete-request')
+  @UseGuards(E2eAwareThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60 * 60 * 1000 } })
+  @ApiOperation({ summary: 'Solicitar exclusão de dados pessoais (LGPD Art. 18, V)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['code'],
+      properties: {
+        code: { type: 'string', example: 'ABC-1234-XYZ', description: 'Código de acesso do paciente' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Solicitação registrada' })
+  @ApiResponse({ status: 401, description: 'Código de acesso inválido' })
+  deleteRequest(@Body(new ZodValidationPipe(GetPortalAccessSchema)) dto: GetPortalAccessDto) {
+    return this.patientService.requestDeletion(dto.code)
+  }
+
+  /**
    * GET /api/v1/patient/portal/documents/:id?code=<code>
    *
    * Faz o download de um documento do paciente. Autenticado via query param `code`.

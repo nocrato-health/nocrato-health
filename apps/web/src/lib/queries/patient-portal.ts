@@ -122,6 +122,30 @@ export function buildDocumentDownloadUrl(documentId: string, code: string): stri
 
 // ─── Mutation de acesso ───────────────────────────────────────────────────────
 
+export function usePatientDeleteRequest() {
+  return useMutation({
+    mutationFn: async (code: string): Promise<{ message: string }> => {
+      const response = await fetch(`${API_BASE}/api/v1/patient/portal/delete-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          message: 'Erro ao solicitar exclusão. Tente novamente.',
+        }))
+        throw Object.assign(
+          new Error(errorData.message ?? 'Erro ao solicitar exclusão. Tente novamente.'),
+          { status: response.status, data: errorData },
+        )
+      }
+
+      return response.json() as Promise<{ message: string }>
+    },
+  })
+}
+
 export function usePatientPortalAccess() {
   return useMutation({
     mutationFn: async (code: string): Promise<PatientPortalData> => {

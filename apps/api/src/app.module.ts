@@ -12,6 +12,7 @@ import { AppointmentModule } from './modules/appointment/appointment.module'
 import { ClinicalNoteModule } from './modules/clinical-note/clinical-note.module'
 import { DocumentModule } from './modules/document/document.module'
 import { BookingModule } from './modules/booking/booking.module'
+import { ConsentModule } from './modules/consent/consent.module'
 import { AgentModule } from './modules/agent/agent.module'
 import { HealthController } from './modules/health/health.controller'
 
@@ -30,6 +31,7 @@ import { HealthController } from './modules/health/health.controller'
     ClinicalNoteModule,
     DocumentModule,
     BookingModule,
+    ConsentModule,
     AgentModule,
   ],
   controllers: [HealthController],

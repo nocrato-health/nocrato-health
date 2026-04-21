@@ -25,6 +25,7 @@ tenants (doctor portal container - isolation boundary)
     |       |       |-- clinical_notes (many per appointment, scoped to tenant + patient)
     |       |       |-- documents (optionally linked to appointment)
     |       |-- documents (many per patient, scoped to tenant)
+    |       |-- patient_consents (many per patient - LGPD consent records)
     |-- event_log (append-only audit trail per tenant)
 ```
 
@@ -118,6 +119,13 @@ Temporary tokens (24h expiry) for securing the public booking page. Generated pe
 ### 12. conversations
 WhatsApp conversation state per patient phone number, scoped to tenant. Stores up to the last 20 messages as JSONB for LLM context window. Used exclusively by the `agent/` module (`conversation.service.ts`). Identified by the composite unique key `(tenant_id, phone)` — the phone number is the session identifier (no JWT required).
 
+Colunas de handoff doutor↔agente (migration 022):
+- `mode VARCHAR(20) DEFAULT 'agent'` — `'agent'` (IA responde) ou `'human'` (doutor assumiu). Auto-detectado quando o webhook recebe `fromMe=true`.
+- `last_fromme_at TIMESTAMPTZ` — timestamp da última msg do doutor. Auto-revert para `'agent'` após 30min sem atividade do doutor.
+
+### 13. patient_consents
+LGPD Art. 7º — Registro de consentimento explícito do titular de dados. Coletado em três pontos: booking público (checkbox obrigatório), portal do paciente (primeiro acesso), e agente WhatsApp (consentimento implícito com link da política + opt-out). Versionado via `consent_version` para permitir reaceite quando a política de privacidade mudar. Append-only (novo registro por aceite, não update). Coluna `deletion_requested_at` na tabela patients (não aqui) registra quando o paciente exerceu o direito de exclusão (Art. 18, V).
+
 ---
 
 ## Relationships
@@ -142,9 +150,11 @@ WhatsApp conversation state per patient phone number, scoped to tenant. Stores u
 | tenants | event_log | `event_log.tenant_id` | CASCADE | Many audit events per tenant. |
 | tenants | booking_tokens | `booking_tokens.tenant_id` | CASCADE | Many booking tokens per tenant. |
 | tenants | conversations | `conversations.tenant_id` | CASCADE | Many conversation threads per tenant (one per patient phone). |
+| tenants | patient_consents | `patient_consents.tenant_id` | CASCADE | Many consent records per tenant. |
 | patients | appointments | `appointments.patient_id` | CASCADE | Many appointments per patient. |
 | patients | documents | `documents.patient_id` | CASCADE | Many documents per patient. |
 | patients | clinical_notes | `clinical_notes.patient_id` | CASCADE | Many notes per patient (across appointments). |
+| patients | patient_consents | `patient_consents.patient_id` | CASCADE | Many consent records per patient (versioned). |
 | appointments | clinical_notes | `clinical_notes.appointment_id` | CASCADE | Many notes per appointment. |
 | appointments | documents | `documents.appointment_id` | SET NULL | Optional link. SET NULL preserves the document if the appointment is deleted. |
 
@@ -184,6 +194,7 @@ Every table below `tenants` in the hierarchy carries a `tenant_id` foreign key c
 | event_log | Yes | Audit events scoped to a tenant. |
 | booking_tokens | Yes | Tokens scoped to a tenant's booking page. |
 | conversations | Yes | WhatsApp agent chat state scoped to one tenant. |
+| patient_consents | Yes | LGPD consent records scoped to a tenant. |
 
 ### Why Denormalize tenant_id
 

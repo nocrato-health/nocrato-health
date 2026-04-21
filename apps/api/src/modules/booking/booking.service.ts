@@ -11,6 +11,7 @@ import type { Knex } from 'knex'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { KNEX } from '@/database/knex.provider'
 import { EventLogService } from '@/modules/event-log/event-log.service'
+import { ConsentService } from '@/modules/consent/consent.service'
 import { env } from '@/config/env'
 import type { BookAppointmentDto, BookInChatDto } from './booking.dto'
 
@@ -128,6 +129,7 @@ export class BookingService {
     @Inject(KNEX) private readonly knex: Knex,
     private readonly eventEmitter: EventEmitter2,
     private readonly eventLogService: EventLogService,
+    private readonly consentService: ConsentService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -616,6 +618,14 @@ export class BookingService {
       }
 
       const patientId: string = patient.id as string
+
+      // 8b. Registrar consentimento LGPD (privacy_policy via booking)
+      await this.consentService.registerConsent({
+        tenantId,
+        patientId,
+        consentType: 'privacy_policy',
+        source: 'booking',
+      })
 
       // 9. INSERT appointment
       const [appointment] = await trx('appointments')

@@ -3,9 +3,9 @@
 -- =============================================================================
 -- Version: 1.0.0 (MVP)
 -- Convention: snake_case, UUIDs, created_at/updated_at on all tables
--- Tables: 12 (agency_members, invites, tenants, doctors, agent_settings,
+-- Tables: 13 (agency_members, invites, tenants, doctors, agent_settings,
 --              patients, appointments, clinical_notes, documents, event_log,
---              booking_tokens, conversations)
+--              booking_tokens, conversations, patient_consents)
 -- =============================================================================
 
 -- Enable UUID generation (built into PostgreSQL 14+, but explicit for clarity)
@@ -327,6 +327,10 @@ CREATE TABLE patients (
         (document IS NOT NULL AND document_type IS NOT NULL)
     )
     -- Garante consistência: ou ambos preenchidos ou ambos NULL.
+    deletion_requested_at   TIMESTAMPTZ,
+    -- LGPD Art. 18, V: timestamp de quando o paciente solicitou exclusão de dados.
+    -- NULL = sem solicitação. Preenchido = aguardando análise manual pelo doutor.
+    -- Execução manual (obrigações CFM podem sobrepor direito LGPD).
 );
 
 -- Index: phone lookup within tenant (agent's primary patient resolution)
@@ -641,10 +645,20 @@ CREATE TABLE conversations (
     -- Format: [{ role: 'user'|'assistant', content: '...', timestamp: 'ISO8601' }]
     -- Policy: keep last 20 messages; older ones are trimmed in-app (not in DB)
     last_message_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    mode            VARCHAR(20)  NOT NULL DEFAULT 'agent',
+    -- 'agent' | 'human'
+    -- 'agent': agente IA responde automaticamente.
+    -- 'human': doutor assumiu a conversa (auto-detectado via fromMe ou manual).
+    -- Reverte automaticamente para 'agent' após 30min sem msg do doutor.
+    last_fromme_at  TIMESTAMPTZ,
+    -- Timestamp da última mensagem fromMe=true (enviada pelo doutor).
+    -- Usado para auto-revert: se now() - last_fromme_at > 30min → mode volta a 'agent'.
+    -- NULL quando o doutor nunca respondeu diretamente.
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    CONSTRAINT conversations_tenant_phone UNIQUE (tenant_id, phone)
+    CONSTRAINT conversations_tenant_phone UNIQUE (tenant_id, phone),
+    CONSTRAINT conversations_mode_check CHECK (mode IN ('agent', 'human'))
 );
 
 -- Index: primary access pattern (getOrCreate by tenant + phone)
@@ -657,3 +671,45 @@ COMMENT ON TABLE conversations IS 'WhatsApp agent conversation state. One row pe
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- =============================================================================
+-- 13. PATIENT CONSENTS
+-- LGPD Art. 7º — Registro de consentimento explícito do titular.
+-- Coletado em: booking público (checkbox), portal do paciente (primeiro acesso),
+-- agente WhatsApp (consentimento implícito com link da política).
+-- Versionado para reaceite quando a política mudar.
+-- =============================================================================
+CREATE TABLE patient_consents (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    patient_id      UUID         NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    consent_type    VARCHAR(50)  NOT NULL,
+    -- 'privacy_policy' | 'data_processing'
+    -- Expandível para outros tipos de consentimento no futuro.
+    consent_version VARCHAR(20)  NOT NULL DEFAULT '1.0',
+    -- Versão da política aceita. Permite reaceite quando a política mudar.
+    accepted_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    -- Quando o consentimento foi registrado.
+    ip_address      VARCHAR(45),
+    -- IPv4 ou IPv6 do titular no momento do consentimento. NULL para agente WhatsApp.
+    user_agent      TEXT,
+    -- User-Agent do navegador. NULL para agente WhatsApp.
+    source          VARCHAR(50)  NOT NULL,
+    -- 'booking' | 'patient_portal' | 'whatsapp_agent'
+    -- De onde o consentimento foi coletado.
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    CONSTRAINT patient_consents_type_check CHECK (consent_type IN ('privacy_policy', 'data_processing')),
+    CONSTRAINT patient_consents_source_check CHECK (source IN ('booking', 'patient_portal', 'whatsapp_agent'))
+);
+
+-- Index: lookup by patient within tenant (portal shows consent history)
+CREATE INDEX idx_patient_consents_tenant_patient ON patient_consents (tenant_id, patient_id);
+
+-- Index: consent type filtering (audit: "quem aceitou a versão X?")
+CREATE INDEX idx_patient_consents_type_version ON patient_consents (consent_type, consent_version);
+
+COMMENT ON TABLE patient_consents IS 'LGPD Art. 7º — Registro de consentimento explícito. Versionado para reaceite.';
+COMMENT ON COLUMN patient_consents.consent_version IS 'Versão da política aceita. Requer novo consentimento quando muda.';
+COMMENT ON COLUMN patient_consents.source IS 'Ponto de coleta: booking, patient_portal ou whatsapp_agent.';

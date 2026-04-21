@@ -8,6 +8,8 @@ import {
   Inject,
   Logger,
   NotFoundException,
+  Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common'
@@ -26,9 +28,14 @@ import {
   type WhatsAppConnectionProvider,
   type SignupBasedConnectionProvider,
 } from './whatsapp-connection.provider'
+import { ConversationService, type ConversationMode } from './conversation.service'
 
 const ConnectCloudSchema = z.object({
   code: z.string().min(10, 'Code OAuth da Meta inválido'),
+})
+
+const SetConversationModeSchema = z.object({
+  mode: z.enum(['agent', 'human']),
 })
 
 @Controller('doctor/whatsapp')
@@ -43,6 +50,7 @@ export class WhatsAppConnectionController {
     private readonly connectionProvider: WhatsAppConnectionProvider,
     @Inject(CLOUD_API_CONNECTION_PROVIDER)
     private readonly cloudProvider: SignupBasedConnectionProvider,
+    private readonly conversationService: ConversationService,
   ) {}
 
   private buildWebhookUrl(): string {
@@ -196,5 +204,27 @@ export class WhatsAppConnectionController {
       verifiedName: result.verifiedName,
       status: 'connected' as const,
     }
+  }
+
+  /**
+   * PATCH /api/v1/doctor/whatsapp/conversations/:phone/mode
+   *
+   * Permite ao doutor alternar manualmente entre modo agente e modo humano.
+   * Útil como atalho: "Devolver ao agente" sem esperar o timeout de 30min.
+   */
+  @Patch('conversations/:phone/mode')
+  async setConversationMode(
+    @TenantId() tenantId: string,
+    @Param('phone') phone: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = SetConversationModeSchema.safeParse(body)
+    if (!parsed.success) {
+      throw new BadRequestException('Modo inválido. Use "agent" ou "human".')
+    }
+
+    await this.conversationService.setMode(tenantId, phone, parsed.data.mode as ConversationMode)
+
+    return { phone, mode: parsed.data.mode }
   }
 }

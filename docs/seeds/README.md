@@ -106,3 +106,4 @@ Cria o arquivo com template preenchido e ID sequencial. Ainda não implementado.
 | [002](002-logging-interceptor-redacao-headers.md) | LoggingInterceptor com redação de headers | Code review PR #14 (OBS-TL-1) | Decidir logar requests no futuro | defer |
 | [003](003-rotacao-document-encryption-key.md) | Rotação da chave de criptografia de documentos | ADR-017 seção 1 | Key comprometida OU >1 ano em prod | post-pilot |
 | [004](004-branding-dinamico-no-portal-do-doutor.md) | Branding dinâmico no portal do doutor | Teste manual Fase 0 LGPD | Fechar Sessão A + melhorias UX portal | post-pilot |
+| [005](005-auto-handoff-doutor-whatsapp.md) | Auto-handoff doutor↔agente no WhatsApp | Sessão LGPD Session B | ~~Primeiro doutor ativo com pacientes reais~~ **Implementado** | ✅ |

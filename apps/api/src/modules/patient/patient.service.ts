@@ -456,6 +456,73 @@ export class PatientService {
     return document
   }
 
+  // LGPD Art. 18, V: Solicitar exclusão de dados pessoais
+  async requestDeletion(code: string): Promise<{ message: string }> {
+    // 1. Validar código de acesso (mesma lógica do portal)
+    const row = await this.knex('patients')
+      .join('tenants', 'patients.tenant_id', 'tenants.id')
+      .join('doctors', 'doctors.tenant_id', 'tenants.id')
+      .where('patients.portal_access_code', code)
+      .select([
+        'patients.id',
+        'patients.name',
+        'patients.portal_active',
+        'patients.status',
+        'patients.tenant_id',
+        'patients.deletion_requested_at',
+        'tenants.status as tenant_status',
+        'doctors.name as doctor_name',
+        'doctors.email as doctor_email',
+      ])
+      .first()
+
+    if (!row) {
+      throw new NotFoundException('Código de acesso inválido')
+    }
+
+    if (!row.portal_active) {
+      throw new ForbiddenException('Portal inativo')
+    }
+
+    if (row.status !== 'active') {
+      throw new ForbiddenException('Paciente inativo')
+    }
+
+    if (row.tenant_status !== 'active') {
+      throw new ForbiddenException('Clínica inativa')
+    }
+
+    // 2. Idempotente: se já solicitou, retorna mensagem sem repetir
+    if (row.deletion_requested_at) {
+      return { message: 'Solicitação de exclusão já registrada. O doutor foi notificado.' }
+    }
+
+    // 3. Marcar deletion_requested_at
+    await this.knex('patients')
+      .where({ id: row.id, tenant_id: row.tenant_id })
+      .update({ deletion_requested_at: this.knex.fn.now() })
+
+    // 4. Registrar no event_log
+    await this.eventLogService.append(
+      row.tenant_id as string,
+      'patient.deletion_requested',
+      'patient',
+      row.id as string,
+      { patientName: row.name },
+    )
+
+    // 5. Emitir evento para notificar doutor (email handler futuro)
+    this.eventEmitter.emit('patient.deletion_requested', {
+      tenantId: row.tenant_id,
+      patientId: row.id,
+      patientName: row.name,
+      doctorName: row.doctor_name,
+      doctorEmail: row.doctor_email,
+    })
+
+    return { message: 'Solicitação de exclusão registrada. O doutor será notificado.' }
+  }
+
   // US-9.1: Ativa o portal do paciente e emite evento para notificação WhatsApp
   async activatePortal(tenantId: string, patientId: string): Promise<void> {
     // 1. Buscar o paciente com isolamento de tenant obrigatório

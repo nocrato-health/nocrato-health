@@ -20,6 +20,9 @@ export const BookAppointmentSchema = z.object({
   name: z.string().min(1).max(100),
   phone: z.string().min(10).max(20),
   dateTime: z.string().datetime({ offset: true }), // ISO 8601 com timezone (ex: "2026-03-10T14:00:00-03:00")
+  consentAccepted: z.boolean().refine((v) => v === true, {
+    message: 'Consentimento com a política de privacidade é obrigatório',
+  }),
 })
 
 export type BookAppointmentDto = z.infer<typeof BookAppointmentSchema>
