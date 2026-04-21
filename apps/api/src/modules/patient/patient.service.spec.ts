@@ -2352,3 +2352,280 @@ describe('PatientService — activatePortal', () => {
     })
   })
 })
+
+// =============================================================================
+// LGPD Art. 18, V — requestDeletion
+// =============================================================================
+
+describe('PatientService — requestDeletion', () => {
+  let service: PatientService
+  let mockKnexDeletion: jest.Mock
+
+  const CODE = 'MRS-5678-PAC'
+
+  /**
+   * Row retornada pelo JOIN patients + tenants + doctors.
+   * Equivale à mesma consulta do portal de acesso.
+   */
+  const makeDeleteRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'patient-1',
+    name: 'João Silva',
+    portal_active: true,
+    status: 'active',
+    tenant_id: 'tenant-1',
+    deletion_requested_at: null,
+    tenant_status: 'active',
+    doctor_name: 'Dr. Ana Carvalho',
+    doctor_email: 'ana@clinica.com.br',
+    ...overrides,
+  })
+
+  /**
+   * Builder para a query JOIN patients + tenants + doctors (leitura).
+   * Encadeia: .join().join().where().select().first()
+   */
+  const makeJoinReadBuilder = (firstValue: unknown) => {
+    const builder: Record<string, jest.Mock> = {
+      join: jest.fn(),
+      where: jest.fn(),
+      select: jest.fn(),
+      first: jest.fn().mockResolvedValue(firstValue),
+    }
+    builder.join.mockReturnValue(builder)
+    builder.where.mockReturnValue(builder)
+    builder.select.mockReturnValue(builder)
+    return builder
+  }
+
+  /**
+   * Builder para a query de update: .where({id, tenant_id}).update({...})
+   */
+  const makeUpdateBuilder = () => ({
+    where: jest.fn().mockReturnThis(),
+    update: jest.fn().mockResolvedValue(1),
+  })
+
+  beforeEach(async () => {
+    jest.clearAllMocks()
+
+    const joinBuilder = makeJoinReadBuilder(makeDeleteRow())
+    const updateBuilder = makeUpdateBuilder()
+
+    mockKnexDeletion = jest.fn().mockImplementation(() => joinBuilder)
+    // this.knex.fn.now() é chamado no update de deletion_requested_at
+    ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn().mockReturnValue('NOW()') }
+
+    // Segunda chamada a knex('patients') é o update — roteamento por callCount
+    let callCount = 0
+    mockKnexDeletion.mockImplementation((table: string) => {
+      if (table === 'patients') {
+        callCount++
+        return callCount === 1 ? joinBuilder : updateBuilder
+      }
+      return joinBuilder
+    })
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        PatientService,
+        { provide: KNEX, useValue: mockKnexDeletion },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EventLogService, useValue: mockEventLogService },
+      ],
+    }).compile()
+
+    service = moduleRef.get<PatientService>(PatientService)
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-01: código de acesso inválido → NotFoundException
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-01: código inválido lança NotFoundException', () => {
+    it('should throw NotFoundException when code is not found', async () => {
+      const joinBuilder = makeJoinReadBuilder(undefined)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion('CODIGO-INVALIDO')).rejects.toThrow(NotFoundException)
+    })
+
+    it('should throw with message "Código de acesso inválido"', async () => {
+      const joinBuilder = makeJoinReadBuilder(undefined)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion('CODIGO-INVALIDO')).rejects.toThrow(
+        'Código de acesso inválido',
+      )
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-02: portal inativo → ForbiddenException
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-02: portal inativo lança ForbiddenException', () => {
+    it('should throw ForbiddenException when portal_active is false', async () => {
+      const row = makeDeleteRow({ portal_active: false })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow(ForbiddenException)
+    })
+
+    it('should throw with message "Portal inativo"', async () => {
+      const row = makeDeleteRow({ portal_active: false })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow('Portal inativo')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-03: paciente inativo → ForbiddenException
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-03: paciente inativo lança ForbiddenException', () => {
+    it('should throw ForbiddenException when patient status is inactive', async () => {
+      const row = makeDeleteRow({ status: 'inactive' })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow(ForbiddenException)
+    })
+
+    it('should throw with message "Paciente inativo"', async () => {
+      const row = makeDeleteRow({ status: 'inactive' })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow('Paciente inativo')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-04: clínica inativa → ForbiddenException
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-04: clínica inativa lança ForbiddenException', () => {
+    it('should throw ForbiddenException when tenant status is inactive', async () => {
+      const row = makeDeleteRow({ tenant_status: 'inactive' })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow(ForbiddenException)
+    })
+
+    it('should throw with message "Clínica inativa"', async () => {
+      const row = makeDeleteRow({ tenant_status: 'inactive' })
+      const joinBuilder = makeJoinReadBuilder(row)
+      mockKnexDeletion.mockImplementation(() => joinBuilder)
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      await expect(service.requestDeletion(CODE)).rejects.toThrow('Clínica inativa')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-05: happy path — primeira solicitação (deletion_requested_at: null)
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-05: happy path — primeira solicitação registra tudo', () => {
+    it('should update deletion_requested_at, append event log and emit event', async () => {
+      const row = makeDeleteRow({ deletion_requested_at: null })
+      const joinBuilder = makeJoinReadBuilder(row)
+      const updateBuilder = makeUpdateBuilder()
+
+      let callCount = 0
+      mockKnexDeletion.mockImplementation((table: string) => {
+        if (table === 'patients') {
+          callCount++
+          return callCount === 1 ? joinBuilder : updateBuilder
+        }
+        return joinBuilder
+      })
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = {
+        now: jest.fn().mockReturnValue('NOW()'),
+      }
+
+      const result = await service.requestDeletion(CODE)
+
+      // 1. UPDATE chamado com where({id, tenant_id}) e deletion_requested_at = fn.now()
+      expect(updateBuilder.where).toHaveBeenCalledWith({
+        id: row.id,
+        tenant_id: row.tenant_id,
+      })
+      expect(updateBuilder.update).toHaveBeenCalledWith({
+        deletion_requested_at: 'NOW()',
+      })
+
+      // 2. eventLogService.append chamado com os parâmetros corretos
+      expect(mockEventLogService.append).toHaveBeenCalledWith(
+        row.tenant_id,
+        'patient.deletion_requested',
+        'patient',
+        row.id,
+        { patientName: row.name },
+      )
+
+      // 3. EventEmitter2.emit chamado com o evento correto
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('patient.deletion_requested', {
+        tenantId: row.tenant_id,
+        patientId: row.id,
+        patientName: row.name,
+        doctorName: row.doctor_name,
+        doctorEmail: row.doctor_email,
+      })
+
+      // 4. Retorna mensagem de confirmação
+      expect(result).toEqual({
+        message: 'Solicitação de exclusão registrada. O doutor será notificado.',
+      })
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PS-RD-06: idempotente — solicitação já registrada
+  // -------------------------------------------------------------------------
+
+  describe('PS-RD-06: idempotente — solicitação já existente não repete operações', () => {
+    it('should return early message without calling update, append or emit', async () => {
+      const row = makeDeleteRow({ deletion_requested_at: '2026-04-19T10:00:00Z' })
+      const joinBuilder = makeJoinReadBuilder(row)
+      const updateBuilder = makeUpdateBuilder()
+
+      let callCount = 0
+      mockKnexDeletion.mockImplementation((table: string) => {
+        if (table === 'patients') {
+          callCount++
+          return callCount === 1 ? joinBuilder : updateBuilder
+        }
+        return joinBuilder
+      })
+      ;(mockKnexDeletion as unknown as Record<string, unknown>).fn = { now: jest.fn() }
+
+      const result = await service.requestDeletion(CODE)
+
+      // Retorna a mensagem idempotente
+      expect(result).toEqual({
+        message: 'Solicitação de exclusão já registrada. O doutor foi notificado.',
+      })
+
+      // NÃO deve chamar update
+      expect(updateBuilder.update).not.toHaveBeenCalled()
+
+      // NÃO deve chamar eventLogService.append
+      expect(mockEventLogService.append).not.toHaveBeenCalled()
+
+      // NÃO deve emitir evento
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled()
+    })
+  })
+})

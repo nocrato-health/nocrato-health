@@ -11,7 +11,7 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 - **Nocrato** (agência) gerencia doutores via portal interno
 - Cada **doutor** tem portal isolado (tenant) por slug (ex: `dr-silva`)
 - **Pacientes** criados pelo agente WhatsApp, portal read-only com código de acesso
-- **Agente WhatsApp** interno (NestJS + Evolution API/Meta Cloud API + gpt-4o-mini) orquestra agendamento e notificações
+- **Agente WhatsApp** interno (NestJS + Meta Cloud API + gpt-4o-mini) orquestra agendamento e notificações
 - **Booking** público protegido por token temporário (24h)
 
 ---
@@ -241,6 +241,24 @@ O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao
 
 ---
 
+## Comandos preferidos (economia de contexto)
+
+Scripts em `scripts/` que filtram output pra economizar tokens sem perder capacidade de debug.
+**Use os wrappers pra checagem rápida; use os comandos crus pra debug detalhado.**
+
+| Situação | Use | Ao invés de | Ganho |
+|---|---|---|---|
+| Testes passam? (smoke check) | `./scripts/ci-test.sh` | `pnpm --filter @nocrato/api test` | ~95% menos linhas |
+| Validação antes de commit/PR | `./scripts/ci-check.sh` | 3 comandos separados | ~85% menos linhas |
+| Estado do banco local (contagens) | `./scripts/db-status.sh` | abrir psql manual | direto |
+| Debug de teste específico | `pnpm test --testPathPattern=X` | — | (output completo intencional) |
+| Stack trace de falha | `pnpm test` (sem silent) | — | (output completo intencional) |
+| Ver último commit (mensagem completa) | `git log -1` | `git log --oneline -1` | (output completo intencional) |
+
+**Regra de ouro**: quando a pergunta é "está funcionando?", use o script. Quando a pergunta é "por que quebrou?", use o comando cru.
+
+---
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -252,7 +270,7 @@ O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao
 | Email | Resend |
 | Frontend | Vite + React 19 + TanStack Router + TanStack Query |
 | UI | shadcn/ui + Tailwind CSS v4 |
-| WhatsApp | Evolution API + módulo NestJS interno |
+| WhatsApp | Meta Cloud API (oficial) + módulo NestJS interno |
 | LLM (agent) | OpenAI SDK — gpt-4o-mini |
 | Eventos | @nestjs/event-emitter (EventEmitter2) |
 | Deploy | Hostinger VPS + Docker + Nginx |
@@ -292,9 +310,8 @@ nocrato-health-v2/
 | Doctor auth | `POST /api/v1/doctor/auth/login` | `routes/doctor/login.tsx` |
 | Booking | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx` |
 | Patient portal | `POST /api/v1/patient/portal/access` | `routes/patient/access.tsx` |
-| WhatsApp webhook (Evolution) | `POST /api/v1/agent/webhook` | — |
 | WhatsApp webhook (Cloud API) | `GET/POST /api/v1/agent/webhook/cloud` | — |
-| WhatsApp connection | `POST /api/v1/doctor/whatsapp/connect[-cloud]` | `routes/doctor/whatsapp.tsx` |
+| WhatsApp connection | `POST /api/v1/doctor/whatsapp/connect-cloud` | `routes/doctor/whatsapp.tsx` |
 
 ---
 

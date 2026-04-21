@@ -19,7 +19,7 @@ Endpoint de health check para verificação de disponibilidade da API e conectiv
 ## O que NÃO pertence a este módulo
 
 - Métricas de performance ou observabilidade → futuro (V2)
-- Health check de serviços externos (Resend, Evolution API) → fora do MVP
+- Health check de serviços externos (Resend, Meta Cloud API) → fora do MVP
 
 ## Como testar isoladamente
 

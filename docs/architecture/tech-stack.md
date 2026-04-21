@@ -24,7 +24,7 @@ Nocrato Health V2 is a complete rebuild of the original V1 project. The V1 was a
 | **Frontend** | Vite + React 19 + TanStack Router | Vite provides fast HMR and builds. React 19 is the latest stable version. TanStack Router offers file-based routing with full type safety, which maps cleanly to the multi-portal architecture. |
 | **UI** | shadcn/ui + Tailwind CSS v4 | shadcn/ui provides copy-paste components that are fully customizable (not a dependency). Tailwind v4 brings faster compilation and a streamlined config. Both were proven in V1. |
 | **Data Fetching** | TanStack Query | Provides caching, background refetching (refetchInterval: 30s for near-real-time updates), and optimistic updates. Handles loading/error states declaratively. |
-| **Agent** | Modulo NestJS interno | Modulo `agent/` dentro do proprio NestJS que orquestra o agente WhatsApp. Recebe webhooks diretamente da Evolution API, processa com LLM (OpenAI SDK — gpt-4o-mini, mais barato e rapido para chatbot), gerencia estado de conversa no banco, e envia respostas de volta. Sem dependencia de ferramenta externa. |
+| **Agent** | Modulo NestJS interno | Modulo `agent/` dentro do proprio NestJS que orquestra o agente WhatsApp. Recebe webhooks diretamente da Meta Cloud API (WhatsApp Business Platform oficial), processa com LLM (OpenAI SDK — gpt-4o-mini, mais barato e rapido para chatbot), gerencia estado de conversa no banco, e envia respostas via Graph API. Sem dependencia de ferramenta externa (ADR-018: Evolution API removida em 2026-04-20). |
 | **Container** | Docker (PostgreSQL) | Provides consistent local development with `docker compose up -d`. PostgreSQL 16 runs in a container, matching the production environment on Hostinger. |
 
 ---
@@ -83,7 +83,7 @@ Refresh tokens are stateless JWTs with 7-day expiration, stored only on the clie
 | **Server** | Hostinger VPS (Ubuntu 22.04 LTS) |
 | **Reverse Proxy** | Nginx + SSL (Let's Encrypt) |
 | **Database** | PostgreSQL 16 (Docker container) |
-| **WhatsApp** | Evolution API (Docker container) |
+| **WhatsApp** | Meta Cloud API (WhatsApp Business Platform oficial — sem container local) |
 | **Agent** | Modulo interno do NestJS (sem container separado) |
 | **File Storage** | Local disk (`./uploads/`) |
 | **Domain** | app.nocrato.com |

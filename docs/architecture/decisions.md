@@ -85,16 +85,18 @@ ALTER TABLE doctors ADD COLUMN appointment_duration INTEGER NOT NULL DEFAULT 30;
 
 ## ADR-005: Agente WhatsApp como Modulo Interno NestJS (sem N8N)
 
-**Status**: Accepted
+**Status**: Accepted — provider de WhatsApp atualizado via ADR-018 (2026-04-20)
 
 **Context**: A opcao original era usar N8N como plataforma de orquestracao externa para o agente WhatsApp. Para um dev solo no MVP, isso significaria manter dois sistemas separados (NestJS + N8N), debugar dois ambientes distintos, e consumir recursos extras no servidor Hostinger VPS.
 
-**Decision**: O agente WhatsApp e implementado como um modulo NestJS (`agent/`) dentro do proprio backend. A Evolution API envia webhooks diretamente para `POST /api/v1/agent/webhook`. O modulo gerencia o estado de conversa no banco, chama o LLM (OpenAI SDK — modelo `gpt-4o-mini`, mais barato e rapido para chatbot de agendamento), e envia respostas de volta via Evolution API HTTP client.
+**Decision**: O agente WhatsApp e implementado como um modulo NestJS (`agent/`) dentro do proprio backend. O provider do WhatsApp envia webhooks diretamente para o backend, que gerencia o estado de conversa no banco, chama o LLM (OpenAI SDK — modelo `gpt-4o-mini`, mais barato e rapido para chatbot de agendamento), e envia respostas de volta via HTTP client para o provider.
+
+> **Nota histórica**: a decisão original descrevia Evolution API (container Docker) com webhook em `POST /api/v1/agent/webhook`. Em 2026-04-20, via ADR-018, o projeto migrou exclusivamente para a **Meta Cloud API** (WhatsApp Business Platform oficial), com webhook em `POST /api/v1/agent/webhook/cloud` validado por HMAC-SHA256. O formato do diagrama abaixo continua válido — apenas o provider mudou.
 
 ```
-Evolution API → webhook → agent.controller.ts → agent.service.ts → LLM + DB
-                                                       ↓
-                                          whatsapp.service.ts → Evolution API
+Meta Cloud API → webhook/cloud → agent.controller.ts → agent.service.ts → LLM + DB
+                                                              ↓
+                                                 whatsapp.service.ts → Meta Graph API
 ```
 
 **Consequences**:
@@ -103,7 +105,7 @@ Evolution API → webhook → agent.controller.ts → agent.service.ts → LLM +
 - O estado de conversa fica no PostgreSQL (tabela `conversations`), sem dependencia de servico externo.
 - Eventos internos via `EventEmitter2` (built-in no NestJS) substituem o polling de 30s do N8N.
 - Sem o N8N, o servidor economiza ~500MB-1GB de RAM.
-- A unica dependencia externa de infra para o agente e a Evolution API (ja necessaria de qualquer forma).
+- A unica dependencia externa de infra para o agente e o provider de WhatsApp (Meta Cloud API a partir de 2026-04-20).
 
 ---
 
@@ -432,6 +434,52 @@ Configuração: `log_format` customizado que registra apenas método + path (sem
 
 ---
 
+## ADR-018: Remoção completa da Evolution API
+
+**Status**: Accepted (2026-04-20)
+
+**Context**: A Evolution API era o provider de WhatsApp original do projeto (ver ADR-005). Trata-se de uma reimplementação não-oficial do protocolo Baileys, distribuída como container Docker. Meta (WhatsApp) vem aplicando banimentos agressivos a contas WhatsApp Business que operam via providers não-oficiais; para uma plataforma SaaS médica em MVP, uma conta banida significa perda total de continuidade com pacientes reais e bloqueio de agendamentos em andamento. O risco é desproporcional ao custo de migração.
+
+Paralelamente, o projeto já havia implementado suporte à **Meta Cloud API** (WhatsApp Business Platform oficial) via webhook em `/api/v1/agent/webhook/cloud` com validação HMAC-SHA256 — o caminho oficial dá conformidade, SLA e estabilidade.
+
+**Decision**: Remoção completa da Evolution API do projeto. A partir de 2026-04-20:
+
+1. Migration `023_drop_evolution_instance_from_agent_settings.ts` dropou `agent_settings.evolution_instance_name` e o índice parcial associado
+2. Provider `evolution-connection.provider.ts` deletado
+3. Variáveis `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN`, `EVOLUTION_INSTANCE` removidas de `config/env.ts` e de todos os `.env.example`
+4. Container `evolution-api` removido de `docker-compose.dev.yml` e `docker-compose.prod.yml`
+5. Card de conexão Evolution removido do portal do doutor (`apps/web/src/routes/doctor/whatsapp.tsx`)
+6. Webhook endpoint `POST /api/v1/agent/webhook` (Evolution) removido — sobra apenas `POST /api/v1/agent/webhook/cloud`
+7. Detecção de handoff doutor↔agente (ver seed 005) reimplementada via `statuses[].status === 'sent'` enviado pelo Meta quando a business account envia mensagens, substituindo a detecção original via `fromMe=true` da Evolution
+
+**Consequences**:
+
+Positivas:
+- Zero risco de ban por usar provider não-oficial — contas WhatsApp Business operam 100% pelo caminho oficial suportado pela Meta
+- Conformidade com LGPD e com Terms of Service do WhatsApp Business Platform
+- Menos superfície de manutenção: 1 container a menos no VPS (~300-500MB de RAM liberada)
+- 1 variável sensível a menos (`EVOLUTION_API_KEY`) no `.env` de produção
+- Webhooks oficiais têm documentação versionada e SLA de disponibilidade
+- Fluxo de `statuses[].sent` do Meta é fonte autoritativa para detectar mensagens enviadas pelo doutor
+
+Negativas / trade-offs:
+- Doutores precisam de conta **WhatsApp Business oficial verificada pela Meta** (Embedded Signup OAuth) — onboarding é mais demorado que o QR code da Evolution
+- Sem possibilidade de usar números pessoais de WhatsApp comum — apenas linhas cadastradas no WhatsApp Business Platform
+- Custo por mensagem (Meta cobra por conversa iniciada pela empresa após as primeiras 1000/mês grátis, tabela varia por categoria)
+- Histórico de testes e CTs que referenciam `EVOLUTION_WEBHOOK_TOKEN`, header `apikey`, `payload.instance` etc. foi preservado nos docs como referência histórica, mas os fluxos ativos usam HMAC-SHA256 + `entry[0].changes[0].value`
+
+**Migração operacional**:
+- Doutores que já tinham `evolution_instance_name` configurado precisam fazer Embedded Signup para obter `whatsapp_phone_number_id` (migration 020)
+- Sem janela de "dual-run" — a remoção foi atômica na branch `refactor/remove-evolution-api`
+- TD-20 (multitenancy via `evolution_instance_name`) tornou-se não-aplicável: resolução de tenant agora usa `agent_settings.whatsapp_phone_number_id`
+
+**Referências**:
+- Migration: `apps/api/src/database/migrations/023_drop_evolution_instance_from_agent_settings.ts`
+- Seed 005: `docs/seeds/005-auto-handoff-doutor-whatsapp.md` (nota histórica sobre detecção via Meta)
+- ADR-005: atualizado para refletir Meta Cloud API como provider ativo
+
+---
+
 ## Decision Summary
 
 | # | Decision | Key Trade-off |
@@ -440,7 +488,7 @@ Configuração: `log_format` customizado que registra apenas método + path (sem
 | 002 | RBAC via NestJS Guards + decorators | Framework coupling vs developer productivity |
 | 003 | Local file uploads (MVP) | No replication vs simplicity |
 | 004 | Timezone per doctor | Per-doctor config vs global default |
-| 005 | Agente interno NestJS (sem N8N) | Mais codigo inicial vs zero dependencia externa, debug simples |
+| 005 | Agente interno NestJS (sem N8N) | Mais codigo inicial vs zero dependencia externa, debug simples (provider atualizado via ADR-018) |
 | 006 | Stateless refresh tokens | Cannot revoke sessions vs no database overhead |
 | 007 | Event log (audit) + EventEmitter2 (internal) | Complexidade dividida vs latencia zero + audit trail |
 | 008 | Booking security (tokens + rate limit) | Multi-layer complexity vs abuse prevention |
@@ -454,3 +502,4 @@ Configuração: `log_format` customizado que registra apenas método + path (sem
 | 016 | Single environment (dev + prod) até 5 doutores | Custo zero vs sem camada intermediária pra mudanças arriscadas |
 | 017 | LGPD Fase 0 — criptografia, consentimento, retenção 90d | ~17h de impl + nova chave de criptografia vs conformidade legal pra dados sensíveis |
 | 017.7 | Bugsink self-hosted para error tracking | +1 container Django vs zero transferência internacional de dados + zero custo recorrente |
+| 018 | Remoção completa da Evolution API | Onboarding mais demorado (Embedded Signup) + custo por mensagem vs zero risco de ban + conformidade oficial Meta |

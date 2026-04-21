@@ -72,10 +72,11 @@ RESEND_API_KEY=
 # OpenAI (opcional em dev — necessário para testar o agente WhatsApp)
 OPENAI_API_KEY=
 
-# Evolution API (opcional em dev)
-EVOLUTION_API_URL=http://localhost:8080
-EVOLUTION_API_KEY=
-EVOLUTION_INSTANCE_NAME=
+# Meta Cloud API / WhatsApp Business Platform (opcional em dev — necessário para testar o agente WhatsApp)
+META_CLOUD_API_TOKEN=
+META_APP_SECRET=
+META_WEBHOOK_VERIFY_TOKEN=
+META_APP_ID=
 ```
 
 ---

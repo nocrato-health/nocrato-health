@@ -316,7 +316,8 @@ curl -I https://app.nocrato.com
 | `nocrato_api_prod` | Backend NestJS |
 | `nocrato_web_prod` | Frontend React |
 | `nocrato_nginx_prod` | Reverse proxy + SSL |
-| `nocrato_evolution_prod` | Evolution API (WhatsApp) |
+
+> **Nota**: o container `nocrato_evolution_prod` (Evolution API) foi removido em 2026-04-20 via ADR-018. O provider de WhatsApp atual é a Meta Cloud API (serviço SaaS do Meta), sem container local.
 
 ---
 

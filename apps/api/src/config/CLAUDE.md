@@ -18,7 +18,7 @@ import { env } from '../config/env'
 // Acesso direto — sem process.env nos módulos
 env.DB_HOST
 env.JWT_SECRET
-env.EVOLUTION_WEBHOOK_TOKEN
+env.META_SYSTEM_USER_TOKEN
 ```
 
 ## Variáveis validadas
@@ -32,9 +32,6 @@ env.EVOLUTION_WEBHOOK_TOKEN
 | `JWT_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | string | Default: `15m` / `7d` |
 | `RESEND_API_KEY` | string (prefixo `re_`) | Sim |
 | `EMAIL_FROM` | email | Default: `noreply@nocrato.com.br` |
-| `EVOLUTION_API_URL` | URL válida | Sim |
-| `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN` | string | Sim |
-| `WEBHOOK_BASE_URL` | URL | Default: `http://localhost:3000` |
 | `OPENAI_API_KEY` | string (prefixo `sk-`) | Sim |
 | `DOCUMENT_ENCRYPTION_KEY` | hex 64 chars | Sim |
 | `SENTRY_DSN` | URL | Não (opcional) |

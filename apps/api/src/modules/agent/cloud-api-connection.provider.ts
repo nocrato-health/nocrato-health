@@ -3,16 +3,10 @@ import { env } from '@/config/env'
 import type {
   SignupBasedConnectionProvider,
   SignupCodeResult,
-  WhatsAppConnectionProvider,
-  WhatsAppConnectionResult,
-  WhatsAppConnectionStatus,
-  WhatsAppQrCodeResult,
 } from './whatsapp-connection.provider'
 
 @Injectable()
-export class CloudApiConnectionProvider
-  implements WhatsAppConnectionProvider, SignupBasedConnectionProvider
-{
+export class CloudApiConnectionProvider implements SignupBasedConnectionProvider {
   private readonly logger = new Logger(CloudApiConnectionProvider.name)
 
   private get graphBase(): string {
@@ -38,101 +32,7 @@ export class CloudApiConnectionProvider
   }
 
   // ---------------------------------------------------------------------------
-  // Métodos da interface WhatsAppConnectionProvider
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Não aplicável à Cloud API — o número é criado via Embedded Signup, não por
-   * chamada programática ao backend.
-   */
-  createInstance(_instanceName: string, _webhookUrl: string): Promise<WhatsAppConnectionResult> {
-    throw new BadRequestException(
-      'Use o fluxo de Embedded Signup (connect-cloud) em vez de createInstance',
-    )
-  }
-
-  /**
-   * Não aplicável à Cloud API — não há QR code; a autenticação é via OAuth.
-   */
-  getQrCode(_instanceName: string): Promise<WhatsAppQrCodeResult> {
-    throw new BadRequestException(
-      'Cloud API não usa QR code — use o fluxo de Embedded Signup (connect-cloud)',
-    )
-  }
-
-  /**
-   * Consulta o status do número de telefone na Meta.
-   *
-   * @param phoneNumberId — ID do número (whatsapp_phone_number_id em agent_settings)
-   */
-  async getConnectionStatus(phoneNumberId: string): Promise<WhatsAppConnectionStatus> {
-    const { systemUserToken } = this.requireCloudEnv()
-    const url = `${this.graphBase}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${systemUserToken}`,
-      },
-    })
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '(corpo indisponível)')
-      this.logger.error(
-        `Falha ao consultar status do número ${phoneNumberId}: HTTP ${response.status} — ${body}`,
-      )
-      return { instanceName: phoneNumberId, status: 'unknown' }
-    }
-
-    const data = (await response.json()) as {
-      display_phone_number?: string
-      verified_name?: string
-      quality_rating?: string
-    }
-
-    return {
-      instanceName: phoneNumberId,
-      status: 'open',
-      phoneNumber: data.display_phone_number,
-    }
-  }
-
-  /**
-   * Desregistra o número de telefone na Meta (equivale ao disconnect).
-   *
-   * @param phoneNumberId — ID do número
-   */
-  async disconnectInstance(phoneNumberId: string): Promise<void> {
-    const { systemUserToken } = this.requireCloudEnv()
-    const url = `${this.graphBase}/${phoneNumberId}/deregister`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${systemUserToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    })
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '(corpo indisponível)')
-      this.logger.error(
-        `Falha ao desregistrar número ${phoneNumberId}: HTTP ${response.status} — ${body}`,
-      )
-      throw new Error(`Meta API retornou HTTP ${response.status} ao desregistrar número`)
-    }
-  }
-
-  /**
-   * A Meta não tem endpoint de "delete" distinto do deregister.
-   * Delega ao disconnectInstance.
-   */
-  async deleteInstance(phoneNumberId: string): Promise<void> {
-    return this.disconnectInstance(phoneNumberId)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Método específico da Cloud API (SignupBasedConnectionProvider)
+  // Método da Cloud API (SignupBasedConnectionProvider)
   // ---------------------------------------------------------------------------
 
   /**

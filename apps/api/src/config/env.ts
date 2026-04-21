@@ -34,16 +34,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().startsWith('re_'),
   EMAIL_FROM: z.string().email().default('noreply@nocrato.com.br'),
 
-  // Evolution API (WhatsApp)
-  EVOLUTION_API_URL: z.string().url(),
-  EVOLUTION_API_KEY: z.string().min(1),
-  EVOLUTION_WEBHOOK_TOKEN: z.string().min(1),
-  // URL pública do backend acessível pela Evolution API (pra webhook callback)
-  // Em dev: http://localhost:3000, em prod: https://app.nocrato.com
-  WEBHOOK_BASE_URL: z.string().url().default('http://localhost:3000'),
-
-  // Meta WhatsApp Cloud API — todas opcionais enquanto Evolution API for o provider ativo.
-  // Obrigatórias quando CLOUD_API_CONNECTION_PROVIDER estiver em uso.
+  // Meta WhatsApp Cloud API
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().min(16).optional(),
   META_SYSTEM_USER_TOKEN: z.string().min(16).optional(),

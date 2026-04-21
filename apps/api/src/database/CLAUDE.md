@@ -2,7 +2,7 @@
 
 ## O que este módulo faz
 
-Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 20 migrations SQL e os scripts de migrate/seed.
+Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS. Também contém as 23 migrations SQL e os scripts de migrate/seed.
 
 ## Arquivos
 
@@ -13,7 +13,7 @@ Configura e expõe a conexão PostgreSQL via Knex como um provider global NestJS
 | `knexfile.ts` | Config para o CLI do Knex (carrega `.env` via dotenv, aponta para `/migrations`) |
 | `migrate.ts` | Script standalone que roda `knex.migrate.latest()` — `pnpm migrate` |
 | `seed.ts` | Script standalone que insere o agency_admin inicial — `pnpm seed` |
-| `migrations/` | 19 arquivos `.ts` com SQL puro via `knex.raw()` |
+| `migrations/` | 23 arquivos `.ts` com SQL puro via `knex.raw()` |
 
 ## Injeção nos services
 
@@ -51,11 +51,14 @@ export class MyService {
 | 013 | `013_create_conversations.ts` | `conversations` | 003, 012 |
 | 014 | `014_add_booking_mode_to_agent_settings.ts` | ALTER `agent_settings` | 005 |
 | 015 | `015_alter_doctors_nullable_crm.ts` | ALTER `doctors` (crm/crm_state nullable, working_hours DEFAULT NULL) | 004 |
-| 016 | `016_add_evolution_instance_to_agent_settings.ts` | ALTER `agent_settings` (evolution_instance_name) | 005 |
+| 016 | `016_add_evolution_instance_to_agent_settings.ts` | ALTER `agent_settings` (evolution_instance_name — removido em 023) | 005 |
 | 017 | `017_add_refresh_token_version_to_users.ts` | ALTER `agency_members` + `doctors` (refresh_token_version) | 001, 004 |
 | 018 | `018_patients_document_pgcrypto.ts` | ALTER `patients`: drop cpf, add document bytea + document_type (LGPD fase 0) | 006 |
 | 019 | `019_encrypt_clinical_notes_content.ts` | ALTER `clinical_notes`: content TEXT → BYTEA (pgcrypto AES-256, destrutiva) | 008 |
 | 020 | `020_add_whatsapp_cloud_api_columns.ts` | ALTER `agent_settings`: 4 colunas Cloud API + unique partial index | 005 |
+| 021 | `021_create_patient_consents.ts` | CREATE `patient_consents` + ALTER `patients` (deletion_requested_at) — LGPD sessão B | 003, 006 |
+| 022 | `022_add_handoff_to_conversations.ts` | ALTER `conversations`: mode + last_fromme_at (handoff doutor↔agente) | 013 |
+| 023 | `023_drop_evolution_instance_from_agent_settings.ts` | DROP `agent_settings.evolution_instance_name` — Evolution removido | 005, 016 |
 
 ## Como rodar
 

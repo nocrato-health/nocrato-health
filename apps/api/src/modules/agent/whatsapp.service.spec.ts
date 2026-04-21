@@ -1,24 +1,24 @@
 /**
- * US-9.2 — WhatsAppService.sendText
- * TD-20 — sendText recebe instanceName como 3º argumento
+ * WhatsAppService.sendViaCloud — Meta Cloud API
  *
  * Casos de teste cobertos:
- *  WS-01: sendText faz POST com headers corretos e corpo correto
- *  WS-02: Evolution API retorna 2xx → resolve sem erro
- *  WS-03: Evolution API retorna 4xx → lança Error com HTTP status
- *  WS-04: Evolution API retorna 5xx → lança Error com HTTP status
- *  SEC-TD20-01: sendText rejeita instanceName com caracteres inválidos (path traversal)
- *  SEC-TD20-03: telefone mascarado no log de erro (LGPD)
+ *  WS-01: sendViaCloud faz POST com headers corretos e corpo correto
+ *  WS-02: Meta Cloud API retorna 2xx → resolve sem erro
+ *  WS-03: Meta Cloud API retorna 4xx → lança Error com HTTP status
+ *  WS-04: Meta Cloud API retorna 5xx → lança Error com HTTP status
+ *  WS-05: META_SYSTEM_USER_TOKEN ausente → lança InternalServerErrorException
+ *  WS-06: telefone mascarado no log de erro (LGPD)
  */
 
 jest.mock('@/config/env', () => ({
   env: {
-    EVOLUTION_API_URL: 'http://evolution.test',
-    EVOLUTION_API_KEY: 'api-key-secreta',
+    META_SYSTEM_USER_TOKEN: 'test-system-user-token',
+    META_GRAPH_API_VERSION: 'v19.0',
   },
 }))
 
 import { Test, TestingModule } from '@nestjs/testing'
+import { InternalServerErrorException } from '@nestjs/common'
 import { WhatsAppService } from './whatsapp.service'
 
 describe('WhatsAppService', () => {
@@ -40,36 +40,38 @@ describe('WhatsAppService', () => {
     jest.clearAllMocks()
   })
 
-  // WS-01 + WS-02: happy path — POST correto, headers corretos
-  it('WS-01/02: faz POST com headers e body corretos → resolve sem erro', async () => {
+  // WS-01 + WS-02: happy path — POST correto com headers e corpo certos
+  it('WS-01/02: faz POST para graph.facebook.com com headers e body corretos → resolve sem erro', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
     })
 
     await expect(
-      service.sendText('5511999999999', 'Olá, sua consulta foi confirmada!', 'dr-marcos-instance'),
+      service.sendViaCloud('phone-number-id-123', '5511999999999', 'Olá, sua consulta foi confirmada!'),
     ).resolves.toBeUndefined()
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://evolution.test/message/sendText/dr-marcos-instance',
+      'https://graph.facebook.com/v19.0/phone-number-id-123/messages',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: 'api-key-secreta',
+          Authorization: 'Bearer test-system-user-token',
         },
         body: JSON.stringify({
-          number: '5511999999999',
-          text: 'Olá, sua consulta foi confirmada!',
+          messaging_product: 'whatsapp',
+          to: '5511999999999',
+          type: 'text',
+          text: { body: 'Olá, sua consulta foi confirmada!' },
         }),
       },
     )
   })
 
-  // WS-03: Evolution retorna 4xx → lança Error
-  it('WS-03: Evolution API retorna 400 → lança Error', async () => {
+  // WS-03: Cloud API retorna 4xx → lança Error
+  it('WS-03: Meta Cloud API retorna 400 → lança Error', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 400,
@@ -77,12 +79,12 @@ describe('WhatsAppService', () => {
     })
 
     await expect(
-      service.sendText('5511999999999', 'Mensagem teste', 'dr-marcos-instance'),
-    ).rejects.toThrow('Evolution API retornou HTTP 400')
+      service.sendViaCloud('phone-number-id-123', '5511999999999', 'Mensagem teste'),
+    ).rejects.toThrow('Meta Cloud API retornou HTTP 400')
   })
 
-  // WS-04: Evolution retorna 5xx → lança Error
-  it('WS-04: Evolution API retorna 503 → lança Error', async () => {
+  // WS-04: Cloud API retorna 5xx → lança Error
+  it('WS-04: Meta Cloud API retorna 503 → lança Error', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 503,
@@ -90,29 +92,26 @@ describe('WhatsAppService', () => {
     })
 
     await expect(
-      service.sendText('5511988888888', 'Outra mensagem', 'dr-carlos-instance'),
-    ).rejects.toThrow('Evolution API retornou HTTP 503')
+      service.sendViaCloud('phone-number-id-456', '5511988888888', 'Outra mensagem'),
+    ).rejects.toThrow('Meta Cloud API retornou HTTP 503')
   })
 
-  // SEC-TD20-01: instanceName inválido → lança Error (previne path injection)
-  it('SEC-TD20-01: instanceName com caracteres inválidos → lança Error', async () => {
-    await expect(
-      service.sendText('5511999999999', 'Mensagem', '../../../etc/passwd'),
-    ).rejects.toThrow('Nome de instância inválido')
+  // WS-05: META_SYSTEM_USER_TOKEN ausente → lança InternalServerErrorException
+  it('WS-05: META_SYSTEM_USER_TOKEN ausente → lança InternalServerErrorException', async () => {
+    const envModule = jest.requireMock('@/config/env') as { env: { META_SYSTEM_USER_TOKEN?: string } }
+    const originalToken = envModule.env.META_SYSTEM_USER_TOKEN
+    envModule.env.META_SYSTEM_USER_TOKEN = undefined
 
     await expect(
-      service.sendText('5511999999999', 'Mensagem', 'instance@malicious'),
-    ).rejects.toThrow('Nome de instância inválido')
+      service.sendViaCloud('phone-number-id-123', '5511999999999', 'Mensagem'),
+    ).rejects.toThrow(InternalServerErrorException)
 
-    await expect(
-      service.sendText('5511999999999', 'Mensagem', 'instance name with spaces'),
-    ).rejects.toThrow('Nome de instância inválido')
-
+    envModule.env.META_SYSTEM_USER_TOKEN = originalToken
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  // SEC-TD20-03: telefone mascarado no log de erro (LGPD)
-  it('SEC-TD20-03: erro HTTP → telefone mascarado no log (mostra apenas últimos 4 dígitos)', async () => {
+  // WS-06: telefone mascarado no log de erro (LGPD)
+  it('WS-06: erro HTTP → telefone mascarado no log (mostra apenas últimos 4 dígitos)', async () => {
     const loggerErrorSpy = jest.spyOn(service['logger'], 'error')
 
     mockFetch.mockResolvedValue({
@@ -122,8 +121,8 @@ describe('WhatsAppService', () => {
     })
 
     await expect(
-      service.sendText('5511999887766', 'Mensagem teste', 'dr-instance'),
-    ).rejects.toThrow('Evolution API retornou HTTP 500')
+      service.sendViaCloud('phone-number-id-123', '5511999887766', 'Mensagem teste'),
+    ).rejects.toThrow('Meta Cloud API retornou HTTP 500')
 
     expect(loggerErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining('****7766'),
