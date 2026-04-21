@@ -241,6 +241,24 @@ O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao
 
 ---
 
+## Comandos preferidos (economia de contexto)
+
+Scripts em `scripts/` que filtram output pra economizar tokens sem perder capacidade de debug.
+**Use os wrappers pra checagem rápida; use os comandos crus pra debug detalhado.**
+
+| Situação | Use | Ao invés de | Ganho |
+|---|---|---|---|
+| Testes passam? (smoke check) | `./scripts/ci-test.sh` | `pnpm --filter @nocrato/api test` | ~95% menos linhas |
+| Validação antes de commit/PR | `./scripts/ci-check.sh` | 3 comandos separados | ~85% menos linhas |
+| Estado do banco local (contagens) | `./scripts/db-status.sh` | abrir psql manual | direto |
+| Debug de teste específico | `pnpm test --testPathPattern=X` | — | (output completo intencional) |
+| Stack trace de falha | `pnpm test` (sem silent) | — | (output completo intencional) |
+| Ver último commit (mensagem completa) | `git log -1` | `git log --oneline -1` | (output completo intencional) |
+
+**Regra de ouro**: quando a pergunta é "está funcionando?", use o script. Quando a pergunta é "por que quebrou?", use o comando cru.
+
+---
+
 ## Stack
 
 | Camada | Tecnologia |
