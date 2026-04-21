@@ -1,84 +1,71 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
+
+// ─── Chaves de query ──────────────────────────────────────────────────────────
+
+export const whatsappKeys = {
+  status: ['whatsapp', 'status'] as const,
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type WhatsAppConnectionStatus = 'open' | 'close' | 'connecting' | 'not_configured'
-export type WhatsAppQrStatus = 'qr_ready' | 'connected' | 'connecting'
+export type WhatsAppConnectionType = 'cloud' | 'evolution' | null
 
 export interface WhatsAppStatusResponse {
-  instanceName: string
-  status: WhatsAppConnectionStatus
+  connected: boolean
+  connectionType: WhatsAppConnectionType
+  // Campos presentes quando connected=true e connectionType='cloud'
   phoneNumber?: string
+  verifiedName?: string
+  // Campos presentes quando connected=true e connectionType='evolution'
+  qrCode?: string
+  instanceStatus?: string
 }
 
-export interface WhatsAppConnectResponse {
-  instanceName: string
-  qrCode: string
-  status: WhatsAppConnectionStatus
+export interface WhatsAppCloudConnectResponse {
+  phoneNumber: string
+  verifiedName: string
+  status: 'connected'
 }
 
-export interface WhatsAppQrResponse {
-  qrCode: string
-  status: WhatsAppQrStatus
-}
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
-// ─── Query Keys ───────────────────────────────────────────────────────────────
-
-export const whatsappKeys = {
-  status: ['doctor', 'whatsapp', 'status'] as const,
-  qr: ['doctor', 'whatsapp', 'qr'] as const,
-}
-
-// ─── Status — polling a cada 5s quando connecting ────────────────────────────
-// O caller é responsável por passar pollingActive baseado no status atual.
-
-export const whatsappStatusQueryOptions = (pollingActive: boolean) =>
+export const whatsappStatusQueryOptions = () =>
   queryOptions<WhatsAppStatusResponse>({
     queryKey: whatsappKeys.status,
     queryFn: () => api.get<WhatsAppStatusResponse>('/api/v1/doctor/whatsapp/status'),
-    refetchInterval: pollingActive ? 5000 : false,
+    refetchInterval: 5000,
   })
 
-export function useWhatsAppStatus(pollingActive: boolean) {
-  return useQuery(whatsappStatusQueryOptions(pollingActive))
-}
+// ─── Mutations ────────────────────────────────────────────────────────────────
 
-// ─── QR code — polling a cada 3s quando status é qr_ready ────────────────────
-
-export const whatsappQrQueryOptions = (enabled: boolean) =>
-  queryOptions<WhatsAppQrResponse>({
-    queryKey: whatsappKeys.qr,
-    queryFn: () => api.get<WhatsAppQrResponse>('/api/v1/doctor/whatsapp/qr'),
-    enabled,
-    refetchInterval: enabled ? 3000 : false,
-  })
-
-export function useWhatsAppQr(enabled: boolean) {
-  return useQuery(whatsappQrQueryOptions(enabled))
-}
-
-// ─── Connect — POST /connect ──────────────────────────────────────────────────
-
-export function useWhatsAppConnect() {
+export function useWhatsAppConnectCloud() {
   const queryClient = useQueryClient()
-  return useMutation<WhatsAppConnectResponse, Error, void>({
-    mutationFn: () => api.post<WhatsAppConnectResponse>('/api/v1/doctor/whatsapp/connect'),
+  return useMutation<WhatsAppCloudConnectResponse, Error, { code: string }>({
+    mutationFn: ({ code }) =>
+      api.post<WhatsAppCloudConnectResponse>('/api/v1/doctor/whatsapp/connect-cloud', { code }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: whatsappKeys.status })
     },
   })
 }
 
-// ─── Disconnect — DELETE /disconnect ─────────────────────────────────────────
+export function useWhatsAppGenerateQR() {
+  const queryClient = useQueryClient()
+  return useMutation<{ qrCode: string }, Error, void>({
+    mutationFn: () => api.post<{ qrCode: string }>('/api/v1/doctor/whatsapp/connect', {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: whatsappKeys.status })
+    },
+  })
+}
 
 export function useWhatsAppDisconnect() {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => api.delete('/api/v1/doctor/whatsapp/disconnect'),
+  return useMutation<void, Error, void>({
+    mutationFn: () => api.delete<void>('/api/v1/doctor/whatsapp/disconnect'),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: whatsappKeys.status })
-      void queryClient.removeQueries({ queryKey: whatsappKeys.qr })
     },
   })
 }

@@ -42,6 +42,15 @@ const envSchema = z.object({
   // Em dev: http://localhost:3000, em prod: https://app.nocrato.com
   WEBHOOK_BASE_URL: z.string().url().default('http://localhost:3000'),
 
+  // Meta WhatsApp Cloud API — todas opcionais enquanto Evolution API for o provider ativo.
+  // Obrigatórias quando CLOUD_API_CONNECTION_PROVIDER estiver em uso.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().min(16).optional(),
+  META_SYSTEM_USER_TOKEN: z.string().min(16).optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(16).optional(),
+  META_GRAPH_API_VERSION: z.string().default('v19.0'),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
+
   // Frontend
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 

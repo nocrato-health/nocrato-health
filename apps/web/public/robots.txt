@@ -1,0 +1,39 @@
+# Nocrato Health V2 — App privada (dados médicos sensíveis)
+# Bloquear todos os crawlers de áreas protegidas e dados de pacientes.
+
+# Crawlers genéricos
+User-agent: *
+Disallow: /api/
+Disallow: /doctor/
+Disallow: /patient/
+Disallow: /agency/
+Disallow: /book/
+Allow: /
+
+# AI crawlers — bloquear totalmente (LGPD + dados médicos)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+# Content Signals — dados médicos não podem ser usados pra treino
+Content-Signal: ai-train=no, search=no, ai-input=no

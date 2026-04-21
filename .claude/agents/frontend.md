@@ -199,3 +199,8 @@ Não entregue shadcn/ui padrão com cinzas genéricos. O Nocrato Health tem iden
 - Textos de UI devem ser em **português brasileiro** e soar naturais — não traduções literais de inglês
 - Empty states, mensagens de erro, e labels devem fazer sentido no contexto de uma clínica real ("Nenhuma consulta agendada" > "No items found")
 - Se um componente parece que poderia estar em qualquer projeto shadcn da internet, ele está errado — aplique o design system deste produto
+
+## Evidence Before Claims
+
+Nunca afirmar que typecheck passa sem rodar `pnpm --filter @nocrato/web exec tsc -p tsconfig.app.json --noEmit` e ver zero erros.
+Nunca afirmar que componente funciona sem evidência visual (screenshot ou output do dev server).

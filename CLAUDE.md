@@ -11,7 +11,7 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 - **Nocrato** (agência) gerencia doutores via portal interno
 - Cada **doutor** tem portal isolado (tenant) por slug (ex: `dr-silva`)
 - **Pacientes** criados pelo agente WhatsApp, portal read-only com código de acesso
-- **Agente WhatsApp** interno (NestJS + Evolution API + gpt-4o-mini) orquestra agendamento e notificações
+- **Agente WhatsApp** interno (NestJS + Evolution API/Meta Cloud API + gpt-4o-mini) orquestra agendamento e notificações
 - **Booking** público protegido por token temporário (24h)
 
 ---
@@ -29,6 +29,11 @@ Lido automaticamente pelo Claude Code. Define contexto, protocolo e restrições
 | Plant Seed | `/seed` | Ao surgir ideia tangencial "legal, mas não agora" — captura em `docs/seeds/` sem sair do fluxo |
 | Verify Security Fix | `/verify-sec-fix` | Ao terminar implementação de um `SEC-NN` — antes de marcar `done` na auditoria |
 | Intel Refresh | `/intel-refresh` | Início de sessão longa, após epic grande, ou antes de doc que cite números |
+| Brainstorm | `/brainstorm` | Antes de features complexas (>3 arquivos ou design incerto) — explorar abordagens antes de codar |
+| Plan | `/plan` | Após brainstorm aprovado — plano detalhado TDD com file paths e code blocks |
+| TDD | `/tdd` | Durante implementação de qualquer feature ou bugfix — Red-Green-Refactor |
+| Finish Branch | `/finish-branch` | Quando implementação termina — opções estruturadas pra merge/PR/discard |
+| Writing Skills | `/writing-skills` | Ao criar ou editar skills — meta-skill de qualidade |
 
 > **"Qualquer entrega de código"** = US, bugfix, TD, melhoria, refactor, hotfix, config. Se mudou arquivo sob `apps/` ou `docker/`, DoD + Health Check são obrigatórios.
 
@@ -42,6 +47,7 @@ Registrados em `.claude/settings.json` — advisory, nunca bloqueiam execução.
 | `context-monitor.js` | PostToolUse | Lê bridge file e injeta warning quando remaining ≤ 45% (warning) ou ≤ 30% (critical) |
 | `prompt-guard.js` | PreToolUse Write/Edit | Scan por padrões de prompt injection em `.claude/**/*.md`, `CLAUDE.md`, `docs/architecture/decisions.md` |
 | `validate-commit.sh` | PreToolUse Bash | Valida Conventional Commits em `git commit -m` (advisory) |
+| `session-start.sh` | SessionStart | Injeta resumo de skills e protocolo no início de cada sessão |
 
 ---
 
@@ -69,7 +75,7 @@ Checklist rápido — isso afeta:
 
 ## Protocolo de implementação
 
-### Pré-trabalho (Explore agent)
+### Pré-trabalho
 
 | Tipo | Escopo do Explore |
 |------|-------------------|
@@ -85,9 +91,11 @@ Checklist rápido — isso afeta:
 Regras adicionais:
 - **Primeira US de epic novo:** acionar `/test-cases` antes de começar
 - **US ambígua, migration destrutiva, bugfix sem causa raiz, refactor >3 módulos:** acionar `/assumptions` antes de planejar
+- **Feature complexa (>3 arquivos ou design incerto):** acionar `/brainstorm` antes de codar — explorar abordagens com o usuário
+- **Após brainstorm aprovado ou epic com >5 tasks:** acionar `/plan` — plano detalhado TDD com file paths e code blocks
 - **Trabalho relacionado a SEC-NN:** acionar `/verify-sec-fix` após implementar, antes de marcar done
 - Consultar agente em `.claude/agents/` para o domínio
-- Consultar `.claude/prompt-engineering.md` antes de acionar subagentes
+- Consultar `.claude/agent-prompt-template.md` antes de acionar subagentes
 
 ### Branches
 
@@ -111,40 +119,43 @@ Push direto na main é proibido. Padrões:
 0. Explore agent       → pré-carrega contexto
 0a. /assumptions       → se US ambígua, migration destrutiva ou bugfix sem causa raiz (ver tabela)
 0b. /test-cases        → se primeira US de epic novo
+0c. /brainstorm        → se feature complexa (>3 arquivos ou design incerto)
+0d. /plan              → se brainstorm aprovado ou epic com múltiplas tasks
 1. Branch              → git checkout -b <tipo>/descricao
-2. Implementar         → agents em worktrees (quem escreve código)
+2. Implementar         → agents em worktrees com /tdd (Red-Green-Refactor obrigatório)
 3. Tech-lead revisa    → aprova qualidade, padrões, segurança
 4. QA testa            → agent (backend) ou Playwright (frontend)
 5. /verify-sec-fix     → se trabalho fechou item SEC-NN (antes do DoD)
 6. /definition-of-done + /health-check
-7. Commit + Push + PR
+7. /finish-branch      → opções estruturadas: commit+PR, merge local, manter, descartar
 8. /code-review        → obrigatório em todo PR
 9. Merge + atualizar docs afetadas
 9a. doc-verifier       → se mudou schema, migration, flow ou endpoint (valida docs vs código)
 ```
 
 **Hooks automáticos** (não precisam de ação manual — disparam sozinhos):
+- `session-start`: injeta resumo de skills e protocolo no início de cada sessão
 - `context-monitor`: injeta warning em 45% e critical em 30% → você decide quando rodar `/compact`
 - `prompt-guard`: alerta se conteúdo suspeito for escrito em docs protegidos
 - `validate-commit`: advisory se commit message não seguir Conventional Commits
 
 ### Escala de rigor por tipo
 
-| Tipo | Explore | Worktrees | Tech-lead | QA backend | QA Playwright | DoD+HC | /code-review | doc-verifier |
-|------|---------|-----------|-----------|------------|---------------|--------|--------------|--------------|
-| User Story | completo | sim | sim | sim | se UI | sim | sim | se schema/flow/endpoint |
-| Tech Debt | focado | sim (>3 arquivos) | sim | sim | se UI | sim | sim | se schema/flow |
-| Bugfix backend (causa clara) | focado | sim | sim | sim | se afeta UI | sim | sim | — |
-| Bugfix backend (causa incerta) | focado | sim (`debugger` primeiro) | sim | sim | se afeta UI | sim | sim | — |
-| Bugfix frontend | focado | sim | sim | — | sim | sim | sim | — |
-| Hotfix (prod) | focado | sim | sim | sim | se UI | sim | sim | — |
-| Melhoria UX | focado | sim | sim | — | sim | sim | sim | — |
-| Refactor | completo | sim | sim | sim | se UI | sim | sim | se renomeou módulo/endpoint |
-| Migration / Schema | focado | sim | sim (dba+tl) | — | — | sim | sim | **sim** (obrigatório) |
-| Config / Env | — | — | revisão rápida | — | — | sim | sim | — |
-| Lib update | — | sim se breaking | sim | sim (regressão) | se UI | sim | sim | — |
-| Docs only | — | — | — | — | — | — | — | **sim** (valida o que mudou) |
-| **Fechamento de epic** | — | — | — | — | — | — | — | **sim** (audit completo) |
+| Tipo | Brainstorm | Plan | Explore | TDD | Worktrees | Tech-lead | QA | DoD+HC | /code-review | doc-verifier |
+|------|-----------|------|---------|-----|-----------|-----------|-----|--------|--------------|--------------|
+| User Story | se complexa | se >5 tasks | completo | sim | sim | sim | sim | sim | sim | se schema/flow |
+| Tech Debt | — | — | focado | sim | sim (>3 arq) | sim | sim | sim | sim | se schema/flow |
+| Bugfix (causa clara) | — | — | focado | sim | sim | sim | sim | sim | sim | — |
+| Bugfix (causa incerta) | — | — | focado + `debugger` | sim | sim | sim | sim | sim | sim | — |
+| Bugfix frontend | — | — | focado | sim | sim | sim | Playwright | sim | sim | — |
+| Hotfix (prod) | — | — | focado | sim | sim | sim | sim | sim | sim | — |
+| Melhoria UX | se design incerto | — | focado | sim | sim | sim | Playwright | sim | sim | — |
+| Refactor | se >3 módulos | sim | completo | sim | sim | sim | sim | sim | sim | se renomeou |
+| Migration / Schema | se destrutiva | — | focado | — | sim | sim (dba+tl) | — | sim | sim | **sim** |
+| Config / Env | — | — | — | — | — | rev. rápida | — | sim | sim | — |
+| Lib update | — | — | — | sim | se breaking | sim | regressão | sim | sim | — |
+| Docs only | — | — | — | — | — | — | — | — | — | **sim** |
+| **Fechamento de epic** | — | — | — | — | — | — | — | — | — | **sim** (audit) |
 
 ### Worktrees
 
@@ -156,12 +167,13 @@ Tech-lead e security sempre rodam no contexto principal (só leem).
 
 | Entrega | Pipeline de agentes |
 |---------|---------------------|
-| Backend (NestJS) | `backend` → `tech-lead` → `qa` |
+| Backend (NestJS) | `/tdd` → `backend` → `tech-lead` → `qa` |
 | Migration / Schema | `dba` → `tech-lead` |
 | Frontend (React) | `frontend` → `designer` → `qa` (Playwright) |
 | End-to-end | `backend` + `frontend` → `tech-lead` → `qa` |
 | Docker / infra | `devops` → `tech-lead` |
-| Decisão arquitetural | `architect` → ADR em `decisions.md` |
+| Decisão arquitetural | `/brainstorm` → `architect` → ADR em `decisions.md` |
+| Feature complexa | `/brainstorm` → `/plan` → subagents por task → `tech-lead` → `qa` |
 | Bug não-trivial | `debugger` (método científico 5 fases) → fix via agent de domínio |
 | Auditoria de docs vs código | `doc-verifier` (read-only) |
 
@@ -199,6 +211,10 @@ O `debugger` **não implementa o fix** — ele diagnostica. O fix é delegado ao
 4. **DoCDD mid-implementation** — se escopo diverge do doc, parar e atualizar doc primeiro
 5. **Hooks são passivos** — não precisam de ação manual; disparam sozinhos via `settings.json`
 6. **Skills são ativas** — precisam ser invocadas no momento certo do ciclo de vida (ver tabela de gatilhos)
+7. **Evidence before claims** — nunca afirmar que testes passam, build compila, ou feature funciona sem rodar o comando e ver o output. "Deve funcionar" não é evidência
+8. **TDD obrigatório** — Red-Green-Refactor. Teste falha primeiro, implementa mínimo, refatora. Escreveu código antes do teste? Deletar e recomeçar. Ver `/tdd`
+9. **Design antes de código** — features complexas passam por `/brainstorm` antes de tocar em arquivo. Implementação sem design validado é retrabalho garantido
+10. **Plano antes de execução** — tasks com >5 steps passam por `/plan`. Subagents recebem o plano, não a ideia vaga
 
 ---
 
@@ -252,7 +268,7 @@ nocrato-health-v2/
 │   ├── api/                   ← NestJS backend
 │   │   └── src/
 │   │       ├── common/        ← guards, decorators, filters, pipes
-│   │       ├── database/      ← Knex provider + 19 migrations
+│   │       ├── database/      ← Knex provider + 20 migrations
 │   │       └── modules/       ← 13 módulos de feature
 │   └── web/                   ← React frontend
 │       └── src/
@@ -263,8 +279,8 @@ nocrato-health-v2/
 ├── docs/                      ← documentação completa
 └── .claude/
     ├── agents/                ← 12 agentes (backend, frontend, dba, qa, tech-lead, designer, architect, pm, devops, security, debugger, doc-verifier)
-    ├── hooks/                 ← 4 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit)
-    ├── skills/                ← 9 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh)
+    ├── hooks/                 ← 5 hooks (context-monitor, statusline-bridge, prompt-guard, validate-commit, session-start)
+    ├── skills/                ← 14 skills (compact, definition-of-done, health-check, code-review, test-cases, seed, assumptions, verify-sec-fix, intel-refresh, brainstorm, plan, tdd, finish-branch, writing-skills)
     └── agent-prompt-template.md ← checklist canônico de delegação
 ```
 
@@ -276,7 +292,9 @@ nocrato-health-v2/
 | Doctor auth | `POST /api/v1/doctor/auth/login` | `routes/doctor/login.tsx` |
 | Booking | `GET /api/v1/public/booking/:slug/...` | `routes/book/$slug.tsx` |
 | Patient portal | `POST /api/v1/patient/portal/access` | `routes/patient/access.tsx` |
-| WhatsApp webhook | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Evolution) | `POST /api/v1/agent/webhook` | — |
+| WhatsApp webhook (Cloud API) | `GET/POST /api/v1/agent/webhook/cloud` | — |
+| WhatsApp connection | `POST /api/v1/doctor/whatsapp/connect[-cloud]` | `routes/doctor/whatsapp.tsx` |
 
 ---
 
@@ -286,7 +304,7 @@ nocrato-health-v2/
 |-----------|----------|
 | `docs/guides/` | Setup dev, onboarding, VPS cheatsheet |
 | `docs/architecture/` | Stack, estrutura backend/frontend, 15 ADRs |
-| `docs/database/` | Schema DDL, ER diagram, 19 migrations |
+| `docs/database/` | Schema DDL, ER diagram, 20 migrations |
 | `docs/flows/` | Auth, booking, appointment lifecycle, patient portal, agent |
 | `docs/roadmap/v1/` | 12 epics + test cases (MVP concluído) |
 | `docs/security/` | Auditoria OWASP |
@@ -295,7 +313,7 @@ nocrato-health-v2/
 | `docs/intel/` | Snapshots quantitativos do estado do projeto — via `/intel-refresh` |
 | `.claude/agents/` | 12 agentes especializados |
 | `.claude/hooks/` | 4 hooks advisory (context, prompt-guard, statusline, commit-lint) |
-| `.claude/skills/` | 9 skills com gatilhos definidos na tabela acima |
+| `.claude/skills/` | 14 skills com gatilhos definidos na tabela acima |
 | `.claude/prompt-engineering.md` | Guia de PE — ler antes de editar agentes |
 | `.claude/agent-prompt-template.md` | Checklist de delegação a subagents |
 

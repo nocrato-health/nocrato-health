@@ -33,8 +33,14 @@ env.EVOLUTION_WEBHOOK_TOKEN
 | `RESEND_API_KEY` | string (prefixo `re_`) | Sim |
 | `EMAIL_FROM` | email | Default: `noreply@nocrato.com.br` |
 | `EVOLUTION_API_URL` | URL válida | Sim |
-| `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_WEBHOOK_TOKEN` | string | Sim |
+| `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN` | string | Sim |
+| `WEBHOOK_BASE_URL` | URL | Default: `http://localhost:3000` |
 | `OPENAI_API_KEY` | string (prefixo `sk-`) | Sim |
+| `DOCUMENT_ENCRYPTION_KEY` | hex 64 chars | Sim |
+| `SENTRY_DSN` | URL | Não (opcional) |
+| `META_APP_ID`, `META_APP_SECRET`, `META_SYSTEM_USER_TOKEN` | string | Não (Cloud API, opcional) |
+| `META_WEBHOOK_VERIFY_TOKEN`, `META_EMBEDDED_SIGNUP_CONFIG_ID` | string | Não (Cloud API, opcional) |
+| `META_GRAPH_API_VERSION` | string | Default: `v19.0` |
 
 ## Regras
 

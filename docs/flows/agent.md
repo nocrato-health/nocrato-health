@@ -24,38 +24,48 @@ O agente WhatsApp e implementado diretamente no backend NestJS como o modulo `ag
 
 ## 1. Visao Geral da Arquitetura
 
+O módulo suporta **dois providers** que coexistem. O roteamento é automático:
+
 ```
 Paciente (WhatsApp)
       |
       | mensagem
       v
-Evolution API
-      |
-      | POST /api/v1/agent/webhook
-      v
-agent.controller.ts
-      |
-      v
-agent.service.ts ──────────────────────────────────────────────┐
-      |                                                          |
-      | busca contexto                  chama LLM               |
-      v                                 (OpenAI SDK)            |
-conversation.service.ts                      |                  |
-      |                                      v                  |
-      | estado da conversa            gera resposta             |
-      v                                      |                  |
-   PostgreSQL                               |                  |
-   (conversations)                          |                  |
-                                            |                  |
-                               whatsapp.service.ts <───────────┘
-                                            |
-                                            | POST (HTTP)
-                                            v
-                                     Evolution API
-                                            |
-                                            v
-                                   Paciente (WhatsApp)
+┌─────────────────────────────────────┐
+│  Evolution API        Meta Cloud API│
+│  POST /agent/webhook  POST /agent/  │
+│                       webhook/cloud │
+└──────────┬────────────────┬─────────┘
+           v                v
+      agent.controller.ts
+      (valida apikey)   (valida HMAC-SHA256)
+           │                │
+           └───────┬────────┘
+                   v
+        agent.service.ts
+        processMessage(tenantId, phone, text)
+                   │
+           ┌───────┴───────┐
+           v               v
+  conversation.service   OpenAI SDK
+  (PostgreSQL)           gpt-4o-mini + tools
+                               │
+                               v
+                  sendWhatsAppMessage()
+                   │               │
+                   v               v
+             sendViaCloud()   sendText()
+             (Meta Graph)    (Evolution)
+                   │               │
+                   v               v
+            Paciente (WhatsApp)
 ```
+
+**Tenant resolution:**
+- Evolution: `agent_settings.evolution_instance_name` → tenant_id
+- Cloud API: `agent_settings.whatsapp_phone_number_id` → tenant_id
+
+**Prioridade:** se `whatsapp_phone_number_id` preenchido → usa Cloud API. Senão → Evolution.
 
 **Principios:**
 - Tudo TypeScript, no mesmo processo NestJS

@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
@@ -9,6 +11,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common'
+import { z } from 'zod'
 import type { Knex } from 'knex'
 import { KNEX } from '@/database/knex.provider'
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard'
@@ -19,8 +22,14 @@ import { TenantId } from '@/common/decorators/tenant.decorator'
 import { env } from '@/config/env'
 import {
   WHATSAPP_CONNECTION_PROVIDER,
+  CLOUD_API_CONNECTION_PROVIDER,
   type WhatsAppConnectionProvider,
+  type SignupBasedConnectionProvider,
 } from './whatsapp-connection.provider'
+
+const ConnectCloudSchema = z.object({
+  code: z.string().min(10, 'Code OAuth da Meta inválido'),
+})
 
 @Controller('doctor/whatsapp')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -32,6 +41,8 @@ export class WhatsAppConnectionController {
     @Inject(KNEX) private readonly knex: Knex,
     @Inject(WHATSAPP_CONNECTION_PROVIDER)
     private readonly connectionProvider: WhatsAppConnectionProvider,
+    @Inject(CLOUD_API_CONNECTION_PROVIDER)
+    private readonly cloudProvider: SignupBasedConnectionProvider,
   ) {}
 
   private buildWebhookUrl(): string {
@@ -110,15 +121,80 @@ export class WhatsAppConnectionController {
   @HttpCode(204)
   async disconnect(@TenantId() tenantId: string): Promise<void> {
     const agentSettings = await this.knex('agent_settings')
-      .select('evolution_instance_name')
+      .select('evolution_instance_name', 'whatsapp_phone_number_id')
       .where({ tenant_id: tenantId })
       .first()
 
-    if (!agentSettings || !(agentSettings.evolution_instance_name as string | null)) {
+    if (!agentSettings) {
       throw new NotFoundException('Instância WhatsApp não configurada')
     }
 
-    const instanceName = agentSettings.evolution_instance_name as string
-    await this.connectionProvider.disconnectInstance(instanceName)
+    const cloudPhoneNumberId = agentSettings.whatsapp_phone_number_id as string | null
+    const evolutionInstance = agentSettings.evolution_instance_name as string | null
+
+    // Cloud API tem precedência se ambos configurados
+    if (cloudPhoneNumberId) {
+      await this.knex('agent_settings')
+        .where({ tenant_id: tenantId })
+        .update({
+          whatsapp_phone_number_id: null,
+          whatsapp_waba_id: null,
+          whatsapp_display_phone_number: null,
+          whatsapp_verified_name: null,
+          updated_at: this.knex.fn.now(),
+        })
+      return
+    }
+
+    if (evolutionInstance) {
+      await this.connectionProvider.disconnectInstance(evolutionInstance)
+      return
+    }
+
+    throw new NotFoundException('Instância WhatsApp não configurada')
+  }
+
+  /**
+   * Conexão via Embedded Signup da Meta (WhatsApp Cloud API).
+   * Recebe o `code` OAuth do popup do frontend e troca por phone_number_id + waba_id.
+   */
+  @Post('connect-cloud')
+  async connectCloud(
+    @TenantId() tenantId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = ConnectCloudSchema.safeParse(body)
+    if (!parsed.success) {
+      throw new BadRequestException('Code OAuth inválido')
+    }
+
+    const agentSettings = await this.knex('agent_settings')
+      .select('id')
+      .where({ tenant_id: tenantId })
+      .first()
+
+    if (!agentSettings) {
+      throw new NotFoundException('Configurações do agente não encontradas')
+    }
+
+    const result = await this.cloudProvider.exchangeSignupCode(parsed.data.code)
+
+    await this.knex('agent_settings')
+      .where({ tenant_id: tenantId })
+      .update({
+        whatsapp_phone_number_id: result.phoneNumberId,
+        whatsapp_waba_id: result.wabaId,
+        whatsapp_display_phone_number: result.displayPhoneNumber,
+        whatsapp_verified_name: result.verifiedName,
+        updated_at: this.knex.fn.now(),
+      })
+
+    this.logger.log(`Cloud API conectada para tenant ${tenantId}: ${result.displayPhoneNumber}`)
+
+    return {
+      phoneNumber: result.displayPhoneNumber,
+      verifiedName: result.verifiedName,
+      status: 'connected' as const,
+    }
   }
 }

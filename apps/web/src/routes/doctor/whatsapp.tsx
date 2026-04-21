@@ -1,160 +1,338 @@
 import * as React from 'react'
-import { MessageSquare, RefreshCw, CheckCircle2, Wifi, WifiOff } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { MessageCircle, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck } from 'lucide-react'
 
 import {
-  useWhatsAppStatus,
-  useWhatsAppConnect,
-  useWhatsAppQr,
+  whatsappStatusQueryOptions,
+  useWhatsAppConnectCloud,
+  useWhatsAppGenerateQR,
   useWhatsAppDisconnect,
 } from '@/lib/queries/whatsapp'
 import { toast } from '@/lib/toast'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── MetaSignupButton ─────────────────────────────────────────────────────────
 
-function maskPhoneNumber(phone: string): string {
-  // Mantém os últimos 4 dígitos visíveis: ****-1234
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length < 4) return phone
-  return `****-${digits.slice(-4)}`
+interface MetaSignupButtonProps {
+  onConnected: () => void
 }
 
-// ─── Estado 1: Não configurado / desconectado ─────────────────────────────────
+function MetaSignupButton({ onConnected }: MetaSignupButtonProps) {
+  const connectCloud = useWhatsAppConnectCloud()
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || (window as unknown as { FB?: unknown }).FB) return
+
+    const script = document.createElement('script')
+    script.src = 'https://connect.facebook.net/en_US/sdk.js'
+    script.async = true
+    script.defer = true
+    script.crossOrigin = 'anonymous'
+    script.onload = () => {
+      ;(window as unknown as { fbAsyncInit: () => void }).fbAsyncInit = function () {
+        ;(window as unknown as { FB: { init: (opts: Record<string, unknown>) => void } }).FB.init({
+          appId: import.meta.env.VITE_META_APP_ID as string,
+          cookie: true,
+          xfbml: false,
+          version: 'v19.0',
+          autoLogAppEvents: false,
+        })
+      }
+    }
+    document.body.appendChild(script)
+  }, [])
+
+  function launchSignup() {
+    const FB = (window as unknown as { FB?: { login: (cb: (r: FBLoginResponse) => void, opts: Record<string, unknown>) => void } }).FB
+    if (!FB) {
+      toast.error('SDK do Meta ainda carregando, aguarde alguns segundos')
+      return
+    }
+
+    FB.login(
+      function (response: FBLoginResponse) {
+        if (response.authResponse?.code) {
+          connectCloud.mutate(
+            { code: response.authResponse.code },
+            {
+              onSuccess: () => {
+                toast.success('WhatsApp conectado via Meta!')
+                onConnected()
+              },
+              onError: (err) => {
+                toast.error(err.message || 'Erro ao conectar via Meta')
+              },
+            },
+          )
+        }
+      },
+      {
+        config_id: import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID as string,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          feature: 'whatsapp_embedded_signup',
+          sessionInfoVersion: '3',
+        },
+      },
+    )
+  }
+
+  return (
+    <Button
+      onClick={launchSignup}
+      loading={connectCloud.isPending}
+      className="w-full sm:w-auto"
+    >
+      {connectCloud.isPending ? 'Conectando...' : 'Conectar via Meta'}
+    </Button>
+  )
+}
+
+// ─── Tipo auxiliar para o SDK do Facebook ────────────────────────────────────
+
+interface FBLoginResponse {
+  authResponse?: {
+    code?: string
+  }
+  status?: string
+}
+
+// ─── DisconnectedState ────────────────────────────────────────────────────────
 
 interface DisconnectedStateProps {
-  hasInstance: boolean
-  onConnect: () => void
-  isConnecting: boolean
+  onConnected: () => void
 }
 
-function DisconnectedState({ hasInstance, onConnect, isConnecting }: DisconnectedStateProps) {
-  return (
-    <div className="flex flex-col items-center text-center gap-6">
-      <div className="w-16 h-16 rounded-full bg-[#fef9e6] flex items-center justify-center">
-        <WifiOff className="w-8 h-8 text-amber-mid" />
-      </div>
+function DisconnectedState({ onConnected }: DisconnectedStateProps) {
+  const [showQR, setShowQR] = React.useState(false)
+  const generateQR = useWhatsAppGenerateQR()
 
-      <div className="space-y-2">
-        <h2 className="font-heading font-bold text-xl text-amber-dark">
-          Conectar WhatsApp
-        </h2>
-        <p className="text-sm text-[#6b5b3e] leading-relaxed max-w-sm">
-          Conecte seu WhatsApp para ativar o agente de atendimento automático.
-          Escaneie o QR code com o app WhatsApp do seu celular.
+  function handleGenerateQR() {
+    generateQR.mutate(undefined, {
+      onSuccess: () => {
+        setShowQR(true)
+      },
+      onError: (err) => {
+        toast.error(err.message || 'Erro ao gerar QR code')
+      },
+    })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold font-heading text-amber-dark">WhatsApp</h1>
+        <p className="text-sm text-[#af830d] mt-1">
+          Conecte o WhatsApp do consultório para ativar o agente de agendamento.
         </p>
       </div>
 
-      <Button
-        onClick={onConnect}
-        loading={isConnecting}
-        className="bg-amber-bright hover:bg-amber-mid text-amber-dark font-semibold px-6"
-      >
-        {hasInstance ? 'Reconectar' : 'Gerar QR Code'}
-      </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card: WhatsApp Oficial (Meta) */}
+        <Card className="border-[#e8dfc8] relative overflow-hidden">
+          {/* Badge recomendado */}
+          <div className="absolute top-3 right-3">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-bright/20 px-2.5 py-0.5 text-xs font-semibold text-amber-dark border border-amber-bright/40">
+              Recomendado
+            </span>
+          </div>
+
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#fef9e6] border border-amber-bright/30">
+                <ShieldCheck className="h-5 w-5 text-amber-dark" />
+              </div>
+              <CardTitle className="text-base">WhatsApp Oficial</CardTitle>
+            </div>
+            <CardDescription className="text-sm leading-relaxed">
+              Conexão via Meta Business Platform. Número verificado, sem risco de ban e com suporte
+              oficial. Ideal para uso em produção.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="pt-0">
+            <MetaSignupButton onConnected={onConnected} />
+          </CardContent>
+        </Card>
+
+        {/* Card: WhatsApp Não-Oficial (Evolution) */}
+        <Card className="border-[#e8dfc8]">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange/10 border border-orange/20">
+                <Smartphone className="h-5 w-5 text-orange" />
+              </div>
+              <CardTitle className="text-base text-[#6e5305]">WhatsApp Não-Oficial</CardTitle>
+            </div>
+            <CardDescription className="text-sm leading-relaxed">
+              Conexão via QR code com Evolution API. Sujeito a risco de ban pelo WhatsApp.
+              Use apenas para testes ou como fallback temporário.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="pt-0 space-y-3">
+            {!showQR ? (
+              <Button
+                variant="outline"
+                onClick={handleGenerateQR}
+                loading={generateQR.isPending}
+                className="w-full sm:w-auto"
+              >
+                {generateQR.isPending ? 'Gerando...' : 'Gerar QR Code'}
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                {generateQR.data?.qrCode ? (
+                  <div className="flex flex-col items-start gap-2">
+                    <img
+                      src={generateQR.data.qrCode}
+                      alt="QR Code para conectar WhatsApp"
+                      className="w-48 h-48 rounded-lg border border-[#e8dfc8]"
+                    />
+                    <p className="text-xs text-[#af830d]">
+                      Abra o WhatsApp no celular, vá em Dispositivos vinculados e escaneie o código.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-[#af830d]">
+                    <AlertTriangle className="h-4 w-4 text-orange shrink-0" />
+                    QR code não disponível. Tente gerar novamente.
+                  </div>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowQR(false)}
+                  className="text-xs"
+                >
+                  Voltar
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
 
-// ─── Estado 2: Aguardando scan do QR ─────────────────────────────────────────
-
-interface QrStateProps {
-  qrCode: string | null
-  isLoadingQr: boolean
-}
-
-function QrState({ qrCode, isLoadingQr }: QrStateProps) {
-  return (
-    <div className="flex flex-col items-center text-center gap-6">
-      <div className="space-y-2">
-        <h2 className="font-heading font-bold text-xl text-amber-dark">
-          Escaneie o QR Code
-        </h2>
-        <p className="text-sm text-[#6b5b3e] leading-relaxed max-w-sm">
-          Abra o WhatsApp no celular &rarr; Menu &rarr; Dispositivos conectados
-          &rarr; Conectar dispositivo
-        </p>
-      </div>
-
-      {/* QR Code */}
-      <div className="relative flex items-center justify-center w-[280px] h-[280px] rounded-xl border-2 border-[#e8dfc8] bg-white shadow-sm">
-        {isLoadingQr || !qrCode ? (
-          <Skeleton className="w-[256px] h-[256px] rounded-lg" />
-        ) : (
-          <img
-            src={`data:image/png;base64,${qrCode}`}
-            alt="QR Code WhatsApp"
-            width={256}
-            height={256}
-            className="rounded-lg"
-          />
-        )}
-      </div>
-
-      {/* Indicador de atualização automática */}
-      <div className="flex items-center gap-2 text-xs text-blue-steel">
-        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-        <span>QR code atualiza automaticamente a cada 3 segundos</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── Estado 3: Conectado ──────────────────────────────────────────────────────
+// ─── ConnectedState ───────────────────────────────────────────────────────────
 
 interface ConnectedStateProps {
-  instanceName: string
+  connectionType: 'cloud' | 'evolution'
   phoneNumber?: string
-  onDisconnect: () => void
-  isDisconnecting: boolean
+  verifiedName?: string
+  instanceStatus?: string
 }
 
-function ConnectedState({ instanceName, phoneNumber, onDisconnect, isDisconnecting }: ConnectedStateProps) {
-  return (
-    <div className="flex flex-col items-center text-center gap-6">
-      <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center">
-        <CheckCircle2 className="w-8 h-8 text-green-600" />
-      </div>
+function ConnectedState({ connectionType, phoneNumber, verifiedName, instanceStatus }: ConnectedStateProps) {
+  const disconnect = useWhatsAppDisconnect()
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-            <Wifi className="w-3.5 h-3.5" />
-            Conectado
-          </span>
-        </div>
-        <h2 className="font-heading font-bold text-xl text-amber-dark">
-          WhatsApp ativo
-        </h2>
-        <p className="text-sm text-[#6b5b3e] leading-relaxed max-w-sm">
-          Seu agente WhatsApp está ativo e respondendo pacientes automaticamente.
+  function handleDisconnect() {
+    disconnect.mutate(undefined, {
+      onError: (err) => {
+        toast.error(err.message || 'Erro ao desconectar')
+      },
+    })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold font-heading text-amber-dark">WhatsApp</h1>
+        <p className="text-sm text-[#af830d] mt-1">
+          Gerencie a conexão do WhatsApp do consultório.
         </p>
       </div>
 
-      {/* Detalhes da instância */}
-      <div className="w-full rounded-lg border border-[#e8dfc8] bg-[#fef9e6] p-4 space-y-2 text-left">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-[#8a7350] font-medium">Instância</span>
-          <span className="text-amber-dark font-semibold font-mono text-xs">{instanceName}</span>
-        </div>
-        {phoneNumber && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-[#8a7350] font-medium">Número</span>
-            <span className="text-amber-dark font-semibold">{maskPhoneNumber(phoneNumber)}</span>
-          </div>
-        )}
-      </div>
+      <Card className="border-[#e8dfc8]">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
 
-      <Button
-        variant="destructive"
-        onClick={onDisconnect}
-        loading={isDisconnecting}
-        className="w-full"
-      >
-        Desconectar
-      </Button>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-[#1a1a1a]">Conectado</span>
+                  {connectionType === 'cloud' ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                      <ShieldCheck className="h-3 w-3" />
+                      WhatsApp Oficial Meta
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange/10 px-2.5 py-0.5 text-xs font-semibold text-orange border border-orange/20">
+                      <Smartphone className="h-3 w-3" />
+                      Evolution API
+                    </span>
+                  )}
+                </div>
+
+                {connectionType === 'cloud' && (
+                  <div className="space-y-0.5">
+                    {verifiedName && (
+                      <p className="text-sm text-[#1a1a1a] font-medium">{verifiedName}</p>
+                    )}
+                    {phoneNumber && (
+                      <p className="text-sm text-[#af830d]">{phoneNumber}</p>
+                    )}
+                  </div>
+                )}
+
+                {connectionType === 'evolution' && instanceStatus && (
+                  <p className="text-sm text-[#af830d] capitalize">
+                    Status: {instanceStatus}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              loading={disconnect.isPending}
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 shrink-0"
+            >
+              {disconnect.isPending ? 'Desconectando...' : 'Desconectar'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="rounded-lg border border-amber-bright/30 bg-[#fef9e6] p-4">
+        <div className="flex gap-3">
+          <MessageCircle className="h-5 w-5 text-amber-dark shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-dark">Agente ativo</p>
+            <p className="text-sm text-[#af830d] mt-0.5">
+              O agente de agendamento está pronto para receber mensagens dos pacientes.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Skeleton de carregamento ─────────────────────────────────────────────────
+
+function WhatsAppPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
+      </div>
     </div>
   )
 }
@@ -162,114 +340,20 @@ function ConnectedState({ instanceName, phoneNumber, onDisconnect, isDisconnecti
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export function DoctorWhatsAppPage() {
-  const [connectInitiated, setConnectInitiated] = React.useState(false)
+  const { data: status, isLoading, refetch } = useQuery(whatsappStatusQueryOptions())
 
-  // Polling ativo quando aguardando conexão ou reconexão
-  const pollingActive = connectInitiated
-  const { data: statusData, isLoading: isLoadingStatus } = useWhatsAppStatus(pollingActive)
+  if (isLoading) return <WhatsAppPageSkeleton />
 
-  const status = statusData?.status ?? 'not_configured'
-
-  // QR polling ativo apenas quando aguardando scan
-  const qrPollingEnabled =
-    connectInitiated && (status === 'connecting' || status === 'close' || status === 'not_configured')
-
-  const { data: qrData, isLoading: isLoadingQr } = useWhatsAppQr(qrPollingEnabled) as {
-    data: { qrCode?: string; status?: string } | undefined
-    isLoading: boolean
+  if (status?.connected && status.connectionType) {
+    return (
+      <ConnectedState
+        connectionType={status.connectionType}
+        phoneNumber={status.phoneNumber}
+        verifiedName={status.verifiedName}
+        instanceStatus={status.instanceStatus}
+      />
+    )
   }
 
-  const [initialQrCode, setInitialQrCode] = React.useState<string | null>(null)
-  const connectMutation = useWhatsAppConnect()
-  const disconnectMutation = useWhatsAppDisconnect()
-
-  // Quando status muda para 'open', desativa o modo de conexão iniciada
-  React.useEffect(() => {
-    if (status === 'open') {
-      setConnectInitiated(false)
-    }
-  }, [status])
-
-  function handleConnect() {
-    connectMutation.mutate(undefined, {
-      onSuccess: (data: unknown) => {
-        setConnectInitiated(true)
-        const result = data as { qrCode?: string } | undefined
-        if (result?.qrCode) setInitialQrCode(result.qrCode)
-      },
-      onError: () => {
-        toast.error('Erro ao iniciar conexão. Tente novamente.')
-      },
-    })
-  }
-
-  function handleDisconnect() {
-    disconnectMutation.mutate(undefined, {
-      onSuccess: () => {
-        setConnectInitiated(false)
-        setInitialQrCode(null)
-        toast.success('WhatsApp desconectado com sucesso.')
-      },
-      onError: () => {
-        toast.error('Erro ao desconectar. Tente novamente.')
-      },
-    })
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Cabeçalho da página */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#fef9e6] flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-amber-mid" />
-          </div>
-          <div>
-            <h1 className="font-heading font-bold text-2xl text-amber-dark">WhatsApp</h1>
-            <p className="text-sm text-[#8a7350]">Conexão com o agente de atendimento</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Card central */}
-      <div className="flex justify-center">
-        <Card className="w-full max-w-[500px] rounded-xl border border-[#e8dfc8] bg-white shadow-sm">
-          <CardHeader className="pb-0">
-            <CardTitle className="sr-only">Gerenciar conexão WhatsApp</CardTitle>
-          </CardHeader>
-          <CardContent className="p-8">
-            {isLoadingStatus ? (
-              <div className="flex flex-col items-center gap-6">
-                <Skeleton className="w-16 h-16 rounded-full" />
-                <div className="space-y-2 w-full max-w-xs">
-                  <Skeleton className="h-6 w-3/4 mx-auto" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-5/6 mx-auto" />
-                </div>
-                <Skeleton className="h-10 w-40" />
-              </div>
-            ) : status === 'open' ? (
-              <ConnectedState
-                instanceName={statusData?.instanceName ?? ''}
-                phoneNumber={statusData?.phoneNumber}
-                onDisconnect={handleDisconnect}
-                isDisconnecting={disconnectMutation.isPending}
-              />
-            ) : connectInitiated ? (
-              <QrState
-                qrCode={qrData?.qrCode ?? initialQrCode}
-                isLoadingQr={isLoadingQr && !qrData?.qrCode && !initialQrCode}
-              />
-            ) : (
-              <DisconnectedState
-                hasInstance={status === 'close'}
-                onConnect={handleConnect}
-                isConnecting={connectMutation.isPending}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  )
+  return <DisconnectedState onConnected={() => void refetch()} />
 }

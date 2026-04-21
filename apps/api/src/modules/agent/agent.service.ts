@@ -94,6 +94,22 @@ export class AgentService {
       return
     }
 
+    await this.processMessage(tenantId, phone, messageText)
+  }
+
+  /**
+   * Entrypoint para mensagens recebidas via Cloud API (Meta).
+   * O tenant já vem resolvido pelo controller (via phone_number_id → agent_settings).
+   */
+  async handleMessageFromCloud(tenantId: string, phone: string, messageText: string): Promise<void> {
+    if (!messageText.trim()) return
+    await this.processMessage(tenantId, phone, messageText)
+  }
+
+  /**
+   * Lógica core de processamento de mensagem — agnóstica de provider (Evolution ou Cloud).
+   */
+  private async processMessage(tenantId: string, phone: string, messageText: string): Promise<void> {
     // 3. Buscar contexto do paciente (pode não existir ainda)
     const patient = await this.patientService.findByPhone(tenantId, phone)
 
@@ -200,8 +216,32 @@ export class AgentService {
     ]
     await this.conversationService.appendMessages(conversation.id, newMessages)
 
-    // 12. Enviar resposta via WhatsApp
-    await this.whatsappService.sendText(phone, responseText, agentCtx.instanceName)
+    // 12. Enviar resposta via WhatsApp (Cloud ou Evolution, baseado em agent_settings)
+    await this.sendWhatsAppMessage(tenantId, phone, responseText, agentCtx)
+  }
+
+  /**
+   * Envia mensagem via Cloud API se whatsapp_phone_number_id estiver configurado,
+   * caso contrário fallback pra Evolution API.
+   */
+  private async sendWhatsAppMessage(
+    tenantId: string,
+    phone: string,
+    text: string,
+    ctx: AgentContext,
+  ): Promise<void> {
+    const cloudRow = await this.knex('agent_settings')
+      .select('whatsapp_phone_number_id')
+      .where({ tenant_id: tenantId })
+      .first()
+
+    const phoneNumberId = cloudRow?.whatsapp_phone_number_id as string | null
+
+    if (phoneNumberId) {
+      await this.whatsappService.sendViaCloud(phoneNumberId, phone, text)
+    } else {
+      await this.whatsappService.sendText(phone, text, ctx.instanceName)
+    }
   }
 
   // ---------------------------------------------------------------------------

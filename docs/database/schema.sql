@@ -251,6 +251,12 @@ CREATE TABLE agent_settings (
                         CONSTRAINT agent_settings_booking_mode_check CHECK (booking_mode IN ('link', 'chat', 'both')),
     -- 'link': agent only sends booking link; 'chat': agent books in-chat; 'both': agent decides
 
+    -- Meta WhatsApp Cloud API (migration 020) — preenchidos via Embedded Signup OAuth flow
+    whatsapp_phone_number_id    VARCHAR(50)  NULL,  -- ID do número na Meta Graph API
+    whatsapp_waba_id            VARCHAR(50)  NULL,  -- WhatsApp Business Account ID do doutor
+    whatsapp_display_phone_number VARCHAR(20) NULL,  -- Número formatado pra exibir
+    whatsapp_verified_name      VARCHAR(255) NULL,  -- Nome verificado na Meta
+
     CONSTRAINT agent_settings_tenant_unique UNIQUE (tenant_id)
     -- 1:1 with tenant. Only one agent config per portal.
 );
@@ -258,11 +264,15 @@ CREATE TABLE agent_settings (
 -- Index: tenant lookup (primary access pattern)
 CREATE INDEX idx_agent_settings_tenant_id ON agent_settings (tenant_id);
 
--- Index: instance name lookup for webhook tenant resolution (1 query per incoming message)
+-- Index: instance name lookup for webhook tenant resolution (Evolution API)
 CREATE INDEX idx_agent_settings_evolution_instance ON agent_settings (evolution_instance_name)
     WHERE evolution_instance_name IS NOT NULL;
 
-COMMENT ON TABLE agent_settings IS 'WhatsApp AI agent configuration. 1:1 with tenant. Read by internal agent module (agent.service.ts).';
+-- Index: phone_number_id lookup for webhook tenant resolution (Cloud API)
+CREATE UNIQUE INDEX idx_agent_settings_cloud_phone_number_id ON agent_settings (whatsapp_phone_number_id)
+    WHERE whatsapp_phone_number_id IS NOT NULL;
+
+COMMENT ON TABLE agent_settings IS 'WhatsApp AI agent configuration. 1:1 with tenant. Read by internal agent module (agent.service.ts). Supports dual provider: Evolution API (evolution_instance_name) and Meta Cloud API (whatsapp_phone_number_id).';
 COMMENT ON COLUMN agent_settings.extra_config IS 'Flexible JSONB for agent config that does not warrant its own column yet.';
 COMMENT ON COLUMN agent_settings.appointment_rules IS 'Natural language scheduling rules interpreted by the agent.';
 

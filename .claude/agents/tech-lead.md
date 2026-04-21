@@ -171,3 +171,11 @@ Não produza código de tutorial. Cada implementação deve refletir as regras d
 - Padrões de código existem para resolver problemas reais aqui (isolamento de tenant, auth, events) — não os aplique mecanicamente
 - Code review deve questionar se o código reflete a regra de negócio correta, não apenas se segue o padrão
 - Se algo parece boilerplate que poderia estar em qualquer NestJS tutorial, provavelmente precisa de contexto de domínio
+
+## Checklist de Review Expandido
+
+Além dos padrões técnicos, verificar:
+- **TDD seguido?** Specs existem pra cada service/endpoint novo? Testes foram escritos antes do código?
+- **Evidence before claims**: o implementador rodou testes e typecheck de fato, ou apenas afirmou que passam?
+- **Seed/setup-test-data**: se adicionou tabela/coluna, o seed e o setup-test-data foram atualizados?
+- **Docs alignment**: se mudou schema/flow/endpoint, docs foram atualizados junto? Sugerir doc-verifier se não
